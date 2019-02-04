@@ -1,13 +1,18 @@
 ---
-title: "**Autozigosity and gestional duration: HARVEST report.**"
+title: "**Autozigosity and duration of gestation.**"
 author:
         - "Pol Sole-Navais"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 params:
     rmd: "hunt_report.Rmd"
-    maternal: "/mnt/work/pol/ROH/pheno/runs_mfr_maternal.txt"
-    paternal: "/mnt/work/pol/ROH/pheno/runs_mfr_paternal.txt"
-    fetal: "/mnt/work/pol/ROH/pheno/runs_mfr_fetal.txt"
+    maternal: snakemake@input[[1]][1]
+    paternal: snakemake@input[[1]][2]
+    fetal: snakemake@input[[1]][3]
+    confounding: snakemake@input[[2]]
+    hom12: snakemake@input[[3]]
+    hom24: snakemake@input[[4]]
+    rotthom: snakemake@input[[5]]
+    
 output:
     html_document:
         highlight: tango
@@ -19,8 +24,6 @@ output:
             collapsed: no
             smooth_scroll: yes
 ---
-
-
 
 
 ```{r dependencies, include=FALSE}
@@ -37,23 +40,190 @@ options(warn=-1)
 ```
 
 ```{r read_files, include= F}
-moms= read.table(params$maternal, h=T, sep= '\t')
-dads= read.table(params$paternal, h=T, sep= '\t')
-fets= read.table(params$fetal, h=T, sep= '\t')
-```
 
-```{r funk, include= F}
+
+if (grepl('harvest', params$confounding)){
+
+moms= read.table('/mnt/work/pol/ROH/harvest/pheno/runs_mfr_maternal.txt', h=T, sep= '\t')
+dads= read.table('/mnt/work/pol/ROH/harvest/pheno/runs_mfr_paternal.txt', h=T, sep= '\t')
+fets= read.table('/mnt/work/pol/ROH/harvest/pheno/runs_mfr_fetal.txt', h=T, sep= '\t')
+q1= read.table(params$confounding, h=T, sep= ';')
 
 filter_df= function(df){
-final= mutate(df, spont= as.numeric(FSTART==1 & (is.na(KSNITT) | KSNITT>1) &
+df= mutate(df, spont= as.numeric(FSTART==1 & (is.na(KSNITT) | KSNITT>1) &
                 (is.na(KSNITT_PLANLAGT) | KSNITT_PLANLAGT==1) &
-                INDUKSJON_PROSTAGLANDIN==0 & 
-		INDUKSJON_ANNET==0 &
-                INDUKSJON_OXYTOCIN==0 & 
-		INDUKSJON_AMNIOTOMI==0), 
-		PARITY0= as.numeric(PARITET_5==0))
+                INDUKSJON_PROSTAGLANDIN==0 &
+                INDUKSJON_ANNET==0 &
+                INDUKSJON_OXYTOCIN==0 &
+                INDUKSJON_AMNIOTOMI==0),
+                PARITY0= as.numeric(PARITET_5==0))
 
-return(final)
+return(df)
+}
+
+q1$AA1124= as.integer(q1$AA1124)
+q1$AA1125= as.integer(q1$AA1125)
+q1$AA1128= as.integer(q1$AA1128)
+q1$AA1129= as.integer(q1$AA1129)
+
+q1$edu[q1$AA1124 <3 | q1$AA1125<3]= 1
+q1$edu[q1$AA1124 ==3 | q1$AA1125==3]= 2
+q1$edu[q1$AA1124 ==4 | q1$AA1125==4]= 2
+q1$edu[q1$AA1124 ==5 | q1$AA1125==5]= 3
+q1$edu[q1$AA1124 ==6 | q1$AA1125==6]= 4
+q1$edu[(is.na(q1$edu) & q1$AA1128==6) | (is.na(q1$edu) & q1$AA1129==1)]= 5
+
+q1$AA1315= as.integer(q1$AA1315)
+q1$AA1316= as.integer(q1$AA1316)
+
+q1$AA1315[q1$AA1315==1 | q1$AA1315==2| q1$AA1315==3| q1$AA1315==4]= 0
+q1$AA1315[q1$AA1315==5 | q1$AA1315==6 | q1$AA1315==7]= 1
+q1$AA1316[q1$AA1316==1 | q1$AA1316==2| q1$AA1316==3| q1$AA1316==4]= 0
+q1$AA1316[q1$AA1316==5 | q1$AA1316==6 | q1$AA1316==7]= 1
+
+q1$income[q1$AA1315==0 & q1$AA1316==0]= 0
+q1$income[q1$AA1315==0 & is.na(q1$AA1316)]= 0
+q1$income[is.na(q1$AA1315) & q1$AA1316==0]= 0
+q1$income[q1$AA1315==1 | q1$AA1316==1]= 1
+q1$income[q1$AA1315==1 & is.na(q1$AA1316)]= 1
+q1$income[is.na(q1$AA1315) & q1$AA1316==1]= 1
+q1$income[q1$AA1315==1 & q1$AA1316==1]= 2
+
+q1$height= ifelse(q1$AA87>= 140 | q1$AA87<= 210, q1$AA87, NA)
+q1= q1 %>% select(PREG_ID_1724, edu, income, height)
+
+m= fread('/mnt/work/pol/ROH/harvest/runs/harvestm12_maternal.hom')
+m24= fread('/mnt/work/pol/ROH/harvest/runs/harvestm24_maternal.hom')
+
+m= rbind(m, m24)
+ms= m %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
+
+d= fread('/mnt/work/pol/ROH/harvest/runs/harvestm12_paternal.hom')
+d24= fread('/mnt/work/pol/ROH/harvest/runs/harvestm24_paternal.hom')
+
+d= rbind(d, d24)
+ds= d %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
+
+fe= fread('/mnt/work/pol/ROH/harvest/runs/harvestm12_fetal.hom')
+fe24= fread('/mnt/work/pol/ROH/harvest/runs/harvestm24_fetal.hom')
+
+fe= rbind(fe, fe24)
+fes= fe %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
+
+moms= filter_df(moms)
+dads= filter_df(dads)
+fets= filter_df(fets)
+
+moms_c= inner_join(moms, q1, by= 'PREG_ID_1724')
+dads_c= inner_join(dads, q1, by= 'PREG_ID_1724')
+fets_c= inner_join(fets, q1, by= 'PREG_ID_1724')
+
+freqm= read.table('/mnt/work/pol/ROH/harvest/runs/frequency/ROH_frequency_maternal', h=F, sep= '\t')
+names(freqm)= c('chr','pos','freqm')
+
+freqf= read.table('/mnt/work/pol/ROH/harvest/runs/frequency/ROH_frequency_fetal', h=F, sep= '\t')
+names(freqf)= c('chr','pos','freqf')
+
+flist= list.files('/mnt/work/pol/ROH/harvest/results/maps_cox/maternal/')
+res_m= lapply(paste0('/mnt/work/pol/ROH/harvest/results/maps_cox/maternal/', flist), read.table)
+res_m= do.call("rbind", res_m)
+res_m= data.frame(res_m)
+
+flist= list.files('/mnt/work/pol/ROH/harvest/results/maps_cox/fetal/')
+res_f= lapply(paste0('/mnt/work/pol/ROH/harvest/results/maps_cox/fetal/', flist), read.table)
+res_f= do.call("rbind", res_f)
+res_f= data.frame(res_f)
+
+
+}
+
+if (grepl('rott',params$confounding )){
+
+moms= read.table('/mnt/work/pol/ROH/rotterdam1/pheno/runs_mfr_maternal.txt', h=T, sep= '\t')
+dads= read.table('/mnt/work/pol/ROH/rotterdam1/pheno/runs_mfr_paternal.txt', h=T, sep= '\t')
+fets= read.table('/mnt/work/pol/ROH/rotterdam1/pheno/runs_mfr_fetal.txt', h=T, sep= '\t')
+q1= read.table(params$confounding, h=T, sep= ';')
+
+filter_df= function(df){
+df= mutate(df, spont= as.numeric(FSTART=='Spontan' & ((KSNITT=='') | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
+                INDUKSJON_PROSTAGLANDIN=='Nei' &
+                INDUKSJON_ANNET=='Nei' &
+                INDUKSJON_OXYTOCIN=='Nei' &
+                INDUKSJON_AMNIOTOMI=='Nei'),
+                PARITY0= as.numeric(PARITET_5=='0 (førstegangsfødende)'))
+names(df)[names(df) == 'SentrixID'] <- 'SentrixID_1'
+return(df)
+}
+
+q1$AA1124= as.integer(q1$AA1124)
+q1$AA1125= as.integer(q1$AA1125)
+q1$AA1128= as.integer(q1$AA1128)
+q1$AA1129= as.integer(q1$AA1129)
+
+q1$edu[q1$AA1124 <3 | q1$AA1125<3]= 1
+q1$edu[q1$AA1124 ==3 | q1$AA1125==3]= 2
+q1$edu[q1$AA1124 ==4 | q1$AA1125==4]= 2
+q1$edu[q1$AA1124 ==5 | q1$AA1125==5]= 3
+q1$edu[q1$AA1124 ==6 | q1$AA1125==6]= 4
+q1$edu[(is.na(q1$edu) & q1$AA1128==6) | (is.na(q1$edu) & q1$AA1129==1)]= 5
+
+q1$AA1315= as.integer(q1$AA1315)
+q1$AA1316= as.integer(q1$AA1316)
+
+q1$AA1315[q1$AA1315==1 | q1$AA1315==2| q1$AA1315==3| q1$AA1315==4]= 0
+q1$AA1315[q1$AA1315==5 | q1$AA1315==6 | q1$AA1315==7]= 1
+q1$AA1316[q1$AA1316==1 | q1$AA1316==2| q1$AA1316==3| q1$AA1316==4]= 0
+q1$AA1316[q1$AA1316==5 | q1$AA1316==6 | q1$AA1316==7]= 1
+
+q1$income[q1$AA1315==0 & q1$AA1316==0]= 0
+q1$income[q1$AA1315==0 & is.na(q1$AA1316)]= 0
+q1$income[is.na(q1$AA1315) & q1$AA1316==0]= 0
+q1$income[q1$AA1315==1 | q1$AA1316==1]= 1
+q1$income[q1$AA1315==1 & is.na(q1$AA1316)]= 1
+q1$income[is.na(q1$AA1315) & q1$AA1316==1]= 1
+q1$income[q1$AA1315==1 & q1$AA1316==1]= 2
+
+q1$height= ifelse(q1$AA87>= 140 | q1$AA87<= 210, q1$AA87, NA)
+q1= q1 %>% select(PREG_ID_315, edu, income, height)
+
+m= fread('/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_maternal.hom')
+
+ms= m %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
+
+d= fread('/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_paternal.hom')
+
+ds= d %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
+
+fe= fread('/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_fetal.hom')
+
+fes= fe %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
+
+moms= filter_df(moms)
+dads= filter_df(dads)
+fets= filter_df(fets)
+
+moms_c= inner_join(moms, q1, by= 'PREG_ID_315')
+dads_c= inner_join(dads, q1, by= 'PREG_ID_315')
+fets_c= inner_join(fets, q1, by= 'PREG_ID_315')
+
+freqm= read.table('/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_maternal', h=F, sep= '\t')
+names(freqm)= c('chr','pos','freqm')
+
+freqf= read.table('/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_fetal', h=F, sep= '\t')
+names(freqf)= c('chr','pos','freqf')
+
+freq= inner_join(freqm, freqf, by= c('chr','pos'))
+
+flist_m= list.files('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/maternal/')
+res_m= lapply(paste0('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/maternal/', flist_m), read.table)
+res_m= do.call("rbind", res_m)
+res_m= data.frame(res_m)
+
+flist_f= list.files('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/fetal/')
+res_f= lapply(paste0('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/fetal/', flist_f), read.table)
+res_f= do.call("rbind", res_f)
+res_f= data.frame(res_f)
+
 }
 
 bin_funk= function(x){
@@ -62,8 +232,6 @@ return(bin)
 }
 
 ```
-
-# **Introduction**
 
 
 # **Aims**
@@ -76,9 +244,9 @@ return(bin)
 
 ## Genotype
 
-Analysis was performed in two Norwegian data sets (HARVEST and HUNT) linked to the Norwegian Medical Birth Register.
+Analysis was performed in two Norwegian data sets (HARVEST and ROTTERDAM1) linked to the Norwegian Medical Birth Register.
 
-HARVEST samples (30000 trios) were genotyped using two different Illumina-Chip Array (HumanCoreExome12 and HumanCoreExome24), HUNT samples (25000 maternal, 15000 paternal and 15000 fetal samples) were genotyped with several chips.
+HARVEST samples (30000 trios) were genotyped using two different Illumina-Chip Array (HumanCoreExome12 and HumanCoreExome24), and ROTTERDAM1 samples using XXX. 
 
 Similar QC was applied to both datasets. Samples with major ethnicity other than CEU or cryptic relatedness to other samples were excluded (somwehere closer than second-third cousins).
 
@@ -110,39 +278,22 @@ We also categorized ROHs according to their length:
 The effect of ROH on time-to-spontaneous delivery was estimated using Cox proportional hazards. Gestational age was defined as the time (either by UL - HARVEST or LMP - HUNT), and spontaneous delivery as event. C-sections and inductions were censored.
 
 
+$$h= h_{0}(t)e^{\sum_{i=1}^{n} \beta_{i}X_{i}}$$
+
+
 
 # **Runs of Homozygosity (ROH) description**
 
 ## ROH distribution by chromosome
 
+```{r echo=F, dpi= 300}
 
 
-### Distribution by chromosome
-
-```{r echo=F}
-m= fread('/mnt/work/pol/ROH/runs/harvest_m12_maternal.hom')
-m24= fread('/mnt/work/pol/ROH/runs/harvest_m24_maternal.hom')
-
-m= rbind(m, m24)
-ms= m %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
-
-d= fread('/mnt/work/pol/ROH/runs/harvest_m12_paternal.hom')
-d24= fread('/mnt/work/pol/ROH/runs/harvest_m24_paternal.hom')
-
-d= rbind(d, d24)
-ds= d %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
-
-fe= fread('/mnt/work/pol/ROH/runs/harvest_m12_fetal.hom')
-fe24= fread('/mnt/work/pol/ROH/runs/harvest_m24_fetal.hom')
-
-fe= rbind(fe, fe24)
-fes= fe %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
-
-
-x= ggplot(m, aes(factor(CHR), KB, fill= factor(CHR)))+ 
+x= ggplot(m, aes(factor(CHR), KB, fill= factor(CHR)))+
 geom_violin() +
 scale_fill_manual(values = rep(c('#a1dab4', '#41b6c4'), 11)) +
-ylim(0, 5000) + 
+ylim(0, 5000) +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -159,6 +310,7 @@ x1=  ggplot(d, aes(factor(CHR), KB, fill= factor(CHR)))+
 geom_violin() +
 scale_fill_manual(values = rep(c('#a1dab4', '#41b6c4'), 11)) +
 ylim(0, 5000) +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -171,11 +323,11 @@ ggtitle("Fathers") +
     theme(axis.line.x = element_line(color="black", size = 0.2),
           axis.line.y = element_line(color="black", size = 0.2))
 
-
 x2= ggplot(fe, aes(factor(CHR), KB, fill= factor(CHR)))+
 geom_violin() +
 scale_fill_manual(values = rep(c('#a1dab4', '#41b6c4'), 11)) +
 ylim(0, 5000) +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -192,14 +344,13 @@ ggtitle("Children") +
 grid.arrange(x, x1, x2)
 ```
 
+## Length of ROH per chromosome
 
-
-### Length of ROH per chromosome
-
-```{r echo=F}
+```{r echo=F, dpi= 300}
 x= ggplot(ms, aes(factor(CHR), KB, color= n)) +
 geom_point() +
 scale_colour_gradient(low="#a1dab4", high="#41b6c4") +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -215,6 +366,7 @@ ggtitle("Mothers") +
 x1= ggplot(ds, aes(factor(CHR), KB, color= n)) +
 geom_point() +
 scale_colour_gradient(low="#a1dab4", high="#41b6c4") +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -230,6 +382,7 @@ ggtitle("Fathers") +
 x2= ggplot(fes, aes(factor(CHR), KB, color= n )) +
 geom_point() +
 scale_colour_gradient(low="#a1dab4", high="#41b6c4") +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -246,15 +399,14 @@ grid.arrange(x, x1, x2)
 
 ```
 
+## Total number of ROH per chromosome
 
+```{r echo=F, dpi= 300}
 
-### Number of ROH per chromosome
-
-```{r echo=F}
-
-x= ggplot(ms, aes(factor(CHR), n, color= KB)) + 
+x= ggplot(ms, aes(factor(CHR), n, color= KB)) +
 geom_point() +
 scale_colour_gradient(low="#a1dab4", high="#41b6c4") +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -270,6 +422,7 @@ ggtitle("Mothers") +
 x1= ggplot(ds, aes(factor(CHR), n, color= KB)) +
 geom_point() +
 scale_colour_gradient(low="#a1dab4", high="#41b6c4") +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -282,10 +435,10 @@ ggtitle("Fathers") +
     theme(axis.line.x = element_line(color="black", size = 0.2),
           axis.line.y = element_line(color="black", size = 0.2))
 
-
 x2= ggplot(fes, aes(factor(CHR), n, color= KB)) +
 geom_point() +
 scale_colour_gradient(low="#a1dab4", high="#41b6c4") +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -303,44 +456,41 @@ grid.arrange(x, x1, x2)
 ```
 
 
+---
 
-## ROH means
 
-```{r filter_data_sets, echo= F, message= F}
+Total number of:   
+	- mothers: `r nrow(moms)`  
+	- fathers: `r nrow(dads)`  
+	- offspring: `r nrow(fets)`  
 
-moms= filter_df(moms)
-dads= filter_df(dads)
-fets= filter_df(fets)
+```{r filter_data_sets, echo= F, message= F, dpi= 300}
 
 x= moms %>% summarize(mKB= mean(KB, na.rm=T), mNSEG= mean(NSEG, na.rm=T), nlongROH= mean(long_ROH_count, na.rm=T), mlongROH= mean(KB_long,na.rm=T), mshortROH= mean(KB_short, na.rm=T))
 x1= dads %>% summarize(mKB= mean(KB, na.rm=T), mNSEG= mean(NSEG, na.rm=T), nlongROH= mean(long_ROH_count, na.rm=T), mlongROH= mean(KB_long,na.rm=T), mshortROH= mean(KB_short, na.rm=T))
 x2= fets %>% summarize(mKB= mean(KB, na.rm=T), mNSEG= mean(NSEG, na.rm=T), nlongROH= mean(long_ROH_count, na.rm=T), mlongROH= mean(KB_long,na.rm=T), mshortROH= mean(KB_short, na.rm=T))
 
-
-
 d= do.call("rbind", list(x, x2, x1))
 d$role= c('Mother', 'Father', 'Child')
 
-
-print(paste('Total number of mothers:', nrow(moms)))
-print(paste('Total number of fathers:', nrow(dads)))
-print(paste('Total number of children:', nrow(fets)))
+#print(paste('Total number of mothers:', nrow(moms)))
+#print(paste('Total number of fathers:', nrow(dads)))
+#print(paste('Total number of children:', nrow(fets)))
 
 d= d %>% select(role, mKB, mNSEG, nlongROH, mlongROH, mshortROH)
 
-kable(d, col.names = c('Role', 'ROH length', 'N ROH', 'Prop. long ROH', 'Long ROH length', 'Short ROH length')) %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F, position = "center", font_size = 12) %>%   column_spec(1, bold = T, border_right = T)
+kable(d, col.names = c('Role', 'ROH length', 'N ROH', 'Prop. \nlong ROH', 'Long \nROH length', 'Short \nROH length'), caption= 'ROH description per sample', digits= 1, align= c('l','c','c','c','c','c')) %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F, position = "center", font_size = 12) %>%   column_spec(1, bold = T, border_right = T)
 
 ```
 
+## Total ROH length distribution
 
-
-## ROH distribution
-
-```{r echo=F, }
-
+```{r echo=F, dpi= 300}
 bins= bin_funk(moms$KB)
-x= ggplot(moms, aes(KB)) +
-geom_histogram(aes(y=..density..) , binwidth = bins, colour="#41b6c4", fill="#41b6c4") +
+
+ggplot(moms, aes(KB)) +
+geom_histogram(aes(y=..density..) , bins = bins, colour="#41b6c4", fill="#41b6c4") +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -355,48 +505,15 @@ ggtitle("Mothers") +
 
 bins= bin_funk(dads$KB)
 
-x1= ggplot(dads, aes(KB)) +
-geom_histogram(aes(y=..density..) , binwidth = bins, colour="#41b6c4", fill="#41b6c4") +
-theme_bw(base_family = "Source Sans Pro") +
-theme( text = element_text(size= 14),
-           legend.position="none",
-           panel.border = element_blank(),
-           panel.grid.major = element_blank(),
-           panel.grid.minor = element_blank()
-    ) + xlab('Total ROH length (Kb)') +
-    ylab('Count') +
-ggtitle("Fathers") +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))
-
-bins= bin_funk(fets$KB)
-x2= ggplot(fets, aes(KB)) +
-geom_histogram(aes(y=..density..) , binwidth = bins,colour="#41b6c4", fill="#41b6c4") +
-theme_bw(base_family = "Source Sans Pro") +
-theme( text = element_text(size= 14),
-           legend.position="none",
-           panel.border = element_blank(),
-           panel.grid.major = element_blank(),
-           panel.grid.minor = element_blank()
-    ) + xlab('Total ROH length (Kb)') +
-    ylab('Count') +
-ggtitle("Children") +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))
-
-x
-
-grid.arrange(x1, x2, nrow= 1)
 
 ```
 
-
-
 ## Correlations between number of ROH and total ROH length
 
-```{r echo=F}
-x= ggplot(moms, aes(NSEG, KB)) +
+```{r echo=F, dpi= 300}
+ggplot(moms, aes(NSEG, KB)) +
 geom_point(alpha= 0.5, colour= '#41b6c4') +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme(text = element_text(size= 14),
            legend.position="none",
@@ -408,49 +525,18 @@ theme(text = element_text(size= 14),
 ggtitle("Mothers") +
     theme(axis.line.x = element_line(color="black", size = 0.2),
           axis.line.y = element_line(color="black", size = 0.2))
-
-x1= ggplot(dads, aes(NSEG, KB)) +
-geom_point(alpha= 0.5, colour='#41b6c4') +
-theme_bw(base_family = "Source Sans Pro") +
-theme(text = element_text(size= 14),
-           legend.position="none",
-           panel.border = element_blank(),
-           panel.grid.major = element_blank(),
-           panel.grid.minor = element_blank()
-    ) + xlab('Number of ROH') +
-    ylab('Total ROH length (Kb)') +
-ggtitle("Fathers") +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))
-
-x2= ggplot(fets, aes(NSEG, KB)) +
-geom_point(alpha= 0.5, colour='#41b6c4') +
-theme_bw(base_family = "Source Sans Pro") +
-theme(text = element_text(size= 14),
-           legend.position="none",
-           panel.border = element_blank(),
-           panel.grid.major = element_blank(),
-           panel.grid.minor = element_blank()
-    ) + xlab('Number of ROH') +
-    ylab('Total ROH length (Kb)') +
-ggtitle("Children") +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))
-
-x
-
-grid.arrange(x1, x2, nrow= 1)
 
 ```
 
 ## ROH and PCA
 
-```{r echo=F}
+```{r echo=F, dpi= 300}
 
-x= ggplot(moms, aes(PC1, KB, color= PC1)) +
+ggplot(moms, aes(PC1, KB, color= PC1)) +
 geom_point() +
 geom_smooth(method = "lm", se = FALSE, colour="#2c7fb8") +
 scale_colour_gradient(low="#a1dab4", high="#41b6c4") +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme( text = element_text(size= 14),
            legend.position="none",
@@ -462,152 +548,94 @@ theme( text = element_text(size= 14),
 ggtitle("Mothers") +
     theme(axis.line.x = element_line(color="black", size = 0.2),
           axis.line.y = element_line(color="black", size = 0.2))
-
-x1= ggplot(dads, aes(PC1, KB, color= PC1)) +
-geom_point() +
-geom_smooth(method = "lm", se = FALSE, colour="#2c7fb8") +
-scale_colour_gradient(low="#a1dab4", high="#41b6c4") +
-theme_bw(base_family = "Source Sans Pro") +
-theme( text = element_text(size= 14),
-           legend.position="none",
-           panel.border = element_blank(),
-           panel.grid.major = element_blank(),
-           panel.grid.minor = element_blank()
-    ) + xlab('PC1') +
-    ylab('Length of ROHs (Kb)') +
-ggtitle("Fathers") +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))
-
-
-x2= ggplot(moms, aes(PC1, KB, color= PC1)) +
-geom_point() +
-geom_smooth(method = "lm", se = FALSE, colour="#2c7fb8") +
-scale_colour_gradient(low="#a1dab4", high="#41b6c4") +
-theme_bw(base_family = "Source Sans Pro") +
-theme( text = element_text(size= 14),
-           legend.position="none",
-           panel.border = element_blank(),
-           panel.grid.major = element_blank(),
-           panel.grid.minor = element_blank()
-    ) + xlab('PC1') +
-    ylab('Length of ROHs (Kb)') +
-ggtitle("Fets") +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))
-
-x
-
-grid.arrange(x1, x2)
-
 ```
 
-
-# **Main results**
-
+# Results - ROH and spontaneous delivery
 
 
-## All ROH and spontaneous delivery
+---
 
 
-```{r echo=F}
+```{r echo=F, dpi= 300}
 
-fullcoxm= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
-fullcoxd= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
-fullcoxf= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
+crudecoxm= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB), moms)
+crudecoxd= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB), dads)
+crudecoxf= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB), fets)
 
-x= summary(fullcoxm)$conf.int[1, c(1,3,4)]
-x1= summary(fullcoxd)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxf)$conf.int[1, c(1,3,4)]
+minadjcoxm= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
+minadjcoxd= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
+minadjcoxf= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
+
+fullcoxm= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
+fullcoxd= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
+fullcoxf= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
+
+x= summary(crudecoxm)$conf.int[1, c(1,3,4)]
+x1= summary(minadjcoxm)$conf.int[1, c(1,3,4)]
+x2= summary(fullcoxm)$conf.int[1, c(1,3,4)]
 
 d= do.call("rbind", list(x, x1, x2))
 d= data.frame(d)
-d$role= c('Mother', 'Father', 'Child')
+d$role= c('Mother', 'Mother', 'Mother')
+d$model= c('Crude', 'Model 1', 'Model 2')
 
-d= d %>% select(role, exp.coef., lower..95, upper..95)
+x= summary(crudecoxd)$conf.int[1, c(1,3,4)]
+x1= summary(minadjcoxd)$conf.int[1, c(1,3,4)]
+x2= summary(fullcoxd)$conf.int[1, c(1,3,4)]
 
-kable(d, col.names = c('Role', 'Hazard Ratio', 'Lower 95% CI', 'Upper 95% CI')) %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F, position = "center", font_size = 12) %>%   column_spec(1, bold = T, border_right = T)
+d1= do.call("rbind", list(x, x1, x2))
+d1= data.frame(d1)
+d1$role= c('Father', 'Father', 'Father')
+d1$model= c('Crude', 'Model 1', 'Model 2')
 
-ggplot(d, aes(x= role, y= exp.coef.)) + 
+x= summary(crudecoxf)$conf.int[1, c(1,3,4)]
+x1= summary(minadjcoxf)$conf.int[1, c(1,3,4)]
+x2= summary(fullcoxf)$conf.int[1, c(1,3,4)]
+
+d2= do.call("rbind", list(x, x1, x2))
+d2= data.frame(d2)
+d2$role= c('Fetal', 'Fetal', 'Fetal')
+d2$model= c('Crude', 'Model 1', 'Model 2')
+d= do.call("rbind", list(d,d1,d2))
+d= data.frame(d)
+
+d= d %>% select(role, model, exp.coef., lower..95, upper..95)
+
+kable(d, caption= 'ROH length and risk of spontaneous delivery', col.names = c('Role', 'Model', 'Hazard Ratio', 'Lower 95%CI', 'Upper 95%CI'), digits= 3) %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F, position = "center", font_size = 12) %>%   column_spec(1, bold = T, border_right = T)  %>%   footnote(general = 'Adjusted by: crude: none; model 1: PC1-10 and parity; model 2: model 1 + maternal educational attainment and household income')
+```
+
+
+```{r echo=F, dpi= 300}
+ggplot(d %>% filter(model== 'Model 2'), aes(x= role, y= exp.coef.)) +
 geom_errorbar(aes(ymin= lower..95 , ymax= upper..95), width= 0.1) +
 geom_point() +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme(text = element_text(size= 14),
            legend.position="none",
            panel.border = element_blank(),
            panel.grid.major = element_blank(),
-           panel.grid.minor = element_blank()) + 
+           panel.grid.minor = element_blank()) +
 xlab('Sample') +
-    ylab('HR for spontaneous delivery (95% CI)') +
-ggtitle("ROH and Spontaneous delivery risk") +
-geom_hline(aes(yintercept= 1), colour= 'grey', linetype= 'dashed') + 
+    ylab('HR (95% CI)') +
+ggtitle("ROH and spontaneous delivery risk (model 2)") +
+geom_hline(aes(yintercept= 1), colour= 'grey', linetype= 'dashed') +
     theme(axis.line.x = element_line(color="black", size = 0.2),
           axis.line.y = element_line(color="black", size = 0.2))
-
 ```
-
 
 
 ## Maternal ROH and spontaneous delivery
 
-```{r echo=F, fig.width= 12, fig.height= 10}
+```{r echo=F, fig.width= 12, fig.height= 10, dpi= 300}
 
 moms$QKB <- with(moms, cut(KB, breaks=quantile(KB, probs=seq(0,1, by=0.33), na.rm=TRUE), include.lowest=TRUE))
 
 coxm= survfit(Surv(SVLEN_UL_DG, spont)~ QKB, moms)
 
-
-
 p= ggsurvplot(
   coxm,                     # survfit object with calculated statistics.
   data = moms,  # data used to fit survival curves. 
-  risk.table = TRUE,  
-  palette = 
-    c("gold", "#41b6c4","#253494"),# show risk table.
-  pval = TRUE,             # show p-value of log-rank test.
-  conf.int = FALSE,         # show confidence intervals for 
-  # point estimaes of survival curves.
-  xlim = c(250,300),        # present narrower X axis, but not affect
-  # survival estimates.
-  break.time.by = 10,     # break X axis in time intervals by 500.
-  ggtheme = theme_minimal(base_family ='URWHelvetica'), # customize plot and risk table with a theme.
-  risk.table.y.text.col = T, # colour risk table text annotations.
-  risk.table.y.text = FALSE, # show bars instead of names in text annotations
-  # in legend of risk table
-  xlab = "Time in days",
-  legend.labs = c("Low tertile", "Mid-tertile", "Higher Tertile"),  
-  surv.median.line = "hv",
-  censor=FALSE,
-  font.family= 'URWHelvetica') 
-
-p= ggpar(p,  font.title    = c(16, "bold", "#969696"),         
-  font.subtitle = c(16, "bold.italic", "purple"), 
-  font.x        = c(16, "plain", "black"),          
-  font.y        = c(16, "plain", "black"),      
-  font.xtickslab = c(14, "plain", "#969696"),
-  #font.ytickslab = c(12, "plain", "#969696"),
-  legend = "top"
-)
-
-print(p)
-```
-
-
-
-## Paternal ROH and spontaneous delivery
-
-
-```{r echo=F, fig.width= 12, fig.height= 10}
-
-dads$QKB <- with(dads, cut(KB, breaks=quantile(KB, probs=seq(0,1, by=0.33), na.rm=TRUE), include.lowest=TRUE))
-
-coxd= survfit(Surv(SVLEN_UL_DG, spont)~ QKB, dads)
-
-
-
-p= ggsurvplot(
-  coxd,                     # survfit object with calculated statistics.
-  data = dads,  # data used to fit survival curves. 
   risk.table = TRUE,
   palette =
     c("gold", "#41b6c4","#253494"),# show risk table.
@@ -636,62 +664,15 @@ p= ggpar(p,  font.title    = c(16, "bold", "#969696"),
   legend = "top"
 )
 
-print(p)
+p
+
 ```
+# Long and short ROH
 
 
+---
 
-## Children ROH and spontaneous delivery
-
-```{r echo=F, fig.width= 12, fig.height= 10}
-
-fets$QKB <- with(fets, cut(KB, breaks=quantile(KB, probs=seq(0,1, by=0.33), na.rm=TRUE), include.lowest=TRUE))
-
-coxf= survfit(Surv(SVLEN_UL_DG, spont)~ QKB, fets)
-
-
-
-p= ggsurvplot(
-  coxf,                     # survfit object with calculated statistics.
-  data = fets,  # data used to fit survival curves. 
-  risk.table = TRUE,
-  palette =
-    c("gold", "#41b6c4","#253494"),# show risk table.
-  pval = TRUE,             # show p-value of log-rank test.
-  conf.int = FALSE,         # show confidence intervals for 
-  # point estimaes of survival curves.
-  xlim = c(250,300),        # present narrower X axis, but not affect
-  # survival estimates.
-  break.time.by = 10,     # break X axis in time intervals by 500.
-  ggtheme = theme_minimal(base_family ='URWHelvetica'), # customize plot and risk table with a theme.
-  risk.table.y.text.col = T, # colour risk table text annotations.
-  risk.table.y.text = FALSE, # show bars instead of names in text annotations
-  # in legend of risk table
-  xlab = "Time in days",
-  legend.labs = c("Low tertile", "Mid-tertile", "Higher Tertile"),
-  surv.median.line = "hv",
-  censor=FALSE,
-  font.family= 'URWHelvetica')
-
-p= ggpar(p,  font.title    = c(16, "bold", "#969696"),
-  font.subtitle = c(16, "bold.italic", "purple"),
-  font.x        = c(16, "plain", "black"),
-  font.y        = c(16, "plain", "black"),
-  font.xtickslab = c(14, "plain", "#969696"),
-  #font.ytickslab = c(12, "plain", "#969696"),
-  legend = "top"
-)
-
-print(p)
-```
-
-
-
-# **Secondary analysis**
-
-## Long and short ROH
-
-```{r echo=F}
+```{r echo=F, dpi= 300}
 fullcoxml= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
 fullcoxdl= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
 fullcoxfl= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
@@ -704,7 +685,7 @@ d= do.call("rbind", list(x, x1, x2))
 d= data.frame(d)
 d$role= c('Mother', 'Father', 'Child')
 d$bp= 'Long ROH'
-d= d %>% select(role, bp, exp.coef., lower..95, upper..95)
+
 
 fullcoxms= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_short) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
 fullcoxds= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_short) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
@@ -722,47 +703,276 @@ ds= ds %>% select(role, bp, exp.coef., lower..95, upper..95)
 
 d= rbind(d, ds)
 
-
-#kable(d, col.names = c('Role', 'Hazard Ratio', 'Lower 95% CI', 'Upper 95% CI')) %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F, position = "center", font_size = 12) %>%   column_spec(1, bold = T, border_right = T)
-
 ggplot(d, aes(x= bp, y= exp.coef.)) +
 facet_grid(. ~ role) +
 geom_errorbar(aes(ymin= lower..95 , ymax= upper..95), width= 0.1) +
 geom_point() +
+#theme_bw() +
 theme_bw(base_family = "Source Sans Pro") +
 theme(text = element_text(size= 14),
            legend.position="none",
            panel.border = element_blank(),
            panel.grid.major = element_blank(),
            panel.grid.minor = element_blank(),
-	strip.background =element_rect(fill="white")) + 
+        strip.background =element_rect(fill="white")) +
 xlab('Sample') +
     ylab('HR for spontaneous delivery (95% CI)') +
 ggtitle("ROH and Spontaneous delivery risk") +
 geom_hline(aes(yintercept= 1), colour= 'grey', linetype= 'dashed') +
     theme(axis.line.x = element_line(color="black", size = 0.2),
           axis.line.y = element_line(color="black", size = 0.2))
+```
+
+# Mapping of ROHs
+
+
+---
+
+
+```{r echo=F, dpi= 300}
+
+
+
+
+
+ggplot(freq, aes(x= freqm, y= freqf)) +
+geom_point(alpha= 0.4, size= 0.01) +
+#theme_bw() +
+theme_bw(base_family = "Source Sans Pro") +
+theme(text = element_text(size= 14),
+           legend.position="none",
+           panel.border = element_blank(),
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+        strip.background =element_rect(fill="white")) +
+xlab('Maternal ROH frequency') +
+    ylab('Offspring ROH frequency') +
+ggtitle("Per-SNP ROH frequency") +
+geom_abline(intercept= 0, slope=1, colour= 'grey', linetype= 'dashed') +
+    theme(axis.line.x = element_line(color="black", size = 0.2),
+          axis.line.y = element_line(color="black", size = 0.2))
+```
+
+## Maternal ROH mapping and spontaneous delivery
+
+
+```{r echo=F, dpi= 300}
+
+names(freqm)=  c('chr','pos','freq')
+
+mhtf= function(df){ # Column names needed (chr, pos, freq)
+  if (class(df$chr) != 'integer') {
+    df$chr= ifelse(df$chr== 'X', '23', df$chr)
+    df$chr= as.numeric(as.character(df$chr))
+  }
+  require(dplyr)
+  require(ggplot2)
+  df = df %>% filter(!is.na(chr))
+
+  don <- df %>%
+    group_by(chr)      %>%
+    summarise(chr_len= max(pos)) %>%
+    mutate(tot= cumsum(chr_len)-chr_len) %>% # Calculate cumulative position of each chromosome
+    select(-chr_len) %>%
+    left_join(df, ., by= 'chr') %>%
+    arrange(chr, pos) %>% # Add a cumulative position of each SNP
+    mutate( BPcum=pos+tot)
+
+  axisdf = don %>% group_by(chr) %>% summarize(center=( max(BPcum) + min(BPcum) ) / 2 )
+  names(axisdf)= c('chr', 'center')
+
+  ggplot(don, aes(x=BPcum, y= freq)) +
+    geom_point( aes(color=as.factor(chr)), alpha= 1/10, size=0.01) +   # Show all points
+    scale_colour_manual(values = rep(c("black"),  22 )) + # 08519c 3182bd "#006d2c","#31a354"
+    scale_x_continuous( label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
+    scale_y_continuous(expand = c(0, 0), limits= c(0, 0.1)) +     # remove space between plot area and x axis
+#theme_bw() +
+theme_bw(base_family = "Source Sans Pro") + # Custom the theme
+    theme( text = element_text(size= 14),
+           legend.position="none",
+           panel.border = element_blank(),
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank()
+    ) + xlab('Chromosome') +
+    ylab('ROH Rel. frequency') +
+    theme(axis.line.x = element_line(color="black", size = 0.2),
+          axis.line.y = element_line(color="black", size = 0.2))
+}
+
+x= mhtf(freqm)
+
+mht= function(df){ # Column names needed (chr, pos, pvalue)
+  if (class(df$chr) != 'integer') {
+    df$chr= ifelse(df$chr== 'X', '23', df$chr)
+    df$chr= as.numeric(as.character(df$chr))
+  }
+  require(dplyr)
+  require(ggplot2)
+  df = df %>% filter(!is.na(chr))
+
+  don <- df %>%
+    group_by(chr)      %>%
+    summarise(chr_len= max(pos)) %>%
+    mutate(tot= cumsum(chr_len)-chr_len) %>% # Calculate cumulative position of each chromosome
+    select(-chr_len) %>%
+    left_join(df, ., by= 'chr') %>%
+    arrange(chr, pos) %>% # Add a cumulative position of each SNP
+    mutate( BPcum=pos+tot)
+
+  axisdf = don %>% group_by(chr) %>% summarize(center=( max(BPcum) + min(BPcum) ) / 2 )
+  names(axisdf)= c('chr', 'center')
+
+  ggplot(don, aes(x=BPcum, y= -log10(pvalue))) +
+    geom_point( aes(color=as.factor(chr)), size=0.1) +   # Show all points
+    scale_colour_manual(values = rep(c("#1d91c0","#41b6c4"),  22 )) + # 08519c 3182bd "#006d2c","#31a354"
+    scale_x_continuous( label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
+    scale_y_continuous(expand = c(0, 0), limits= c(0, max(-log10(don$pvalue)) + 1)) +     # remove space between plot area and x axis
+#theme_bw() +
+    theme_bw(base_family = "Source Sans Pro") + # Custom the theme
+    theme( text = element_text(size= 14),
+           legend.position="none",
+           panel.border = element_blank(),
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank()
+    ) + xlab('Chromosome') +
+    ylab('-log10(P-value)') +
+    theme(axis.line.x = element_line(color="black", size = 0.2),
+          axis.line.y = element_line(color="black", size = 0.2)) +
+    geom_hline(yintercept = -log10(1*10^-5), size= 0.5, color= '#253494', alpha= 0.7) +
+    geom_hline(yintercept = -log10(5*10^-8), size= 0.5, color= 'gold', alpha= 0.7)
+
+}
+
+
+names(res_m)= c('id', 'N', 'beta', 'sd', 'pvalue')
+res_m= res_m %>% separate(id, c('chr', 'pos'), ':')
+res_m= res_m %>% mutate(chr= as.numeric(chr), pos= as.numeric(pos))
+
+x1= mht(res_m)
+
+grid.arrange(x1, x, nrow= 2)
+```
+
+
+
+```{r echo=F, dpi= 300}
+
+beta_mht= function(df){ # Column names needed (chr, pos, pvalue)
+ require(dplyr)
+  require(ggplot2)
+  df = df %>% filter(!is.na(chr))
+
+  don <- df %>%
+    group_by(chr)      %>%
+    summarise(chr_len= max(pos)) %>%
+    mutate(tot= cumsum(chr_len)-chr_len) %>% # Calculate cumulative position of each chromosome
+    select(-chr_len) %>%
+    left_join(df, ., by= 'chr') %>%
+    arrange(chr, pos) %>% # Add a cumulative position of each SNP
+    mutate( BPcum=pos+tot)
+
+  axisdf = don %>% group_by(chr) %>% summarize(center=( max(BPcum) + min(BPcum) ) / 2 )
+  names(axisdf)= c('chr', 'center')
+
+  ggplot(don, aes(x=BPcum, y= I(beta/sd))) +
+    geom_point( aes(color= factor(maf)), size=0.1) +   # Show points
+    scale_colour_manual(values = c("#c7e9b4","#41b6c4","#984ea3", "#984ea3")) + # 08519c 3182bd "#006d2c","#31a354"
+    scale_x_continuous( label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
+    #scale_y_continuous(expand = c(0, 0), limits= c(0, max((I(don$beta/don$se))) + 1)) +     # remove space between plot area and x axis
+#theme_bw() +
+    theme_bw(base_family = "Source Sans Pro") + # Custom the theme
+    theme( text = element_text(size= 14),
+           legend.position="none",
+           panel.border = element_blank(),
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank()
+    ) + xlab('Chromosome') +
+    ylab('Z-score') +
+    theme(axis.line.x = element_line(color="black", size = 0.2),
+          axis.line.y = element_line(color="black", size = 0.2)) +
+    geom_hline(yintercept = 2.96, size= 0.5, color= '#253494', alpha= 0.7) +
+    geom_hline(yintercept = -2.96, size= 0.5, color= '#253494', alpha= 0.7) +
+geom_hline(yintercept = 0, size= 0.5, color= 'grey',linetype='dashed', alpha= 0.7)
+
+}
+```
+
+```{r echo=F, dpi= 300}
+
+res_m= inner_join(res_m, freqm, by= c('chr', 'pos'))
+res_m$maf= ifelse(res_m$freq>=0.5, 3, ifelse(res_m$freq>= 0.01, 2, ifelse(res_m$freq>=0.001, 1, 0)))
+beta_mht(res_m)
+
+res_m$Zscore= res_m$beta / res_m$sd
+
+bins= bin_funk(res_m$Zscore)
+
+ggplot(res_m, aes(I(beta/sd))) +
+geom_histogram(aes(y=..density..) , bins = bins, colour="#41b6c4", fill="#41b6c4") +
+#theme_bw() +
+theme_bw(base_family = "Source Sans Pro") +
+theme( text = element_text(size= 14),
+           legend.position="none",
+           panel.border = element_blank(),
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank()
+    ) + xlab('Effect size (zscore)') +
+    ylab('Count') +
+ggtitle("Mothers") +
+    theme(axis.line.x = element_line(color="black", size = 0.2),
+          axis.line.y = element_line(color="black", size = 0.2))
+
 
 ```
 
 
-# **Interpretation**
+## Materno-fetal correlations
+
+```{r echo=F, dpi= 300}
 
 
-The HR for maternal ROH length was 1.03 [95% CI: 1.01,1.06], which indicates that at any time, mothers with larger total ROH had a greater risk of delivering spontaneously. We found no effect of fetal nor paternal ROH lengths. 
+names(res_f)= c('id', 'N_f', 'beta_f', 'sd_f', 'pvalue_f')
+res_f= res_f %>% separate(id, c('chr', 'pos'), ':')
+res_f= res_f %>% mutate(chr= as.numeric(chr), pos= as.numeric(pos))
 
-Recent inbreeding (<6 generations) results were more similar to those found with total ROH length (HR: 1.04; 95%: 1.01, 1.06).  
 
+df_f= inner_join(res_f, res_m, by= c('chr','pos'))
 
+df_f= df_f %>% filter(pvalue< 1*10^-4)
 
-# **To be done...**
+df_f= group_by(df_f, chr) %>%
+                mutate(d=pos-lag(pos, default=-Inf), clumpid=cumsum(d>1e5)) %>%
+                group_by(chr, clumpid) %>%
+filter(rank(pvalue, ties.method = "random")==1)
 
-1. Confounding (sociodemographic factors?)
-2. Replication in HUNT  
-3. Mapping of homozygous SNPs (GWAS on SNPs conditioned to pertenance to ROH)  
-4. Shared maternal-fetal ROHs?
-5. What else?
-
-```{r echo=F}
-sessionInfo()
+ggplot(df_f, aes(x= I(beta/sd_f), y= I(beta_f/sd_f))) +
+geom_point(size= 0.01) +
+#theme_bw() +
+theme_bw(base_family = "Source Sans Pro") +
+theme(text = element_text(size= 14),
+           legend.position="none",
+           panel.border = element_blank(),
+           panel.grid.major = element_blank(),
+           panel.grid.minor = element_blank(),
+        strip.background =element_rect(fill="white")) +
+xlab('Maternal ROH beta') +
+    ylab('Offspring ROH beta') +
+ggtitle("Per-SNP ROH beta estimates") +
+#geom_abline(intercept= 0, slope=1, colour= 'grey', linetype= 'dashed') +
+    theme(axis.line.x = element_line(color="black", size = 0.2),
+          axis.line.y = element_line(color="black", size = 0.2))
 ```
+
+## Fetal ROH and risk of spontaneous delivery  
+
+```{r echo= F, dpi= 300}
+names(freqf)= c('chr', 'pos','freq')
+names(res_f)= c('chr','pos','N', 'beta', 'sd', 'pvalue')
+x= mhtf(freqf)
+
+x1= mht(res_f)
+
+grid.arrange(x1, x, nrow= 2)
+```
+
+
