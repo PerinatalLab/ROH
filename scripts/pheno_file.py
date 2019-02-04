@@ -33,6 +33,8 @@ def pheno_harvest():
 	
 	d= pd.concat([d12, d24])
 	
+	fam12= pd.read_csv(snakemake.input[14], sep='\t', header= None)
+	
 	runs12= pd.read_csv(snakemake.input[0], delim_whitespace= True)
 	runs24= pd.read_csv(snakemake.input[2], delim_whitespace= True)
 	runs= pd.concat([runs12, runs24], axis= 0)
@@ -61,7 +63,7 @@ def pheno_harvest():
 	d= d[(d.PLACENTA_PREVIA==0) ]
 	d= d[(d.FOSTERV_POLYHYDRAMNION==0)]
 	d= d[(d.C00_MALF_ALL==0)]
-	
+	d['BATCH']= np.where(d.SentrixID_1.isin(fam12.IID), 0, 1)
 	d= d.sample(frac=1)
 	
 	d.drop_duplicates(subset= ['PREG_ID_1724'], keep= 'first', inplace= True)
