@@ -13,6 +13,19 @@ rule all:
 	input:
 		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/maps_{sample}_chr{CHR}.txt.gz', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}', cohort= cohort_nms, sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_CHR{CHR}', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/{sample}/cox_spont_{sample}_CHR{CHR}', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
+#		expand('/home/pol.sole.navais/ROH/reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
+
+rule exclude_multi_allelic_rott:
+	'Set range file for multi-allelic SNP detected in ROTTERDAM1.'
+	output:
+		temp('/mnt/work/pol/ROH/rotterdam1/multiallelic.txt')
+	shell:
+		'''
+		echo "14 24681025        24681025        Multi" > {output}
+		'''
 
 rule ids_to_keep:
         'List of maternal, paternal and fetal ids acceptable by PLINK for --keep.'
@@ -29,9 +42,9 @@ rule ids_to_keep:
                         d['FID']= d.IID
                         d.drop(['PREG_ID_1724', 'FamilyID', 'SentrixID_2', 'SentrixID_3', 'Trio', 'noPhenoData', 'noGeneticData'], axis= 1, inplace= True)
                 elif wildcards.cohort== 'rotterdam1':
-                        d= pd.read_csv(input[0], sep= '\t')
+                        d= pd.read_csv(input[0], sep= ' ')
                         d['IID']= d.SentrixID
-                        d['FID']= d.IID
+                        d['FID']= d.postFID
                         d.drop(['PREG_ID_315', 'postFID', 'DAD', 'MOM', 'SEX'], axis= 1, inplace= True)
                 mat= d.loc[d.Role == 'Mother', ['FID', 'IID']]
                 fet= d.loc[d.Role == 'Child', ['FID', 'IID']]
@@ -57,14 +70,15 @@ rule rott_plink_split_bed:
         'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.01 and split file by sample. (ROTTERDAM1)'
         input:
                 '/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped.bed',
-                '/mnt/work/pol/ROH/rotterdam1/pheno/{sample}_ids'
+                '/mnt/work/pol/ROH/rotterdam1/pheno/{sample}_ids',
+		'/mnt/work/pol/ROH/rotterdam1/multiallelic.txt'
         output:
                 temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_{{sample}}.{ext}', ext= ['bed','bim','fam','prune.out','prune.in', 'log']))
         params:
                 '/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped',
                 '/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_{sample}'
         shell:
-                '~/soft/plink --bfile {params[0]} --indep 50 5 10 --maf 0.01 --keep {input[1]} --make-bed --not-chr 23,24,25,26 --out {params[1]}'
+                '~/soft/plink --bfile {params[0]} --exclude range {input[2]} --indep 50 5 10 --maf 0.01 --keep {input[1]} --make-bed --not-chr 23,24,25,26 --out {params[1]}'
 
 rule harvest_plink_bfile_prune:
         'Exclude genetic variants in prune.out files (obtained with rule plink_split_bed). (HARVEST)'
@@ -75,7 +89,7 @@ rule harvest_plink_bfile_prune:
         params:
                 '/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{batch}_{sample}',
                 '/mnt/work/pol/ROH/harvest/genotypes/prunedharvest{batch}_{sample}',
-                '/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{batch}_{{sample}}.prune.out'
+                '/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{batch}_{sample}.prune.out'
         shell:
                 '~/soft/plink --bfile {params[0]} --exclude {params[2]} --make-bed --out {params[1]}'
 
@@ -88,7 +102,7 @@ rule rotterdam1_plink_bfile_prune:
         params:
                 '/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_{sample}',
                 '/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}',
-                '/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_{{sample}}.prune.out'
+                '/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_{sample}.prune.out'
         shell:
                 '~/soft/plink --bfile {params[0]} --exclude {params[2]} --make-bed --out {params[1]}'
 
@@ -135,18 +149,19 @@ rule rott_estimate_ROH:
                 '''
 
 rule merge_m12_m24:
-        'Merge PLINK files from the two HARVEST batches for relatedness calculation.'
-        input:
-                '/mnt/work/pol/ROH/harvest/genotypes/prunedharvestm12_{sample}.bed',
-                '/mnt/work/pol/ROH/harvest/genotypes/prunedharvestm24_{sample}.bed'
-        output:
-                temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_{{sample}}.{ext}', ext= ['bed','bim','fam','log']))
-        params:
-                '/mnt/work/pol/ROH/harvest/genotypes/prunedharvest_m12_{sample}',
-                '/mnt/work/pol/ROH/harvest/genotypes/prunedharvest_m24_{sample}',
-                '/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_{sample}'
-        shell:
-                '~/soft/plink --bfile {params[0]} --bmerge {params[1]} --out {params[2]}'
+	'Merge PLINK files from the two HARVEST batches for relatedness calculation.'
+	input:
+		'/mnt/work/pol/ROH/harvest/genotypes/prunedharvestm12_{sample}.bed',
+		'/mnt/work/pol/ROH/harvest/genotypes/prunedharvestm24_{sample}.bed',
+		expand('/mnt/work/pol/ROH/harvest/genotypes/prunedharvest{batch}_{{sample}}.{ext}', batch= batch_nms, ext= ['bed', 'bim','fam'])
+	output:
+		temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_{{sample}}.{ext}', ext= ['bed','bim','fam','log']))
+	params:
+		'/mnt/work/pol/ROH/harvest/genotypes/prunedharvestm12_{sample}',
+		'/mnt/work/pol/ROH/harvest/genotypes/prunedharvestm24_{sample}',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_{sample}'
+	shell:
+		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --out {params[2]}'
 
 rule combine_pca:
         'Obtain pca for all samples.'
@@ -170,19 +185,21 @@ rule relatedness:
         'Calculate relatedness using KING function from PLINK2.'
         input:
                 '/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_{sample}.bed',
-                '/mnt/work/pol/ROH/{cohort}/pheno/{sample}_ids'
+                '/mnt/work/pol/ROH/{cohort}/pheno/{sample}_ids',
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_{{sample}}.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam'])
         output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/relatedness/relatedness_{sample}.kin0'
         params:
                 '/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_{sample}',
-                '/mnt/work/pol/ROH/rotterdam1/genotypes/temp/prunedrotterdam1_{sample}',
+                '/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}',
                 '/mnt/work/pol/ROH/{cohort}/pheno/relatedness/relatedness_{sample}'
         shell:
                 '''
-                if [ wildcards.cohort='harvest' ]
+		if [ {wildcards.cohort} == 'harvest' ]
                 then
                         ~/soft/plink2 --bfile {params[0]} --keep {input[1]} --make-king-table --king-table-filter 0.03125 --out {params[2]}
-                elif [ wildcards.cohort= 'rotterdam1' ]
+                elif [ {wildcards.cohort} == 'rotterdam1' ]
                 then
                         ~/soft/plink2 --bfile {params[1]} --keep {input[1]} --make-king-table --king-table-filter 0.03125 --out {params[2]}
                 fi
@@ -209,18 +226,6 @@ rule phenofile:
                 '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
         script:
                 'scripts/pheno_file.py'
-
-rule make_report:
-        'Generate report for harvest analysis.'
-        input:
-                expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', sample= smpl_nms, cohort= cohort_nms),
-                ''
-        output:
-                '/home/pol.sole.navais/ROH/reports/ROH_analysis.html'
-        shell:
-                """
-                echo 'rmarkdown::render(input="scripts/ROH_harvest.Rmd", output_file="{output}")' | R --vanilla
-                """
 
 rule mapping_ROHs:
         'Obtain matrix (rows= position, columns = subject), with all ROHs per subject (1= homozygous part of ROH).'
@@ -261,8 +266,6 @@ rule merge_maps:
 
                 d= pd.merge(d12, d24, how= 'outer', on =['CHR', 'BP'])
                 d.to_csv(output[0], sep= '\t', compression= 'gzip', index= False)
-                os.remove(input[0])
-                os.remove(input[1])
 
 rule gzip_rott_maps:
 	'Gzip rotterdam ROH maps.'
@@ -288,12 +291,96 @@ rule ROH_freq:
                                 x.to_csv(output[0], mode= 'a', sep= '\t', header= False, index= False)
 
 rule cox_ph_analysis:
-        ''
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/maps_{sample}_chr{CHR}.txt.gz',
+		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}'
+	script:
+		'scripts/cox_ROH.R'
+
+rule clean_UCSC_gene:
+	'Clean UCSC gene list.'
+	input:
+		'raw_data/UCSC_hg19_gene_list'
+	output:
+		'raw_data/UCSC_hg19_gene_list_clean'
+	run:
+		df= pd.read_csv(input[0], sep= '\t')
+		df.columns= ['geneID', 'chr', 'start', 'end', 'ID', 'gene']
+		df.drop(['geneID', 'ID'], axis= 1, inplace= True)
+		df['chr']= df.chr.str.replace('chr','')
+		df= df[df.chr.apply(lambda x: x.isnumeric())]
+		x= pd.DataFrame()
+		x['start']= df.groupby(['chr', 'gene'])['start'].min()
+		x['end']= df.groupby(['chr','gene'])['end'].max()
+		x= x.reset_index(level=[0,1])
+		x.drop_duplicates(['gene'], keep= False, inplace= True)
+		x.to_csv(output[0], sep= '\t', index= False, header= True)
+
+rule rott_gene_based_map:
+	''
+	input:
+		'raw_data/UCSC_hg19_gene_list_clean',
+		'/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom',
+		'/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}.fam'
+	output:
+		'/mnt/work/pol/ROH/rotterdam1/genotypes/maps/gene/rotterdam1_{sample}_CHR{CHR}'
+	script:
+		'scripts/gene_maps_ROH.py'
+
+rule gene_based_map:
+	''
+	input:
+		'raw_data/UCSC_hg19_gene_list_clean',
+		'/mnt/work/pol/ROH/harvest/runs/harvest{batch}_{sample}.hom',
+		'/mnt/work/pol/ROH/harvest/genotypes/prunedharvest{batch}_{sample}.fam'
+	output:
+		temp('/mnt/work/pol/ROH/harvest/genotypes/maps/gene/harvest{batch}_{sample}_CHR{CHR}')
+	script:
+		'scripts/gene_maps_ROH.py'
+
+
+rule merge_gene_maps:
+	'Merge genetic maps from the two batches, one file per chromosome and sample.'
+	input:
+		'/mnt/work/pol/ROH/harvest/genotypes/maps/gene/harvestm12_{sample}_CHR{CHR}',
+		'/mnt/work/pol/ROH/harvest/genotypes/maps/gene/harvestm24_{sample}_CHR{CHR}'
+	output:
+		'/mnt/work/pol/ROH/harvest/genotypes/maps/gene/harvest_{sample}_CHR{CHR}'
+	run:
+		d12= pd.read_csv(input[0], sep= '\t', header= 0)
+		d24= pd.read_csv(input[1], sep= '\t', header= 0)
+		d= pd.merge(d12, d24, how= 'outer', on =['chr', 'gene'])
+		d.to_csv(output[0], sep= '\t', index= False) 
+
+rule gene_ROH_cox:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_CHR{CHR}',
+		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
+	output:
+                '/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/{sample}/cox_spont_{sample}_CHR{CHR}'
+	script:
+		'scripts/cox_gene_ROH.R'
+
+
+rule generate_report:
+        'Generate report for harvest analysis.'
         input:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/maps_{sample}_chr{CHR}.txt.gz',
-                '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
+                expand('/mnt/work/pol/ROH/{{cohort}}/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
+                '/mnt/work/pol/{cohort}/pheno/mod_{cohort}_q1_v9.csv',
+                expand('/mnt/work/pol/ROH/harvest/runs/harvest{batch}_{sample}.hom', sample= smpl_nms, batch= batch_nms),
+                expand('/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom', sample= smpl_nms),
+#                expand('/mnt/work/pol/ROH/rotterdam1/genotypes/maps/gene/rotterdam1_{sample}_CHR{CHR}', sample= smpl_nms, CHR= CHR_nms),
+#                expand('/mnt/work/pol/ROH/harvest/genotypes/maps/gene/harvest{batch}_{sample}_CHR{CHR}', sample= smpl_nms, batch= batch_nms, CHR= CHR_nms),
+#		expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}', CHR= CHR_nms, sample= smpl_nms)
         output:
-                '/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}'
-        script:
-                'scripts/cox_ROH.R'
+                '/home/pol.sole.navais/ROH/reports/ROH_{cohort}_analysis.html'
+        shell:
+                """
+                echo 'rmarkdown::render(input="scripts/ROH_harvest.Rmd", output_file="{output}")' | R --vanilla
+                """
+
 
