@@ -11,12 +11,11 @@ CHR_nms= [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
 rule all:
 	'Collect the main outputs of the workflow.'
 	input:
-		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/maps_{sample}_chr{CHR}.txt.gz', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
-		expand('/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}', cohort= cohort_nms, sample= smpl_nms),
+#		expand('/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}', cohort= cohort_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_CHR{CHR}', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/{sample}/cox_spont_{sample}_CHR{CHR}', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
-#		expand('/home/pol.sole.navais/ROH/reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
+		expand('/mnt/work/pol/ROH/{cohort}/pheno/IBD_parents.genome', cohort= cohort_nms)
 
 rule exclude_multi_allelic_rott:
 	'Set range file for multi-allelic SNP detected in ROTTERDAM1.'
@@ -30,31 +29,34 @@ rule exclude_multi_allelic_rott:
 rule ids_to_keep:
         'List of maternal, paternal and fetal ids acceptable by PLINK for --keep.'
         input:
-                '/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv'
+                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
         output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/maternal_ids',
                 '/mnt/work/pol/ROH/{cohort}/pheno/paternal_ids',
                 '/mnt/work/pol/ROH/{cohort}/pheno/fetal_ids'
         run:
+		d= pd.read_csv(input[0], sep= '\t')
+
                 if wildcards.cohort== 'harvest':
-                        d= pd.read_csv(input[0], sep= ';')
-                        d['IID']= d.SentrixID_1
-                        d['FID']= d.IID
-                        d.drop(['PREG_ID_1724', 'FamilyID', 'SentrixID_2', 'SentrixID_3', 'Trio', 'noPhenoData', 'noGeneticData'], axis= 1, inplace= True)
+                        d.drop(['PREG_ID_1724'], axis= 1, inplace= True)
                 elif wildcards.cohort== 'rotterdam1':
-                        d= pd.read_csv(input[0], sep= ' ')
-                        d['IID']= d.SentrixID
-                        d['FID']= d.postFID
-                        d.drop(['PREG_ID_315', 'postFID', 'DAD', 'MOM', 'SEX'], axis= 1, inplace= True)
-                mat= d.loc[d.Role == 'Mother', ['FID', 'IID']]
-                fet= d.loc[d.Role == 'Child', ['FID', 'IID']]
-                fat= d.loc[d.Role == 'Father', ['FID', 'IID']]
+                        d.drop(['PREG_ID_315'], axis= 1, inplace= True)
+		
+                mat= d.loc[:,'Mother']
+                fet= d.loc[:, 'Child']
+                fat= d.loc[:, 'Father']
+		mat['IID']= mat.Mother
+		fet['IID']= fet.Child
+		fat['IID']= fat.Father
+		mat.columns= ['FID', 'IID']
+		fet.columns= ['FID', 'IID']
+		fat.columns= ['FID', 'IID']
                 mat.to_csv(output[0], index= False, sep= '\t')
                 fet.to_csv(output[2], index= False, sep= '\t')
                 fat.to_csv(output[1], index= False, sep= '\t')
 
 rule harvest_plink_split_bed:
-        'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.01 and split file by sample. (HARVEST)'
+        'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.05 and split file by sample. (HARVEST)'
         input:
                 '/mnt/archive/HARVEST/delivery-fhi/data/genotyped/{batch}/{batch}-genotyped.bed',
                 '/mnt/work/pol/ROH/harvest/pheno/{sample}_ids'
@@ -221,7 +223,8 @@ rule phenofile:
                 '/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom',
                 '/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom.indiv',
                 '/mnt/work/pol/rotterdam1/pheno/rotterdam1_MFR.csv',
-                '/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}.bim'
+                '/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}.bim',
+		'/mnt/work/pol/ROH/harvest/genotypes/prunedharvestm12_{sample}.fam'
         output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
         script:
@@ -364,6 +367,121 @@ rule gene_ROH_cox:
                 '/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/{sample}/cox_spont_{sample}_CHR{CHR}'
 	script:
 		'scripts/cox_gene_ROH.R'
+
+
+rule trios_list:
+	'Obtain a list of family trio IDs.'
+	input:
+		'/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
+	run:
+		if 'harvest' in input[0]:
+			d= pd.read_csv(input[0], sep= ';')
+			d.dropna(subset= ['Role'], inplace= True)
+			d= d.pivot(index= 'PREG_ID_1724', columns= 'Role', values= 'SentrixID_1')
+		
+		if 'rotterdam1' in input[0]:
+			d= pd.read_csv(input[0], sep= ' ')
+			d.dropna(subset= ['Role'], inplace= True)
+			d= d.pivot(index= 'PREG_ID_315', columns= 'Role', values= 'SentrixID')
+		
+		d.reset_index(inplace= True)
+		d.to_csv(output[0], header=True, sep= '\t', index= False)
+
+rule parental_PLINK_rott:
+	'Merge parental PLINK files and calculate IBD.'
+	input:
+		expand('/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_maternal.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_paternal.{ext}', ext= ['bed','bim','fam'])
+	output:
+		temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/parental/pruned_parental.{ext}', ext= ['bed','bim', 'fam', 'log']))
+	params:
+		'/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_maternal',
+		'/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_paternal',
+		'/mnt/work/pol/ROH/rotterdam1/genotypes/parental/pruned_parental'
+	shell:
+		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --out {params[2]}'
+
+rule parental_PLINK_harv:
+	'Merge parental PLINK files and calculate IBD.'
+	input:
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_maternal.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_paternal.{ext}', ext= ['bed','bim','fam'])
+	output:
+		temp(expand('/mnt/work/pol/ROH/harvest/genotypes/parental/pruned_parental.{ext}', ext= ['bed','bim', 'fam', 'log']))
+	params:
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_maternal',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_paternal',
+		'/mnt/work/pol/ROH/harvest/genotypes/parental/pruned_parental'
+	shell:
+		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --out {params[2]}'
+
+
+rule mod_parental_fam_harvest:
+	'Add family ID to parental PLINK fam file.'
+	input:
+		'/mnt/work/pol/ROH/harvest/genotypes/parental/pruned_parental.fam',
+		'/mnt/work/pol/ROH/harvest/pheno/harvest_trios.txt'
+	output:
+		temp('/mnt/work/pol/ROH/harvest/genotypes/parental/mod_pruned_parental.fam')
+	run:
+		fam= pd.read_csv(input[0], sep= '\t', header= None)
+		fam.columns= ['FID','IID','F', 'M', 'Sex','Pheno']
+		d= pd.read_csv(input[1], sep= '\t')
+		d.dropna(subset= ['Mother', 'Father'], inplace= True)
+		d.drop_duplicates('Mother', inplace= True)
+		d.drop_duplicates('Father', inplace= True)
+		moms= d.loc[:, ['PREG_ID_1724','Mother']]
+		dads= d.loc[:, ['PREG_ID_1724', 'Father']]
+		dads.columns= ['FID2', 'Father']
+		fam= pd.merge(fam, moms, right_on= 'Mother', left_on= 'IID', how= 'left')
+		fam= pd.merge(fam, dads, right_on= 'Father', left_on= 'IID', how= 'left')
+		fam['FID2']= np.where(~fam['Mother'].isnull(), fam.PREG_ID_1724, fam.FID2)
+		fam['ng']= fam.groupby(fam.FID2.isnull()).cumcount() + 1 + max(fam.FID2)
+		fam['FID2']= np.where(fam['FID2'].isnull(), fam.ng, fam.FID2)
+		fam= fam[['FID2', 'IID', 'F', 'M', 'Sex', 'Pheno']]
+		fam['FID2']= fam.FID2.astype(int)
+		fam.to_csv(output[0], header=False, sep= '\t', index= False)
+
+rule mod_parental_fam_rott:
+	'Add family ID to parental PLINK fam file.'
+	input:
+		'/mnt/work/pol/ROH/rotterdam1/genotypes/parental/pruned_parental.fam',
+		'/mnt/work/pol/ROH/rotterdam1/pheno/rotterdam1_trios.txt'
+	output:
+		temp('/mnt/work/pol/ROH/rotterdam1/genotypes/parental/mod_pruned_parental.fam')
+	run:
+		fam= pd.read_csv(input[0], sep= '\t', header= None)
+		fam.columns= ['FID','IID','F', 'M', 'Sex','Pheno']
+		d= pd.read_csv(input[1], sep= '\t')
+		d.dropna(subset= ['Mother', 'Father'], inplace= True)
+                d.drop_duplicates('Mother', inplace= True)
+                d.drop_duplicates('Father', inplace= True)
+		moms= d.loc[:, ['PREG_ID_315','Mother']]
+		dads= d.loc[:, ['PREG_ID_315', 'Father']]
+		dads.columns= ['FID2', 'Father']
+		fam= pd.merge(fam, moms, right_on= 'Mother', left_on= 'IID', how= 'left')
+		fam= pd.merge(fam, dads, right_on= 'Father', left_on= 'IID', how= 'left')
+		fam['FID2']= np.where(~fam['Mother'].isnull(), fam.PREG_ID_315, fam.FID2)
+		fam['ng']= fam.groupby(fam.FID2.isnull()).cumcount() + 1 + max(fam.FID2)
+		fam['FID2']= np.where(fam['FID2'].isnull(), fam.ng, fam.FID2)
+		fam= fam[['FID2', 'IID', 'F', 'M', 'Sex', 'Pheno']]
+		fam['FID2']= fam.FID2.astype(int)
+		fam.to_csv(output[0], header=False, sep= '\t', index= False)
+
+rule plink_IBD:
+	'Obtain IBD from PLINK parental duos.'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/parental/pruned_parental.bed',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/parental/pruned_parental.bim',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/parental/mod_pruned_parental.fam'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/pheno/IBD_parents.genome'
+	params:
+		'/mnt/work/pol/ROH/{cohort}/pheno/IBD_parents'
+	shell:
+		'~/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --genome rel-check --out {params[0]}'
 
 
 rule generate_report:
