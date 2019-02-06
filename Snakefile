@@ -29,31 +29,38 @@ rule exclude_multi_allelic_rott:
 rule ids_to_keep:
         'List of maternal, paternal and fetal ids acceptable by PLINK for --keep.'
         input:
-                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
+                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
+		'/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv'
         output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/maternal_ids',
                 '/mnt/work/pol/ROH/{cohort}/pheno/paternal_ids',
                 '/mnt/work/pol/ROH/{cohort}/pheno/fetal_ids'
-        run:
-		d= pd.read_csv(input[0], sep= '\t')
-
-                if wildcards.cohort== 'harvest':
-                        d.drop(['PREG_ID_1724'], axis= 1, inplace= True)
-                elif wildcards.cohort== 'rotterdam1':
-                        d.drop(['PREG_ID_315'], axis= 1, inplace= True)
-		
-                mat= d.loc[:,'Mother']
-                fet= d.loc[:, 'Child']
-                fat= d.loc[:, 'Father']
-		mat['IID']= mat.Mother
-		fet['IID']= fet.Child
-		fat['IID']= fat.Father
-		mat.columns= ['FID', 'IID']
-		fet.columns= ['FID', 'IID']
-		fat.columns= ['FID', 'IID']
-                mat.to_csv(output[0], index= False, sep= '\t')
-                fet.to_csv(output[2], index= False, sep= '\t')
-                fat.to_csv(output[1], index= False, sep= '\t')
+	run:
+		if 'harvest' in input[1]:
+			d= pd.read_csv(input[0], sep= '\t')
+			mat= d.loc[:,['Mother', 'Mother']]
+			fet= d.loc[:, ['Child', 'Child']]
+			fat= d.loc[:, ['Father', 'Father']]
+	                mat.columns= ['FID', 'IID']
+		        fet.columns= ['FID', 'IID']
+			fat.columns= ['FID', 'IID']
+		if 'rotterdam1' in input[1]:
+			x= pd.read_csv(input[1], sep= ' ')
+			x.dropna(subset= ['Role'], inplace= True)
+			x.rename({'SentrixID': 'IID', 'postFID': 'FID'}, inplace= True, axis= 1)
+			d= pd.read_csv(input[0], sep= '\t')
+			mat= d.loc[:,['Mother', 'Mother']]
+			fet= d.loc[:, ['Child', 'Child']]
+			fat= d.loc[:, ['Father', 'Father']]
+			mat.columns= ['Mother', 'IID']
+			fet.columns= ['Child', 'IID']
+			fat.columns= ['Father', 'IID']
+			mat= pd.merge(mat, x, on= 'IID')
+			fet= pd.merge(fet, x, on= 'IID')
+			fat= pd.merge(fat, x, on= 'IID')
+		mat.to_csv(output[0], header= None, columns= ['FID', 'IID'], index= False, sep= '\t')
+                fet.to_csv(output[2], header= None, columns= ['FID', 'IID'], index= False, sep= '\t')
+                fat.to_csv(output[1], header= None, columns= ['FID', 'IID'], index= False, sep= '\t')
 
 rule harvest_plink_split_bed:
         'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.05 and split file by sample. (HARVEST)'
@@ -66,10 +73,10 @@ rule harvest_plink_split_bed:
                 '/mnt/archive/HARVEST/delivery-fhi/data/genotyped/{batch}/{batch}-genotyped',
                 '/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{batch}_{sample}'
         shell:
-                '~/soft/plink --bfile {params[0]} --indep 50 5 10 --maf 0.01 --keep {input[1]} --make-bed --not-chr 23,24,25,26 --out {params[1]}'
+                '~/soft/plink --bfile {params[0]} --indep-pairwise 50 5 0.9 --maf 0.05 --keep {input[1]} --make-bed --not-chr 23,24,25,26 --make-founders --out {params[1]}'
 
 rule rott_plink_split_bed:
-        'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.01 and split file by sample. (ROTTERDAM1)'
+        'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.05 and split file by sample. (ROTTERDAM1)'
         input:
                 '/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped.bed',
                 '/mnt/work/pol/ROH/rotterdam1/pheno/{sample}_ids',
@@ -80,7 +87,7 @@ rule rott_plink_split_bed:
                 '/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped',
                 '/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_{sample}'
         shell:
-                '~/soft/plink --bfile {params[0]} --exclude range {input[2]} --indep 50 5 10 --maf 0.01 --keep {input[1]} --make-bed --not-chr 23,24,25,26 --out {params[1]}'
+                '~/soft/plink --bfile {params[0]} --exclude range {input[2]} --indep-pairwise 50 5 0.9 --maf 0.05 --keep {input[1]} --make-bed --not-chr 23,24,25,26 --make-founders --out {params[1]}'
 
 rule harvest_plink_bfile_prune:
         'Exclude genetic variants in prune.out files (obtained with rule plink_split_bed). (HARVEST)'
@@ -311,16 +318,16 @@ rule clean_UCSC_gene:
 		'raw_data/UCSC_hg19_gene_list_clean'
 	run:
 		df= pd.read_csv(input[0], sep= '\t')
-		df.columns= ['geneID', 'chr', 'start', 'end', 'ID', 'gene']
-		df.drop(['geneID', 'ID'], axis= 1, inplace= True)
+		df.columns= ['gene', 'geneID', 'chr', 'start', 'end', 'cds', 'cde', 'ID']
+		df= df.loc[df.cds != df.cde, :]
+		df.drop(['geneID', 'ID', 'cds', 'cde'], axis= 1, inplace= True)
 		df['chr']= df.chr.str.replace('chr','')
 		df= df[df.chr.apply(lambda x: x.isnumeric())]
-		x= pd.DataFrame()
-		x['start']= df.groupby(['chr', 'gene'])['start'].min()
-		x['end']= df.groupby(['chr','gene'])['end'].max()
-		x= x.reset_index(level=[0,1])
-		x.drop_duplicates(['gene'], keep= False, inplace= True)
-		x.to_csv(output[0], sep= '\t', index= False, header= True)
+		df['length']= df.end - df.start
+		df.sort_values(by= ['length'], ascending= False, inplace= True)
+		df.drop_duplicates(['gene'], keep= 'first', inplace= True)
+		df.drop(['length'], axis=1, inplace= True)
+		df.to_csv(output[0], sep= '\t', index= False, header= True)
 
 rule rott_gene_based_map:
 	''
@@ -385,7 +392,7 @@ rule trios_list:
 			d= pd.read_csv(input[0], sep= ' ')
 			d.dropna(subset= ['Role'], inplace= True)
 			d= d.pivot(index= 'PREG_ID_315', columns= 'Role', values= 'SentrixID')
-		
+		d.dropna(inplace= True, axis= 0)
 		d.reset_index(inplace= True)
 		d.to_csv(output[0], header=True, sep= '\t', index= False)
 
