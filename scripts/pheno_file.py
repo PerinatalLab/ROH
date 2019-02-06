@@ -27,7 +27,8 @@ def pheno_harvest():
 	
 	d12= pd.merge(d12, mfr, left_on= ['IID'], right_on= ['SentrixID_1'], how= 'inner')
 	d24= pd.merge(d24, mfr, left_on= ['IID'], right_on= ['SentrixID_1'], how= 'inner')
-	
+	d12['KB']= d12['KB'] * 1000
+	d24['KB']= d24['KB'] * 1000
 	d12[['FKB', 'FKBAVG', 'FNSEG']]= d12[['KB', 'KBAVG', 'NSEG']].divide(bp12, axis=1)
 	d24[['FKB', 'FKBAVG', 'FNSEG']]= d24[['KB', 'KBAVG', 'NSEG']].divide(bp24, axis=1)
 	
