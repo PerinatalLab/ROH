@@ -33,7 +33,8 @@ def pheno_harvest():
 	
 	d= pd.concat([d12, d24])
 	
-	fam12= pd.read_csv(snakemake.input[14], sep='\t', header= None)
+	fam12= pd.read_csv(snakemake.input[14], sep=' ', header= None)
+	fam12.columns= ['FID','IID','m','f','sex','pheno']
 	
 	runs12= pd.read_csv(snakemake.input[0], delim_whitespace= True)
 	runs24= pd.read_csv(snakemake.input[2], delim_whitespace= True)

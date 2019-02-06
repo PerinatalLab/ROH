@@ -53,7 +53,7 @@ cat(txt, file= outfile, append= T)
 }
 )
 } else if (grepl('rotterdam1', phenofile)){
-cox_coef= mclapply(names(geno[,-c(1:dim(pheno)[2])]), mc.cores= 2, function(snp){cox_coef= coxph(Surv( geno$SVLEN_UL_DG, geno$spont)~ geno[,snp] + geno$PARITY0 + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6 + geno$BATCH, na.action = na.omit)
+cox_coef= mclapply(names(geno[,-c(1:dim(pheno)[2])]), mc.cores= 2, function(snp){cox_coef= coxph(Surv( geno$SVLEN_UL_DG, geno$spont)~ geno[,snp] + geno$PARITY0 + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6, na.action = na.omit)
 coef = summary( cox_coef)$coefficients[1,1]
 sd= summary(cox_coef)$coefficient[1,3]
 n= summary(cox_coef)$n
