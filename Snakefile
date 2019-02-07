@@ -14,7 +14,7 @@ rule all:
 #		expand('/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}', cohort= cohort_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_CHR{CHR}', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
-		expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/{sample}/cox_spont_{sample}_CHR{CHR}', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/cox_spont{sample}',cohort= cohort_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/pheno/IBD_parents.genome', cohort= cohort_nms)
 
 rule exclude_multi_allelic_rott:
@@ -366,12 +366,12 @@ rule merge_gene_maps:
 		d.to_csv(output[0], sep= '\t', index= False) 
 
 rule gene_ROH_cox:
-	''
+	'Survivanl analysis for gene FROH on spontaneous delivery risk.'
 	input:
 		'/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_CHR{CHR}',
 		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
 	output:
-                '/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/{sample}/cox_spont_{sample}_CHR{CHR}'
+		temp('/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/{sample}/cox_spont_{sample}_CHR{CHR}')
 	script:
 		'scripts/cox_gene_ROH.R'
 
@@ -489,6 +489,15 @@ rule plink_IBD:
 		'/mnt/work/pol/ROH/{cohort}/pheno/IBD_parents'
 	shell:
 		'~/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --genome rel-check --out {params[0]}'
+
+rule cat_gene_based_results:
+	'Concatenate all result files for each sample and cohort.'
+	input:
+		expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/gene/{{sample}}/cox_spont_{{sample}}_CHR{CHR}', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/cox_spont{sample}'
+	shell:
+		'cat {input} > {output}'
 
 
 rule generate_report:
