@@ -15,7 +15,7 @@ rule all:
 		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_CHR{CHR}', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/cox_spont{sample}',cohort= cohort_nms, sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/{cohort}/pheno/IBD_parents.genome', cohort= cohort_nms)
+		expand('/mnt/work/pol/ROH/harvest/pheno/relatedness/parental_IBD.{ext}', ext= ['log', 'ibd', 'hbd'])
 
 rule exclude_multi_allelic_rott:
 	'Set range file for multi-allelic SNP detected in ROTTERDAM1.'
@@ -114,6 +114,68 @@ rule rotterdam1_plink_bfile_prune:
                 '/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_{sample}.prune.out'
         shell:
                 '~/soft/plink --bfile {params[0]} --exclude {params[2]} --make-bed --out {params[1]}'
+
+rule merge_parents_harvest:
+	'Merge paternal plink files.'
+	input:
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{{batch}}_maternal.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{{batch}}_paternal.{ext}', ext= ['bed','bim','fam'])
+	output:
+		temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/parental{{batch}}.{ext}', ext= ['bed','bim','fam', 'log', 'nosex']))
+	params:
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{batch}_maternal',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{batch}_paternal',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/parental{batch}'
+	shell:
+		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --make-bed --out {params[2]}'
+
+rule parents_bed_to_vcf:
+	'Conver PLINK binary files to vcf format, accepted by Refined IBD.'
+	input:
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/parental{{batch}}.{ext}', ext= ['bed','bim','fam'])
+	output:
+		temp('/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_parental.vcf')
+	params:
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/parental{batch}',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_parental'
+	shell:
+		'~/soft/plink --bfile {params[0]} --recode vcf-iid --out {params[1]}'
+
+rule gzip_index_parental_vcf:
+	'Gzip and index parental VCF files.'
+	input:
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_parental.vcf'
+	output:
+		temp('/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_parental.vcf.gz')
+	shell:
+		'''
+		gzip {input[0]}
+		~/soft/bcftools-1.9/bin/bcftools index {output[0]}
+		'''
+
+rule merge_parental_vcf_batches:
+	'Merge vcf files from different batches for parental samples.'
+	input:
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/m24_parental.vcf.gz',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/m12_parental.vcf.gz'
+	output:
+		'/mnt/work/pol/ROH/harvest/genotypes/parental.vcf.gz'
+	shell:
+		'''
+		~/soft/bcftools-1.9/bin/bcftools merge {input[0]} {input[1]} -Oz -o {output[0]}
+		'''
+
+rule parental_Refined_IBD:
+	'Calculate parental IBD with Refined IBD.'
+	input:
+		'/mnt/work/pol/ROH/harvest/genotypes/parental.vcf.gz',
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt'
+	output:
+		expand('/mnt/work/pol/ROH/harvest/pheno/relatedness/parental_IBD.{ext}', ext= ['log','hbd', 'ibd'])
+	params:
+		'/mnt/work/pol/ROH/harvest/pheno/relatedness/parental_IBD'
+	shell:
+		'java -jar ~/soft/refined_IBD/soft/refined_IBD/refined-ibd.26Feb19.29e.jar gt={input[0]} map={input[1]} out={params[0]}'
 
 rule estimate_ROH:
         '''
@@ -351,7 +413,6 @@ rule gene_based_map:
 	script:
 		'scripts/gene_maps_ROH.py'
 
-
 rule merge_gene_maps:
 	'Merge genetic maps from the two batches, one file per chromosome and sample.'
 	input:
@@ -502,7 +563,7 @@ rule cat_gene_based_results:
 rule dl_genetic_map:
 	'Download the genetic map estimated in 1KG (https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.html), from IMPUTE2.'
 	output:
-		expand('/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_chr{CHR}_combined_b37.txt', CHR= CHR_nms)
+		temp(expand('/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_chr{CHR}_combined_b37.txt', CHR= CHR_nms))
 	shell:
 		'''
 		wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.tgz -P /mnt/work/pol/ROH/1KG/
@@ -510,6 +571,25 @@ rule dl_genetic_map:
 		mv 1000GP_Phase3 /mnt/work/pol/ROH/1KG/
 		rm /mnt/work/pol/ROH/1KG/1000GP_Phase3.tgz /mnt/work/pol/ROH/1KG/1000GP_Phase3/*hap.gz /mnt/work/pol/ROH/1KG/1000GP_Phase3/*.legend.gz /mnt/work/pol/ROH/1KG/1000GP_Phase3/1000GP_Phase3.sample
 		'''
+
+rule format_genetic_map:
+	'Format genetic map according to PLINK.'
+	input:
+		expand('/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_chr{CHR}_combined_b37.txt', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt'
+	run:
+		df= pd.DataFrame()
+		for file in input:
+			d= pd.read_csv(file, sep= ' ', header= 0)
+			CHR= [x.replace('chr', '') for x in file.split('_') if 'chr' in x]
+			CHR= int(''.join(CHR))
+			d['CHR']= CHR
+			df= df.append(d)
+		df['SNP']= '.'
+		df.columns= ['POS', 'x', 'cM', 'CHR', 'SNP']
+		df= df[['CHR','SNP', 'cM', 'POS']]
+		df.to_csv(output[0], header= None, index= None, sep= '\t')
 
 rule generate_report:
         'Generate report for harvest analysis.'
