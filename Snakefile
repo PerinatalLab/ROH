@@ -499,6 +499,17 @@ rule cat_gene_based_results:
 	shell:
 		'cat {input} > {output}'
 
+rule dl_genetic_map:
+	'Download the genetic map estimated in 1KG (https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.html), from IMPUTE2.'
+	output:
+		expand('/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_chr{CHR}_combined_b37.txt', CHR= CHR_nms)
+	shell:
+		'''
+		wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.tgz -P /mnt/work/pol/ROH/1KG/
+		tar -xvzf /mnt/work/pol/ROH/1KG/1000GP_Phase3.tgz
+		mv 1000GP_Phase3 /mnt/work/pol/ROH/1KG/
+		rm /mnt/work/pol/ROH/1KG/1000GP_Phase3.tgz /mnt/work/pol/ROH/1KG/1000GP_Phase3/*hap.gz /mnt/work/pol/ROH/1KG/1000GP_Phase3/*.legend.gz /mnt/work/pol/ROH/1KG/1000GP_Phase3/1000GP_Phase3.sample
+		'''
 
 rule generate_report:
         'Generate report for harvest analysis.'
