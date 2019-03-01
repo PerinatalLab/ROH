@@ -15,7 +15,7 @@ rule all:
 		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_CHR{CHR}', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/cox_spont{sample}',cohort= cohort_nms, sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/harvest/pheno/relatedness/parental_IBD.{ext}', ext= ['log', 'ibd', 'hbd'])
+		'/mnt/work/pol/ROH/harvest/genotypes/harvest_phased.vcf'
 
 rule exclude_multi_allelic_rott:
 	'Set range file for multi-allelic SNP detected in ROTTERDAM1.'
@@ -115,67 +115,66 @@ rule rotterdam1_plink_bfile_prune:
         shell:
                 '~/soft/plink --bfile {params[0]} --exclude {params[2]} --make-bed --out {params[1]}'
 
-rule merge_parents_harvest:
-	'Merge paternal plink files.'
+rule merge_batches_harvest_phasing:
+	'Merge batch PLINK files for phasing.'
 	input:
-		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{{batch}}_maternal.{ext}', ext= ['bed','bim','fam']),
-		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{{batch}}_paternal.{ext}', ext= ['bed','bim','fam'])
+		expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.{ext}', ext= ['bed','bim','fam'])
 	output:
-		temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/parental{{batch}}.{ext}', ext= ['bed','bim','fam', 'log', 'nosex']))
+		temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing.{ext}', ext= ['bed','bim','fam', 'log', 'nosex']))
 	params:
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{batch}_maternal',
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest{batch}_paternal',
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/parental{batch}'
+		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation',
+		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing'
 	shell:
 		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --make-bed --out {params[2]}'
 
-rule parents_bed_to_vcf:
-	'Conver PLINK binary files to vcf format, accepted by Refined IBD.'
+rule split_PLINK_chr:
+	'Split PLINK binary files for phasing into one file per chromosome.'
 	input:
-		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/parental{{batch}}.{ext}', ext= ['bed','bim','fam'])
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing.{ext}', ext= ['bed','bim','fam'])
 	output:
-		temp('/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_parental.vcf')
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing_chr{{CHR}}.{ext}', ext= ['bed','bim','fam'])
 	params:
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/parental{batch}',
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_parental'
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing_chr{CHR}'
 	shell:
-		'~/soft/plink --bfile {params[0]} --recode vcf-iid --out {params[1]}'
+		'~/soft/plink --bfile {params[0]} --chr {wildcards.CHR} --make-bed --out {params[1]}'
 
-rule gzip_index_parental_vcf:
-	'Gzip and index parental VCF files.'
+rule phase_families:
+	'Phasing using family pedigrees.'
 	input:
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_parental.vcf'
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing_chr{{CHR}}.{ext}', ext= ['bed', 'bim', 'fam'])
 	output:
-		temp('/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_parental.vcf.gz')
-	shell:
-		'''
-		gzip {input[0]}
-		~/soft/bcftools-1.9/bin/bcftools index {output[0]}
-		'''
-
-rule merge_parental_vcf_batches:
-	'Merge vcf files from different batches for parental samples.'
-	input:
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/m24_parental.vcf.gz',
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/m12_parental.vcf.gz'
-	output:
-		'/mnt/work/pol/ROH/harvest/genotypes/parental.vcf.gz'
-	shell:
-		'''
-		~/soft/bcftools-1.9/bin/bcftools merge {input[0]} {input[1]} -Oz -o {output[0]}
-		'''
-
-rule parental_Refined_IBD:
-	'Calculate parental IBD with Refined IBD.'
-	input:
-		'/mnt/work/pol/ROH/harvest/genotypes/parental.vcf.gz',
-		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt'
-	output:
-		expand('/mnt/work/pol/ROH/harvest/pheno/relatedness/parental_IBD.{ext}', ext= ['log','hbd', 'ibd'])
+		temp('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_phased_chr{CHR}.haps'),
+		temp('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_phased_chr{CHR}.sample')
 	params:
-		'/mnt/work/pol/ROH/harvest/pheno/relatedness/parental_IBD'
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing_chr{CHR}'
 	shell:
-		'java -jar ~/soft/refined_IBD/soft/refined_IBD/refined-ibd.26Feb19.29e.jar gt={input[0]} map={input[1]} out={params[0]}'
+		"~/soft/shapeit.v2.904.3.10.0-693.11.6.el7.x86_64/bin/shapeit --input-bed {params[0]} -M {input[0]} --duohmm --thread 8 -O {output[0]} {output[1]}"
+
+rule rule_hap_to_vcf:
+        'Haplotype file to vcf format.'
+        input:
+                expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_phased_chr{{CHR}}.{ext}', ext= ['haps', 'sample'])
+        output:
+                temp('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_phased_chr{CHR}.vcf')
+        params:
+                '/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_phased_chr{CHR}'
+        shell:
+                '''
+                ~/soft/shapeit.v2.904.3.10.0-693.11.6.el7.x86_64/bin/shapeit -convert --input-haps {params[0]} --output-vcf {output[0]}
+		'''
+
+rule concat_phased_vcf:
+	'Concat individual CHR phased vcf files.'
+	input:
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_phased_chr{CHR}.vcf', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/harvest/genotypes/harvest_phased.vcf'
+	shell:
+		'~/soft/bcftools-1.9/bin/bcftools concat {input} -Oz -o {output}'
 
 rule estimate_ROH:
         '''
