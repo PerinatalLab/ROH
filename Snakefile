@@ -115,19 +115,51 @@ rule rotterdam1_plink_bfile_prune:
         shell:
                 '~/soft/plink --bfile {params[0]} --exclude {params[2]} --make-bed --out {params[1]}'
 
+rule overlaping_variants:
+	'List overlapping variants between m12 and m24.'
+	input:
+		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.bim',
+		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.bim'
+	output:
+		temp('/mnt/work/pol/ROH/harvest/genotypes/temp/to_extract')
+	run:
+		d12= pd.read_csv(input[0], header= None, sep= '\t')
+		d24= pd.read_csv(input[1], header= None, sep= '\t')
+		d12.columns= d24.columns= ['CHR','SNP','cM', 'POS', 'REF', 'ALT']
+		d24.loc[d24.ALT< d24.REF, ['REF', 'ALT']]= d24.loc[d24.ALT< d24.REF, ['ALT', 'REF']]
+		d12.loc[d12.ALT< d12.REF, ['REF', 'ALT']]= d12.loc[d12.ALT< d12.REF, ['ALT', 'REF']]
+		d12['variant']= d12.iloc[:,0].astype(str) + ':' + d12.iloc[:,3].astype(str)+ ':' + d12.iloc[:,4] + ':' + d12.iloc[:,5]
+		d24['variant']= d24.iloc[:,0].astype(str) + ':' + d24.iloc[:,3].astype(str)+ ':' + d24.iloc[:,4] + ':' + d24.iloc[:,5]
+		d= pd.merge(d12, d24, on= ['variant', 'CHR', 'POS'])
+		d= d.loc[:, ['CHR', 'POS', 'POS', 'variant']]
+		d.to_csv(output[0], header= False, sep= '\t', index= False)
+
+rule overlaping_plink:
+	'Extract overlaping SNPs from each batch.'
+	input:
+		expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/{{batch}}/{{batch}}-ready-for-imputation.{ext}', ext= ['bed','bim','fam']),
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/to_extract'
+	output:
+		temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/{{batch}}_ready_for_imputation.{ext}', ext= ['bed','bim','fam', 'log']))
+	params:
+		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/{batch}/{batch}-ready-for-imputation',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_ready_for_imputation'
+	shell:
+		'~/soft/plink --bfile {params[0]} --extract range {input[3]} --make-bed --out {params[1]}'
+		
 rule merge_batches_harvest_phasing:
 	'Merge batch PLINK files for phasing.'
 	input:
-		expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.{ext}', ext= ['bed','bim','fam']),
-		expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.{ext}', ext= ['bed','bim','fam'])
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/m12_ready_for_imputation.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/m24_ready_for_imputation.{ext}', ext= ['bed','bim','fam'])
 	output:
 		temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing.{ext}', ext= ['bed','bim','fam', 'log', 'nosex']))
 	params:
-		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation',
-		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/m12_ready_for_imputation',
+		'/mnt/work/pol/ROH/harvest/genotypes/temp/m24_ready_for_imputation',
 		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing'
 	shell:
-		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --make-bed --out {params[2]}'
+		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --merge-equal-pos --make-bed --out {params[2]}'
 
 rule split_PLINK_chr:
 	'Split PLINK binary files for phasing into one file per chromosome.'
@@ -139,12 +171,12 @@ rule split_PLINK_chr:
 		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing',
 		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing_chr{CHR}'
 	shell:
-		'~/soft/plink --bfile {params[0]} --chr {wildcards.CHR} --make-bed --out {params[1]}'
+		'~/soft/plink --bfile {params[0]} --chr {wildcards.CHR} --mind --make-bed --out {params[1]}'
 
-rule phase_families:
+rule phasing_shapeit2:
 	'Phasing using family pedigrees.'
 	input:
-		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_chr{CHR}_combined_b37.txt',
 		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing_chr{{CHR}}.{ext}', ext= ['bed', 'bim', 'fam'])
 	output:
 		temp('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_phased_chr{CHR}.haps'),
@@ -231,7 +263,7 @@ rule merge_m12_m24:
 		'/mnt/work/pol/ROH/harvest/genotypes/prunedharvestm24_{sample}',
 		'/mnt/work/pol/ROH/harvest/genotypes/temp/prunedharvest_allbatch_{sample}'
 	shell:
-		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --out {params[2]}'
+		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --merge-equal-pos --out {params[2]}'
 
 rule combine_pca:
         'Obtain pca for all samples.'
@@ -571,24 +603,6 @@ rule dl_genetic_map:
 		rm /mnt/work/pol/ROH/1KG/1000GP_Phase3.tgz /mnt/work/pol/ROH/1KG/1000GP_Phase3/*hap.gz /mnt/work/pol/ROH/1KG/1000GP_Phase3/*.legend.gz /mnt/work/pol/ROH/1KG/1000GP_Phase3/1000GP_Phase3.sample
 		'''
 
-rule format_genetic_map:
-	'Format genetic map according to PLINK.'
-	input:
-		expand('/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_chr{CHR}_combined_b37.txt', CHR= CHR_nms)
-	output:
-		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt'
-	run:
-		df= pd.DataFrame()
-		for file in input:
-			d= pd.read_csv(file, sep= ' ', header= 0)
-			CHR= [x.replace('chr', '') for x in file.split('_') if 'chr' in x]
-			CHR= int(''.join(CHR))
-			d['CHR']= CHR
-			df= df.append(d)
-		df['SNP']= '.'
-		df.columns= ['POS', 'x', 'cM', 'CHR', 'SNP']
-		df= df[['CHR','SNP', 'cM', 'POS']]
-		df.to_csv(output[0], header= None, index= None, sep= '\t')
 
 rule generate_report:
         'Generate report for harvest analysis.'
