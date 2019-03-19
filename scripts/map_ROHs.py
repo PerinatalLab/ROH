@@ -25,7 +25,7 @@ for id in set(chr_df.IID):
 	temp_df['Value']= 1
 	df_list.append(temp_df)
 
-df= pd.concat(df_list)
+df= pd.concat(df_list, axis= 1)
 df= df.pivot(index= 'BP', columns= 'IID', values= 'Value')
 df['BP']= df.index
 df['CHR']= CHR
