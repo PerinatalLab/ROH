@@ -40,18 +40,6 @@ def pheno_harvest():
 	runs12= pd.read_csv(snakemake.input[0], delim_whitespace= True)
 	runs24= pd.read_csv(snakemake.input[2], delim_whitespace= True)
 	runs= pd.concat([runs12, runs24], axis= 0)
-	runs['long']= np.where((runs.POS2 - runs.POS1) > 8500000, 1, 0)
-	runs['bp']= runs.POS2 - runs.POS1
-	x= runs.groupby(['IID']).sum()[['long']]
-	x_l= runs.loc[runs.long==1, :].groupby(['IID']).sum()[['bp']]
-	x_s= runs.loc[runs.long==0, :].groupby(['IID']).sum()[['bp']]
-	x.columns= ['long_ROH_count']
-	x_l.columns= ['KB_long']
-	x_s.columns= ['KB_short']
-	df= pd.concat([x, x_l, x_s], axis= 1)
-	df['IID']= df.index
-	df.fillna(0, inplace=True)
-	d= pd.merge(d, df, left_on= ['SentrixID_1'], right_on= ['IID'])
 	d= d[(d['FLERFODSEL']==0)]
 	d= d[(d['DODKAT']<6) | (d['DODKAT']>10)]
 	d= d[(d['SVLEN_UL_DG']< '308')]
@@ -84,19 +72,6 @@ def pheno_rotterdam1():
 	d= pd.merge(d, mfr, left_on= ['IID'], right_on= ['SentrixID'], how= 'inner')
 	d[['FKB', 'FKBAVG', 'FNSEG']]= d[['KB', 'KBAVG', 'NSEG']].divide(bp, axis=1)
 	runs= pd.read_csv(snakemake.input[10], delim_whitespace= True)
-	runs['long']= np.where((runs.POS2 - runs.POS1) > 8500000, 1, 0)
-	runs['bp']= runs.POS2 - runs.POS1
-	x= runs.groupby(['IID']).sum()[['long']]
-	x_l= runs.loc[runs.long==1, :].groupby(['IID']).sum()[['bp']]
-	x_s= runs.loc[runs.long==0, :].groupby(['IID']).sum()[['bp']]
-	x.columns= ['long_ROH_count']
-	x_l.columns= ['KB_long']
-	x_s.columns= ['KB_short']
-	
-	df= pd.concat([x, x_l, x_s], axis= 1)
-	df['IID']= df.index
-	df.fillna(0, inplace=True)
-	d= pd.merge(d, df, left_on= ['SentrixID'], right_on= ['IID'])
 	d= d[(d['FLERFODSEL']=='Enkeltfødsel')]
 	d= d[d['DODKAT'].str.contains('Levendefødt')]
 	d= d[(d['SVLEN_UL_DG']< 308)]
