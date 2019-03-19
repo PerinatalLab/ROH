@@ -3,15 +3,6 @@ title: "**Autozigosity and duration of gestation.**"
 author:
         - "Pol Sole-Navais"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-params:
-    rmd: "hunt_report.Rmd"
-    maternal: snakemake@input[[1]][1]
-    paternal: snakemake@input[[1]][2]
-    fetal: snakemake@input[[1]][3]
-    confounding: snakemake@input[[2]]
-    hom12: snakemake@input[[3]]
-    hom24: snakemake@input[[4]]
-    rotthom: snakemake@input[[5]]
     
 output:
     html_document:
@@ -39,15 +30,20 @@ library("data.table")
 options(warn=-1)
 ```
 
+
 ```{r read_files, include= F}
+input= snakemake@input
 
+if (grepl('harvest', input[1])){
 
-if (grepl('harvest', params$confounding)){
-
-moms= read.table('/mnt/work/pol/ROH/harvest/pheno/runs_mfr_maternal.txt', h=T, sep= '\t')
-dads= read.table('/mnt/work/pol/ROH/harvest/pheno/runs_mfr_paternal.txt', h=T, sep= '\t')
-fets= read.table('/mnt/work/pol/ROH/harvest/pheno/runs_mfr_fetal.txt', h=T, sep= '\t')
-q1= read.table(params$confounding, h=T, sep= ';')
+moms= input[grep(input, 'runs_mfr_maternal.txt')]
+dads= input[grep(input, 'runs_mfr_paternal.txt')]
+fets= input[grep(input, 'runs_mfr_fetal.txt')]
+moms= read.table(moms, h=T, sep= '\t')
+dads= read.table(dads, h=T, sep= '\t')
+fets= read.table(fets, h=T, sep= '\t')
+q1= input[grep(input, '_q1_v9.csv')]
+q1= read.table(q1, h=T, sep= ';')
 
 filter_df= function(df){
 df= mutate(df, spont= as.numeric(FSTART==1 & (is.na(KSNITT) | KSNITT>1) &
@@ -92,20 +88,26 @@ q1$income[q1$AA1315==1 & q1$AA1316==1]= 2
 q1$height= ifelse(q1$AA87>= 140 | q1$AA87<= 210, q1$AA87, NA)
 q1= q1 %>% select(PREG_ID_1724, edu, income, height)
 
-m= fread('/mnt/work/pol/ROH/harvest/runs/harvestm12_maternal.hom')
-m24= fread('/mnt/work/pol/ROH/harvest/runs/harvestm24_maternal.hom')
+m= input[grep(input, 'harvestm12_maternal.hom')]
+m= fread(m)
+m24= input[grep(input, 'harvestm24_maternal.hom')]
+m24= fread(m24)
 
 m= rbind(m, m24)
 ms= m %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
-d= fread('/mnt/work/pol/ROH/harvest/runs/harvestm12_paternal.hom')
-d24= fread('/mnt/work/pol/ROH/harvest/runs/harvestm24_paternal.hom')
+d= input[grep(input, 'harvestm12_paternal.hom')]
+d= fread(d)
+d24= input[grep(input, 'harvestm24_paternal.hom')]
+d24= fread(d24)
 
 d= rbind(d, d24)
 ds= d %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
-fe= fread('/mnt/work/pol/ROH/harvest/runs/harvestm12_fetal.hom')
-fe24= fread('/mnt/work/pol/ROH/harvest/runs/harvestm24_fetal.hom')
+fe= input[grep(input, 'harvestm12_fetal.hom')]
+fe= fread(fe)
+fe24= input[grep(input, 'harvestm24_fetal.hom')]
+fe24= fread(fe24)
 
 fe= rbind(fe, fe24)
 fes= fe %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
@@ -118,31 +120,37 @@ moms_c= inner_join(moms, q1, by= 'PREG_ID_1724')
 dads_c= inner_join(dads, q1, by= 'PREG_ID_1724')
 fets_c= inner_join(fets, q1, by= 'PREG_ID_1724')
 
-freqm= read.table('/mnt/work/pol/ROH/harvest/runs/frequency/ROH_frequency_maternal', h=F, sep= '\t')
+freqm= input[grep(input, 'runs/frequency/ROH_frequency_maternal')]
+freqm= read.table(freqm, h=F, sep= '\t')
 names(freqm)= c('chr','pos','freqm')
 
-freqf= read.table('/mnt/work/pol/ROH/harvest/runs/frequency/ROH_frequency_fetal', h=F, sep= '\t')
-names(freqf)= c('chr','pos','freqf')
+freqd= input[grep(input, 'runs/frequency/ROH_frequency_paternal')]
+freqd= read.table(freqd, h=F, sep= '\t')
+names(freqd)= c('chr','pos','freqd')
 
-flist= list.files('/mnt/work/pol/ROH/harvest/results/maps_cox/maternal/')
-res_m= lapply(paste0('/mnt/work/pol/ROH/harvest/results/maps_cox/maternal/', flist), read.table)
+flist= input[grep(input, '/ROH/harvest/results/maps_cox/maternal/')]
+res_m= lapply(flist, read.table)
 res_m= do.call("rbind", res_m)
 res_m= data.frame(res_m)
 
-flist= list.files('/mnt/work/pol/ROH/harvest/results/maps_cox/fetal/')
-res_f= lapply(paste0('/mnt/work/pol/ROH/harvest/results/maps_cox/fetal/', flist), read.table)
+flist= input[grep(input, '/mnt/work/pol/ROH/harvest/results/maps_cox/fetal/')]
+res_f= lapply(flist, read.table)
 res_f= do.call("rbind", res_f)
 res_f= data.frame(res_f)
 
 
 }
 
-if (grepl('rott',params$confounding )){
+if (grepl('rott', input[1])){
 
-moms= read.table('/mnt/work/pol/ROH/rotterdam1/pheno/runs_mfr_maternal.txt', h=T, sep= '\t')
-dads= read.table('/mnt/work/pol/ROH/rotterdam1/pheno/runs_mfr_paternal.txt', h=T, sep= '\t')
-fets= read.table('/mnt/work/pol/ROH/rotterdam1/pheno/runs_mfr_fetal.txt', h=T, sep= '\t')
-q1= read.table(params$confounding, h=T, sep= ';')
+moms= input[grep(input, 'runs_mfr_maternal.txt')]
+moms= read.table(moms, h=T, sep= '\t')
+dads= input[grep(input, 'runs_mfr_paternal.txt')]
+dads= read.table(dads, h=T, sep= '\t')
+fets= input[grep(input, 'runs_mfr_fetal.txt')]
+fets= read.table(fets, h=T, sep= '\t')
+q1= input[grep(input, '_q1_v9.csv')]
+q1= read.table(q1, h=T, sep= ';')
 
 filter_df= function(df){
 df= mutate(df, spont= as.numeric(FSTART=='Spontan' & ((KSNITT=='') | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
@@ -186,15 +194,17 @@ q1$income[q1$AA1315==1 & q1$AA1316==1]= 2
 q1$height= ifelse(q1$AA87>= 140 | q1$AA87<= 210, q1$AA87, NA)
 q1= q1 %>% select(PREG_ID_315, edu, income, height)
 
-m= fread('/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_maternal.hom')
+m= input[grep(input, 'rotterdam1_maternal.hom')]
+m= fread(m)
 
 ms= m %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
-
-d= fread('/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_paternal.hom')
+d= input[grep(input, 'rotterdam1_paternal.hom')]
+d= fread(d)
 
 ds= d %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
-fe= fread('/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_fetal.hom')
+fe= input[grep(input, 'rotterdam1_fetal.hom')]
+fe= fread(fe)
 
 fes= fe %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
@@ -205,22 +215,23 @@ fets= filter_df(fets)
 moms_c= inner_join(moms, q1, by= 'PREG_ID_315')
 dads_c= inner_join(dads, q1, by= 'PREG_ID_315')
 fets_c= inner_join(fets, q1, by= 'PREG_ID_315')
-
-freqm= read.table('/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_maternal', h=F, sep= '\t')
+freq= input[grep(input, '/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_maternal')]
+freqm= read.table(freqm, h=F, sep= '\t')
 names(freqm)= c('chr','pos','freqm')
 
-freqf= read.table('/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_fetal', h=F, sep= '\t')
-names(freqf)= c('chr','pos','freqf')
+freqd= input[grep(input, '/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_paternal')]
+freqd= read.table(freqd, h=F, sep= '\t')
+names(freqf)= c('chr','pos','freqd')
 
 freq= inner_join(freqm, freqf, by= c('chr','pos'))
 
-flist_m= list.files('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/maternal/')
-res_m= lapply(paste0('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/maternal/', flist_m), read.table)
+flist_m= input[grep(input, '/mnt/work/pol/ROH/rotterdam1/results/maps_cox/maternal/')]
+res_m= lapply(flist_m, read.table)
 res_m= do.call("rbind", res_m)
 res_m= data.frame(res_m)
 
-flist_f= list.files('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/fetal/')
-res_f= lapply(paste0('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/fetal/', flist_f), read.table)
+flist_f= input[grep(input,'/mnt/work/pol/ROH/rotterdam1/results/maps_cox/fetal/')]
+res_f= lapply(flist_f, read.table)
 res_f= do.call("rbind", res_f)
 res_f= data.frame(res_f)
 
