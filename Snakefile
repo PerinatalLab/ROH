@@ -30,6 +30,8 @@ def isfloat(str):
     except ValueError:
         return False
 
+# Rules
+
 rule all:
 	'Collect the main outputs of the workflow.'
 	input:
@@ -38,7 +40,8 @@ rule all:
 #		expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/cox_spont{sample}',cohort= cohort_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/harvest/ibd/harvest_ibd_chr{CHR}.match', CHR= CHR_nms),
 		'/mnt/work/pol/ROH/arguments/arg_R2.txt',
-		'/mnt/work/pol/ROH/arguments/max_R2.txt'
+		'/mnt/work/pol/ROH/arguments/max_R2.txt',
+		expand('/home/pol.sole.navais/ROH/reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
 
 rule exclude_multi_allelic_rott:
 	'Set range file for multi-allelic SNP detected in ROTTERDAM1.'
@@ -326,9 +329,44 @@ rule replace_bp_cm:
 		newdf= newdf[['chr','pos', 'newX']]
 		df= pd.merge(df, newdf, on= ['chr', 'pos'], how= 'left')
 		df['X']= np.where(df['Genetic_Map(cM)'].isna(), df['newX'], df['Genetic_Map(cM)'])
+		df['X']= (df.X*10**5).round() * 10
+		df['X']= df['X'] + df.groupby(['chr', 'X']).cumcount()
 		df['pos']= df['X']
+		df['X']= 0
 		df= df[['chr', 'SNP', 'X', 'pos', 'A1', 'A2']]
 		df.to_csv(output[0], sep= '\t', header= False, index= False)
+
+rule rott_replace_bp_cm:
+        'PLINK cannot use cM to estimate ROH length, so we replace bp position to cM in the .bim file.'
+        input:
+                '/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}.bim',
+                '/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt'
+        output:
+                '/mnt/work/pol/ROH/rotterdam1/genotypes/cm_prunedrotterdam1_{sample}.bim'
+        run:
+                d= pd.read_csv(input[0], sep= '\t', header= None)
+                d.columns= ['chr', 'SNP', 'X', 'pos', 'A1', 'A2']
+                g= pd.read_csv(input[1], sep= ' ', header= 0)
+                g= g[['chr', 'Genetic_Map(cM)', 'position']]
+                g.columns= ['chr', 'Genetic_Map(cM)', 'pos']
+                df= pd.merge(d, g, on= ['chr', 'pos'], how= 'left')
+                df_miss= df.loc[df['Genetic_Map(cM)'].isna(), :]
+                newdf= pd.DataFrame()
+                for CHR in set(df_miss.chr):
+                        df_temp= df_miss.loc[df_miss.chr== CHR, :]
+                        g_temp= g.loc[g.chr== CHR, :]
+                        df_temp['newX']= np.interp(df_temp['pos'], g_temp['pos'], g_temp['Genetic_Map(cM)'])
+                        newdf= newdf.append(df_temp)
+                newdf= newdf[['chr','pos', 'newX']]
+                df= pd.merge(df, newdf, on= ['chr', 'pos'], how= 'left')
+                df['X']= np.where(df['Genetic_Map(cM)'].isna(), df['newX'], df['Genetic_Map(cM)'])
+		df['X']= (df.X*10**5).round() * 10
+		df['X']= df['X'] + df.groupby(['chr', 'X']).cumcount()
+                df['pos']= df['X']
+		df['X']= 0
+                df= df[['chr', 'SNP', 'X', 'pos', 'A1', 'A2']]
+                df.to_csv(output[0], sep= '\t', header= False, index= False)
+
 
 rule run_ROH_multi_arg:
 	'Estimate ROH using multiple arguments.'
@@ -340,10 +378,11 @@ rule run_ROH_multi_arg:
 		temp(expand('/mnt/work/pol/ROH/harvest/multi/fetal{{dens}}_{{SNP}}_{{length}}_{{het}}_{{GAP}}_{{batch}}.{ext}', ext= ['log', 'hom', 'hom.indiv', 'nosex', 'hom.summary']))
 	params:
 		'/mnt/work/pol/ROH/harvest/multi/fetal{dens}_{SNP}_{length}_{het}_{GAP}_{batch}'
-	shell:
-		'''
-		/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {wildcards.SNP}*0.05 --homozyg-snp {wildcards.SNP} --homozyg-kb {wildcards.length} --homozyg-gap {wildcards.GAP} --homozyg-window-missing {wildcards.SNP}*0.0005 --homozyg-window-het {wildcards.het} --homozyg-density {wildcards.dens} --out {params[0]}
-		'''
+	run:
+		SNPwm= round(float(wildcards.SNP) * 0.05)
+		GAP= int(float(wildcards.GAP) * 1000)
+		dens= int(float(wildcards.dens) * 1000)
+		shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {wildcards.SNP} --homozyg-snp {wildcards.SNP} --homozyg-kb 0.0000001 --homozyg-gap {GAP} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {wildcards.het} --homozyg-density {dens} --out {params[0]}")
 
 rule run_ROH_multi_arg_bp:
         'Estimate ROH using multiple arguments.'
@@ -355,10 +394,9 @@ rule run_ROH_multi_arg_bp:
                 temp(expand('/mnt/work/pol/ROH/harvest/multi/bpfetal{{densbp}}_{{SNPbp}}_{{lengthbp}}_{{hetbp}}_{{GAPbp}}_{{batch}}.{ext}', ext= ['log', 'hom', 'hom.indiv', 'nosex', 'hom.summary']))
         params:
                 '/mnt/work/pol/ROH/harvest/multi/bpfetal{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}_{batch}'
-        shell:
-                '''
-                /home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {wildcards.SNPbp}*0.05 --homozyg-snp {wildcards.SNPbp} --homozyg-kb {wildcards.lengthbp} --homozyg-gap {wildcards.GAPbp} --homozyg-window-missing {wildcards.SNPbp}*0.0005 --homozyg-window-het {wildcards.hetbp} --homozyg-density {wildcards.densbp} --out {params[0]}
-                '''
+	run:
+		SNPwm= round(float(wildcards.SNPbp) * 0.05)
+		shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {wildcards.SNPbp} --homozyg-snp {wildcards.SNPbp} --homozyg-kb {wildcards.lengthbp} --homozyg-gap {wildcards.GAPbp} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {wildcards.hetbp} --homozyg-density {wildcards.densbp} --out {params[0]}")
 
 rule merge_batch_multi_ROH:
 	'Merge batches from multiple argument ROH.'
@@ -446,34 +484,40 @@ rule estimate_ROH:
 	run:
 		parlist= [line.strip() for line in open(input[3], 'r')]
 		parlist= [float(x) for x in parlist]
+		GAP= round(parlist[4] * 1000)
+		SNPwm= round(parlist[1] * 0.05)
+		dens= round(parlist[0] * 1000)
 		if parlist[0] < 100:
-			shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {parlist[1]}*0.05 --homozyg-snp {parlist[1]} --homozyg-kb {parlist[2]} --homozyg-gap {parlist[4]} --homozyg-window-missing {parlist[1]}*0.0005 --homozyg-window-het {parlist[3]} --homozyg-density {parlist[0]} --out {params}")
+			shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {parlist[1]} --homozyg-snp {parlist[1]} --homozyg-kb {parlist[2]} --homozyg-gap {GAP} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[3]} --homozyg-density {dens} --out {params}")
 		if parlist[0] > 100:
-			shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[4]} --fam {input[2]} --homozyg-window-snp {parlist[1]}*0.05 --homozyg-snp {parlist[1]} --homozyg-kb {parlist[2]} --homozyg-gap {parlist[4]} --homozyg-window-missing {parlist[1]}*0.0005 --homozyg-window-het {parlist[3]} --homozyg-density {parlist[0]} --out {params}")
+			shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[4]} --fam {input[2]} --homozyg-window-snp {parlist[1]} --homozyg-snp {parlist[1]} --homozyg-kb {parlist[2]} --homozyg-gap {parlist[4]} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[3]} --homozyg-density {parlist[0]} --out {params}")
 
 rule rott_estimate_ROH:
-        '''
-        Obtain ROH estimates using PLINK 1.9.
+	'''
+	Obtain ROH estimates using PLINK 1.9.
 	Configuration according to file "/mnt/work/pol/ROH/arguments/max_R2.txt"
-        '''
-        input:
-                '/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}.bed',
+	'''
+	input:
+		'/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}.bed',
 		'/mnt/work/pol/ROH/rotterdam1/genotypes/cm_prunedrotterdam1_{sample}.bim',
 		'/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}.fam',
 		'/mnt/work/pol/ROH/arguments/max_R2.txt',
 		'/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}.bim'
-        output:
-                '/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom.indiv',
-                '/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom'
-        params:
+	output:
+		'/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom.indiv',
+		'/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom'
+	params:
 		'/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}'
 	run:
 		parlist= [line.strip() for line in open(input[3], 'r')]
 		parlist= [float(x) for x in parlist]
-                if parlist[0] < 100:
-                        shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp parlist[1]*0.05 --homozyg-snp parlist[1] --homozyg-kb 0.0000001 --homozyg-gap parlist[4] --homozyg-window-missing parlist[1]*0.0005 --homozyg-window-het parlist[3] --homozyg-density parlist[0] --out {params[0]}")
+                GAP= round(parlist[4] * 1000)
+                SNPwm= round(parlist[1] * 0.05)
+                dens= round(parlist[0] * 1000)
+		if parlist[0] < 100:
+			shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {parlist[1]} --homozyg-snp {parlist[1]} --homozyg-kb 0.0000001 --homozyg-gap {GAP} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[3]} --homozyg-density {dens} --out {params[0]}")
 		if parlist[0] > 100:
-			shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[4]} --fam {input[2]} --homozyg-window-snp parlist[1]*0.05 --homozyg-snp parlist[1] --homozyg-kb 0.0000001 --homozyg-gap parlist[4] --homozyg-window-missing parlist[1]*0.0005 --homozyg-window-het parlist[3] --homozyg-density parlist[0] --out {params[0]}")
+			shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[4]} --fam {input[2]} --homozyg-window-snp {parlist[1]} --homozyg-snp {parlist[1]} --homozyg-kb 0.0000001 --homozyg-gap {parlist[4]} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[3]} --homozyg-density {parlist[0]} --out {params[0]}")
 
 rule merge_m12_m24:
 	'Merge PLINK files from the two HARVEST batches for relatedness calculation.'
@@ -559,7 +603,7 @@ rule mapping_ROHs:
         'Obtain matrix (rows= position, columns = subject), with all ROHs per subject (1= homozygous part of ROH).'
         input:
                 '/mnt/work/pol/ROH/harvest/runs/harvest{batch}_{sample}.hom',
-                '/mnt/work/pol/ROH/harvest/genotypes/cm_prunedharvest{batch}_{sample}.bim',
+                '/mnt/work/pol/ROH/harvest/genotypes/cm_prunedharvest_{batch}_{sample}.bim',
                 '/mnt/work/pol/ROH/harvest/genotypes/prunedharvest{batch}_{sample}.fam'
         output:
                 temp('/mnt/work/pol/ROH/harvest/genotypes/maps/{sample}/maps_{batch}_{sample}_chr{CHR}.txt')
@@ -627,100 +671,6 @@ rule cox_ph_analysis:
 	script:
 		'scripts/cox_ROH.R'
 
-rule clean_UCSC_gene:
-	'Clean UCSC gene list.'
-	input:
-		'raw_data/UCSC_hg19_gene_list'
-	output:
-		'raw_data/UCSC_hg19_gene_list_clean'
-	run:
-		df= pd.read_csv(input[0], sep= '\t')
-		df.columns= ['gene', 'geneID', 'chr', 'start', 'end', 'cds', 'cde', 'ID']
-		df= df.loc[df.cds != df.cde, :]
-		df.drop(['geneID', 'ID', 'cds', 'cde'], axis= 1, inplace= True)
-		df['chr']= df.chr.str.replace('chr','')
-		df= df[df.chr.apply(lambda x: x.isnumeric())]
-		df['length']= df.end - df.start
-		df.sort_values(by= ['length'], ascending= False, inplace= True)
-		df.drop_duplicates(['gene'], keep= 'first', inplace= True)
-		df.drop(['length'], axis=1, inplace= True)
-		df.to_csv(output[0], sep= '\t', index= False, header= True)
-
-rule rott_gene_based_map:
-	''
-	input:
-		'raw_data/UCSC_hg19_gene_list_clean',
-		'/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom',
-		'/mnt/work/pol/ROH/rotterdam1/genotypes/prunedrotterdam1_{sample}.fam'
-	output:
-		'/mnt/work/pol/ROH/rotterdam1/genotypes/maps/gene/rotterdam1_{sample}_CHR{CHR}'
-	script:
-		'scripts/gene_maps_ROH.py'
-
-rule gene_based_map:
-	''
-	input:
-		'raw_data/UCSC_hg19_gene_list_clean',
-		'/mnt/work/pol/ROH/harvest/runs/harvest{batch}_{sample}.hom',
-		'/mnt/work/pol/ROH/harvest/genotypes/prunedharvest{batch}_{sample}.fam'
-	output:
-		temp('/mnt/work/pol/ROH/harvest/genotypes/maps/gene/harvest{batch}_{sample}_CHR{CHR}')
-	script:
-		'scripts/gene_maps_ROH.py'
-
-rule merge_gene_maps:
-	'Merge genetic maps from the two batches, one file per chromosome and sample.'
-	input:
-		'/mnt/work/pol/ROH/harvest/genotypes/maps/gene/harvestm12_{sample}_CHR{CHR}',
-		'/mnt/work/pol/ROH/harvest/genotypes/maps/gene/harvestm24_{sample}_CHR{CHR}'
-	output:
-		'/mnt/work/pol/ROH/harvest/genotypes/maps/gene/harvest_{sample}_CHR{CHR}'
-	run:
-		d12= pd.read_csv(input[0], sep= '\t', header= 0)
-		d24= pd.read_csv(input[1], sep= '\t', header= 0)
-		d= pd.merge(d12, d24, how= 'outer', on =['chr', 'gene'])
-		d.to_csv(output[0], sep= '\t', index= False) 
-
-rule gene_ROH_cox:
-	'Survivanl analysis for gene FROH on spontaneous delivery risk.'
-	input:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_CHR{CHR}',
-		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
-	output:
-		temp('/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/{sample}/cox_spont_{sample}_CHR{CHR}')
-	script:
-		'scripts/cox_gene_ROH.R'
-
-
-rule trios_list:
-	'Obtain a list of family trio IDs.'
-	input:
-		'/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv'
-	output:
-		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
-	run:
-		if 'harvest' in input[0]:
-			d= pd.read_csv(input[0], sep= ';')
-			d.dropna(subset= ['Role'], inplace= True)
-			d= d.pivot(index= 'PREG_ID_1724', columns= 'Role', values= 'SentrixID_1')
-		
-		if 'rotterdam1' in input[0]:
-			d= pd.read_csv(input[0], sep= ' ')
-			d.dropna(subset= ['Role'], inplace= True)
-			d= d.pivot(index= 'PREG_ID_315', columns= 'Role', values= 'SentrixID')
-		d.dropna(inplace= True, axis= 0)
-		d.reset_index(inplace= True)
-		d.to_csv(output[0], header=True, sep= '\t', index= False)
-
-rule cat_gene_based_results:
-	'Concatenate all result files for each sample and cohort.'
-	input:
-		expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/gene/{{sample}}/cox_spont_{{sample}}_CHR{CHR}', CHR= CHR_nms)
-	output:
-		'/mnt/work/pol/ROH/{cohort}/results/maps_cox/gene/cox_spont{sample}'
-	shell:
-		'cat {input} > {output}'
-
 rule dl_genetic_map:
 	'Download the genetic map estimated in 1KG (https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.html), from IMPUTE2.'
 	output:
@@ -775,7 +725,8 @@ rule generate_report:
         'Generate report for harvest analysis.'
         input:
                 expand('/mnt/work/pol/ROH/{{cohort}}/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
-                '/mnt/work/pol/{cohort}/pheno/mod_{cohort}_q1_v9.csv',
+                '/mnt/work/pol/harvest/pheno/q1_pdb1724_v9.csv',
+		'/mnt/work/pol/rotterdam1/pheno/q1_pdb315_v9.csv',
                 expand('/mnt/work/pol/ROH/harvest/runs/harvest{batch}_{sample}.hom', sample= smpl_nms, batch= batch_nms),
                 expand('/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom', sample= smpl_nms),
 #                expand('/mnt/work/pol/ROH/rotterdam1/genotypes/maps/gene/rotterdam1_{sample}_CHR{CHR}', sample= smpl_nms, CHR= CHR_nms),
