@@ -10,10 +10,7 @@ x= x.loc[:, ['CHR','BP']]
 
 fam.columns= ['FID', 'IID', 'X1', 'X2', 'X3', 'X4']
 
-if 'rott' in snakemake.input[0]:
-	CHR= snakemake.wildcards[1]
-if 'harvest' in snakemake.input[0]:
-	CHR= snakemake.wildcards[2]
+CHR= snakemake.wildcards.CHR
 
 
 df_list= list()
@@ -37,5 +34,5 @@ o_ids= fam[~fam.IID.isin(df.columns)]['IID']
 df= pd.concat((df, pd.DataFrame(columns= o_ids, index= df.index)), axis= 1)
 df.fillna(0, inplace= True)
 
-df.to_csv(snakemake.output[0], index=False, sep= '\t')
+df.to_csv(snakemake.output[0], index=False, sep= '\t', compression= 'gzip')
 
