@@ -46,15 +46,6 @@ rule all:
 
 ## Snakemake code
 
-rule exclude_multi_allelic_rott:
-	'Set range file for multi-allelic SNP detected in ROTTERDAM1.'
-	output:
-		temp('/mnt/work/pol/ROH/rotterdam1/multiallelic.txt')
-	shell:
-		'''
-		echo "14 24681025        24681025        Multi" > {output}
-		'''
-
 rule ids_to_keep:
         'List of maternal, paternal and fetal ids acceptable by PLINK for --keep.'
         input:
@@ -150,22 +141,32 @@ rule copy_rott_genotyped:
 		cp {input[2]} {output[2]}
 		'''
 
+rule exclude_non_biallelic:
+        'Set range file for multi-allelic SNP detected in ROTTERDAM1.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped.bim'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/multiallelic.txt')
+        run:
+                d= pd.read_csv(input[0], sep= '\t', header= None)
+                d.columns= ['chr', 'SNP', 'X', 'pos', 'A1', 'A2']
+		d= d[d[['chr', 'pos']].duplicated(keep=False)]
+		d= d[['chr', 'pos', 'pos', 'X']]
+		d.to_csv(output[0], sep= '\t', header= False, index= False)
+
 rule split_bed:
         'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.05 and split file by sample.'
         input:
                 expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped.{ext}', ext= ['bed','bim','fam']),
                 '/mnt/work/pol/ROH/{cohort}/pheno/{sample}_ids',
-                '/mnt/work/pol/ROH/rotterdam1/multiallelic.txt'
+                '/mnt/work/pol/ROH/{cohort}/multiallelic.txt'
         output:
-                temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed','bim','fam', 'log']))
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log']))
         params:
                 '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped',
                 '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}'
-        run:
-                if 'harvest' in wildcards.cohort:
-                        shell('~/soft/plink --bfile {params[0]} --maf 0.05 --keep {input[3]} --make-bed --not-chr 23,24,25,26 --make-founders --out {params[1]}')
-                if 'rotterdam1' in wildcards.cohort:
-                        shell('~/soft/plink --bfile {params[0]} --exclude range {input[4]} --maf 0.05 --keep {input[3]} --make-bed --not-chr 23,24,25,26 --make-founders --out {params[1]}')
+        shell:
+                '~/soft/plink --bfile {params[0]} --exclude range {input[4]} --maf 0.05 --keep {input[3]} --make-bed --not-chr 23,24,25,26 --make-founders --out {params[1]}'
 
 rule multi_pruning:
 	'Filter PLINK file according to different pruning parameters.'
@@ -185,7 +186,7 @@ rule multi_pruning:
 		'''
 
 rule move_none_pruning:
-	'Move PLINK files not pruned to wildcard.pruning == none folder'
+	'Move PLINK files not pruned to wildcard.pruning == none folder.'
 	input:
 		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed','bim','fam'])
 	output:
@@ -193,12 +194,12 @@ rule move_none_pruning:
 	params:
 		'/mnt/work/pol/ROH/{cohort}/genotypes/none/'
 	shell:
-		'''
+		"""
 		mkdir -p {params[0]}
 		mv {input[0]} {output[0]}
 		mv {input[1]} {output[1]}
 		mv {input[2]} {output[2]}
-		'''
+		"""
 
 rule plink_bfile_prune:
 	'Exclude genetic variants in prune.out files (obtained with rule plink_split_bed).'
@@ -420,7 +421,7 @@ rule replace_bp_cm:
 		newdf= newdf[['chr','pos', 'newX']]
 		df= pd.merge(df, newdf, on= ['chr', 'pos'], how= 'left')
 		df['X']= np.where(df['Genetic_Map(cM)'].isna(), df['newX'], df['Genetic_Map(cM)'])
-		df['X']= (df.X*10**5).round() * 10
+		df['X']= (df.X*10**4).round() * 100
 		df['X']= df['X'] + df.groupby(['chr', 'X']).cumcount()
 		df['pos']= df['X']
 		df['X']= 0
