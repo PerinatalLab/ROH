@@ -9,6 +9,9 @@ batch_nms= ['m12', 'm24']
 CHR_nms= [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
 
 # Other arguments:
+
+pruning_nms= ['none', 'soft', 'hard']
+
 dens_nms= [5]
 SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
 length_nms= [0.0000001]
@@ -39,7 +42,9 @@ rule all:
 		expand('/mnt/work/pol/ROH/harvest/ibd/harvest_ibd_chr{CHR}.match', CHR= CHR_nms),
 		expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
-		expand('/home/pol.sole.navais/ROH/reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
+#		expand('/home/pol.sole.navais/ROH/reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
+
+## Snakemake code
 
 rule exclude_multi_allelic_rott:
 	'Set range file for multi-allelic SNP detected in ROTTERDAM1.'
@@ -146,36 +151,75 @@ rule copy_rott_genotyped:
 		'''
 
 rule split_bed:
-	'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.05 and split file by sample.'
+        'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.05 and split file by sample.'
+        input:
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped.{ext}', ext= ['bed','bim','fam']),
+                '/mnt/work/pol/ROH/{cohort}/pheno/{sample}_ids',
+                '/mnt/work/pol/ROH/rotterdam1/multiallelic.txt'
+        output:
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed','bim','fam', 'log']))
+        params:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}'
+        run:
+                if 'harvest' in wildcards.cohort:
+                        shell('~/soft/plink --bfile {params[0]} --maf 0.05 --keep {input[3]} --make-bed --not-chr 23,24,25,26 --make-founders --out {params[1]}')
+                if 'rotterdam1' in wildcards.cohort:
+                        shell('~/soft/plink --bfile {params[0]} --exclude range {input[4]} --maf 0.05 --keep {input[3]} --make-bed --not-chr 23,24,25,26 --make-founders --out {params[1]}')
+
+rule multi_pruning:
+	'Filter PLINK file according to different pruning parameters.'
 	input:
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped.{ext}', ext= ['bed','bim','fam']),
-		'/mnt/work/pol/ROH/{cohort}/pheno/{sample}_ids',
-		'/mnt/work/pol/ROH/rotterdam1/multiallelic.txt'
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed','bim','fam'])
 	output:
-		temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed','bim','fam','prune.out','prune.in', 'log']))
+		temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/soft/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['prune.out','prune.in', 'log'])),
+		temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/hard/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['prune.out','prune.in', 'log'])),
 	params:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}'
-	run:
-		if 'harvest' in wildcards.cohort:
-			shell('~/soft/plink --bfile {params[0]} --indep-pairwise 50 5 0.5 --maf 0.05 --keep {input[1]} --make-bed --not-chr 23,24,25,26 --make-founders --out {params[1]}')
-		if 'rotterdam1' in wildcards.cohort:
-			shell('~/soft/plink --bfile {params[0]} --exclude range {input[2]} --indep-pairwise 50 5 0.5 --maf 0.05 --keep {input[1]} --make-bed --not-chr 23,24,25,26 --make-founders --out {params[1]}')
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/soft/{cohort}_genotyped_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/hard/{cohort}_genotyped_{sample}'
+	shell:
+		'''
+		~/soft/plink --bfile {params[0]} --indep-pairwise 50 5 0.9 --out {params[1]}
+		~/soft/plink --bfile {params[0]} --indep-pairwise 50 5 0.5 --out {params[2]}
+		'''
+
+rule move_none_pruning:
+	'Move PLINK files not pruned to wildcard.pruning == none folder'
+	input:
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed','bim','fam'])
+	output:
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/none/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed','bim','fam'])
+	params:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/none/'
+	shell:
+		'''
+		mkdir -p {params[0]}
+		mv {input[0]} {output[0]}
+		mv {input[1]} {output[1]}
+		mv {input[2]} {output[2]}
+		'''
 
 rule plink_bfile_prune:
-        'Exclude genetic variants in prune.out files (obtained with rule plink_split_bed).'
-        input:
-                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'prune.out'])
-        output:
-                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed','bim','fam'])
-        params:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_{sample}',
-                '/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_{sample}',
-                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_{sample}.prune.out'
-        shell:
-                '~/soft/plink --bfile {params[0]} --exclude {params[2]} --make-bed --out {params[1]}'
+	'Exclude genetic variants in prune.out files (obtained with rule plink_split_bed).'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/hard/{cohort}_genotyped_{sample}.prune.out',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/soft/{cohort}_genotyped_{sample}.prune.out',
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam']),
+	output:
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/hard/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log']),
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/soft/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log'])
+	params:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/hard/pruned{cohort}_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/soft/pruned{cohort}_{sample}'
+	shell:
+		'''
+		~/soft/plink --bfile {params[0]} --exclude {input[0]} --make-bed --out {params[1]}
+		~/soft/plink --bfile {params[0]} --exclude {input[1]} --make-bed --out {params[2]}
+		'''
 
-rule overlaping_variants_geno:
+rule overlaping_variants_phasing:
 	'List overlapping variants between m12 and m24.'
 	input:
 		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.bim',
@@ -355,10 +399,10 @@ rule filter_ibd:
 rule replace_bp_cm:
 	'PLINK cannot use cM to estimate ROH length, so we replace bp position to cM in the .bim file.'
 	input:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_{sample}.bim',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{sample}.bim',
 		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt'
 	output:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/cm_pruned{cohort}_{sample}.bim'
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/cm_pruned{cohort}_{sample}.bim'
 	run:
 		d= pd.read_csv(input[0], sep= '\t', header= None)
 		d.columns= ['chr', 'SNP', 'X', 'pos', 'A1', 'A2']
@@ -386,13 +430,14 @@ rule replace_bp_cm:
 rule run_ROH_multi_arg:
 	'Estimate ROH using multiple arguments.'
 	input:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_fetal.bed',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/cm_pruned{cohort}_fetal.bim',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_fetal.fam'
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_fetal.bed',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/cm_pruned{cohort}_fetal.bim',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_fetal.fam'
 	output:
-		temp(expand('/mnt/work/pol/ROH/{{cohort}}/multi/fetal{{dens}}_{{SNP}}_{{length}}_{{het}}_{{GAP}}.{ext}', ext= ['log', 'hom', 'hom.indiv', 'nosex', 'hom.summary']))
+		temp(expand('/mnt/work/pol/ROH/{{cohort}}/multi/{{pruning}}_fetal_{{dens}}_{{SNP}}_{{length}}_{{het}}_{{GAP}}.{ext}', ext= ['log', 'hom', 'hom.summary'])),
+		'/mnt/work/pol/ROH/{cohort}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv'
 	params:
-		'/mnt/work/pol/ROH/{cohort}/multi/fetal{dens}_{SNP}_{length}_{het}_{GAP}'
+		'/mnt/work/pol/ROH/{cohort}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}'
 	run:
 		SNPwm= round(float(wildcards.SNP) * 0.05)
 		GAP= int(float(wildcards.GAP) * 1000)
@@ -402,13 +447,14 @@ rule run_ROH_multi_arg:
 rule run_ROH_multi_arg_bp:
         'Estimate ROH using multiple arguments.'
         input:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_fetal.bed',
-                '/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_fetal.bim',
-                '/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_fetal.fam'
+                '/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_fetal.bed',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_fetal.bim',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_fetal.fam'
         output:
-                temp(expand('/mnt/work/pol/ROH/{{cohort}}/multi/bpfetal{{densbp}}_{{SNPbp}}_{{lengthbp}}_{{hetbp}}_{{GAPbp}}.{ext}', ext= ['log', 'hom', 'hom.indiv', 'nosex', 'hom.summary']))
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/multi/{{pruning}}_bpfetal_{{densbp}}_{{SNPbp}}_{{lengthbp}}_{{hetbp}}_{{GAPbp}}.{ext}', ext= ['log', 'hom', 'hom.summary'])),
+		'/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv'
         params:
-                '/mnt/work/pol/ROH/{cohort}/multi/bpfetal{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}'
+                '/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}'
 	run:
 		SNPwm= round(float(wildcards.SNPbp) * 0.05)
 		shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {wildcards.SNPbp} --homozyg-snp {wildcards.SNPbp} --homozyg-kb {wildcards.lengthbp} --homozyg-gap {wildcards.GAPbp} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {wildcards.hetbp} --homozyg-density {wildcards.densbp} --out {params[0]}")
@@ -417,40 +463,17 @@ rule run_ROH_multi_arg_bp:
 rule determine_arguments_ROH:
 	'Determine ROH estimation arguments that maximise ROH - parental IBD correlation.'
 	input:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_fetal.fam',
-		expand('/mnt/work/pol/ROH/{{cohort}}/multi/fetal{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms),
+		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam',
+		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.fam',
+		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms),
 		'/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
-		expand('/mnt/work/pol/ROH/{{cohort}}/multi/bpfetal{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp)
+		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms)
 	output:
 		'/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',
 		'/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt'
-	run:
-		ibd= [file for file in input if 'ibd' in file]
-		ibd= pd.read_csv("".join(ibd), sep= '\t', header=0)
-		d12= pd.read_csv(input[0], header= None, sep= ' ')
-		d24= pd.read_csv(input[1], header= None, sep= ' ')
-		fam= d12.append(d24)
-		fam.columns= ['FID', 'IID', 'x1','x2', 'x3','x4']
-		fam= fam.loc[:, ['IID', 'x1']]
-		infile= list()
-		R2= list()
-		for f in input:
-			if '.hom.indiv' in f:
-				infile.append(f)
-				d= pd.read_csv(f, sep= '\t', header= 0)
-				d= pd.merge(d, fam, how= 'outer')
-				d['KB']= np.where(d.KB.isna(), 0, d.KB)
-				d= pd.merge(ibd, d, left_on= ['Child'], right_on= ['IID'])
-				R2.append((d[['KB', 'cM']].corr(method= 'pearson').iloc[0,1])**2)
-		d= pd.DataFrame(np.column_stack([infile, R2]), columns=['file', 'R2'])
-		d.to_csv(output[0], sep= '\t', header= True, index= False)
-		d= d.sort_values(['R2'], ascending= False)
-		winner= d.iloc[0,0]
-		winner= winner.split('_')
-		winner= [i.replace('.hom.indiv', '') for i in winner]
-		winner= [float(s) for s in winner if isfloat(s)]	
-		with open(output[1], 'a') as out:
-			out.writelines('%s\n' % value for value in winner)
+	script:
+		'scripts/R2_ROH_IBD.R'
 
 rule estimate_ROH:
         '''
