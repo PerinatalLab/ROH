@@ -40,7 +40,7 @@ def pheno_harvest():
 	d= d[(d.PLACENTA_PREVIA==0) ]
 	d= d[(d.FOSTERV_POLYHYDRAMNION==0)]
 	d= d[(d.C00_MALF_ALL==0)]
-	d['BATCH']= np.where(d.SentrixID_1.isin(fam12.IID), 0, 1)
+	d['BATCH']= np.where(d.SentrixID_1.isin(fam.IID), 0, 1)
 	d= d.sample(frac=1)
 	
 	d.drop_duplicates(subset= ['PREG_ID_1724'], keep= 'first', inplace= True)
@@ -75,7 +75,7 @@ def pheno_rotterdam1():
 ### Relatedness
 
 def selectUnrelated(df, x):
-	kin= pd.read_csv(snakemake.input[9], sep= '\t')
+	kin= pd.read_csv(snakemake.input[6], sep= '\t')
 	kin= kin.loc[kin.KINSHIP > 0.0884, :]
 	kin= kin.loc[kin.ID1.isin(x.values)]
 	kin= kin.loc[:, ['ID1','ID2','KINSHIP']]
