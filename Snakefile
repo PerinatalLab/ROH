@@ -10,7 +10,7 @@ CHR_nms= [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
 
 # Other arguments:
 
-pruning_nms= ['none', 'soft', 'hard']
+pruning_nms= ['none', 'soft', 'moderate', 'hard']
 
 dens_nms= [5]
 SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
@@ -42,7 +42,7 @@ rule all:
 		expand('/mnt/work/pol/ROH/harvest/ibd/harvest_ibd_chr{CHR}.match', CHR= CHR_nms),
 		expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
-#		expand('/home/pol.sole.navais/ROH/reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
+		expand('/home/pol.sole.navais/ROH/reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
 
 ## Snakemake code
 
@@ -166,24 +166,27 @@ rule split_bed:
                 '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped',
                 '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}'
         shell:
-                '~/soft/plink --bfile {params[0]} --exclude range {input[4]} --maf 0.05 --keep {input[3]} --make-bed --not-chr 23,24,25,26 --make-founders --out {params[1]}'
+                '~/soft/plink --bfile {params[0]} --exclude range {input[4]} --maf 0.05 --keep {input[3]} --make-bed --chr 1-22 --make-founders --out {params[1]}'
 
 rule multi_pruning:
 	'Filter PLINK file according to different pruning parameters.'
 	input:
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed','bim','fam'])
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log'])	
 	output:
 		temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/soft/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['prune.out','prune.in', 'log'])),
-		temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/hard/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['prune.out','prune.in', 'log'])),
+		temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/moderate/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['prune.out','prune.in', 'log'])),
+		temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/hard/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['prune.out','prune.in', 'log']))
 	params:
 		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}',
 		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/soft/{cohort}_genotyped_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/moderate/{cohort}_genotyped_{sample}',
 		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/hard/{cohort}_genotyped_{sample}'
 	shell:
-		'''
+		"""
 		~/soft/plink --bfile {params[0]} --indep-pairwise 50 5 0.9 --out {params[1]}
 		~/soft/plink --bfile {params[0]} --indep-pairwise 50 5 0.5 --out {params[2]}
-		'''
+		~/soft/plink --bfile {params[0]} --indep-pairwise 50 5 0.1 --out {params[3]}
+		"""
 
 rule move_none_pruning:
 	'Move PLINK files not pruned to wildcard.pruning == none folder.'
@@ -196,9 +199,9 @@ rule move_none_pruning:
 	shell:
 		"""
 		mkdir -p {params[0]}
-		mv {input[0]} {output[0]}
-		mv {input[1]} {output[1]}
-		mv {input[2]} {output[2]}
+		cp {input[0]} {output[0]}
+		cp {input[1]} {output[1]}
+		cp {input[2]} {output[2]}
 		"""
 
 rule plink_bfile_prune:
@@ -206,18 +209,22 @@ rule plink_bfile_prune:
 	input:
 		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/hard/{cohort}_genotyped_{sample}.prune.out',
 		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/soft/{cohort}_genotyped_{sample}.prune.out',
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam']),
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/moderate/{cohort}_genotyped_{sample}.prune.out',
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam'])
 	output:
 		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/hard/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log']),
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/soft/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log'])
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/soft/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log']),
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/moderate/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log'])
 	params:
 		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}',
 		'/mnt/work/pol/ROH/{cohort}/genotypes/hard/pruned{cohort}_{sample}',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/soft/pruned{cohort}_{sample}'
+		'/mnt/work/pol/ROH/{cohort}/genotypes/soft/pruned{cohort}_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/moderate/pruned{cohort}_{sample}'
 	shell:
 		'''
 		~/soft/plink --bfile {params[0]} --exclude {input[0]} --make-bed --out {params[1]}
 		~/soft/plink --bfile {params[0]} --exclude {input[1]} --make-bed --out {params[2]}
+		~/soft/plink --bfile {params[0]} --exclude {input[2]} --make-bed --out {params[3]}
 		'''
 
 rule overlaping_variants_phasing:
@@ -467,6 +474,7 @@ rule determine_arguments_ROH:
 		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
 		'/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam',
 		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.fam',
+		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
 		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms),
 		'/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
 		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms)
@@ -477,31 +485,47 @@ rule determine_arguments_ROH:
 		'scripts/R2_ROH_IBD.R'
 
 rule estimate_ROH:
-        '''
-        Obtain ROH estimates using PLINK 1.9.
-        Configuration according to file "/mnt/work/pol/ROH/arguments/max_R2.txt"
-        '''
-        input:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_{sample}.bed',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/cm_pruned{cohort}_{sample}.bim',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_{sample}.fam',
-		'/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_{sample}.bim'
-        output:
-                '/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom.indiv',
-                '/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom'
+	'''
+	Obtain ROH estimates using PLINK 1.9.
+	Configuration according to file "/mnt/work/pol/ROH/arguments/max_R2.txt"
+	'''
+	input:
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.{ext}', pruning= pruning_nms, ext= ['bed', 'bim', 'fam']),
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/cm_pruned{{cohort}}_{{sample}}.bim', pruning= pruning_nms),
+		'/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom.indiv',
+		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom',
+		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
+		temp(expand('/mnt/work/pol/ROH/{{cohort}}/runs/{{cohort}}_{{sample}}.{ext}', ext= ['log', 'hom.summary']))
 	params:
 		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}'
 	run:
-		parlist= [line.strip() for line in open(input[3], 'r')]
+		maxim= [df for df in input if 'max_R2' in df]
+		parlist= [line.strip() for line in open("".join(maxim), 'r')]
 		parlist= [float(x) for x in parlist]
-		GAP= round(parlist[4] * 1000)
-		SNPwm= round(parlist[1] * 0.05)
-		dens= round(parlist[0] * 1000)
-		if parlist[0] < 100:
-			shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {parlist[1]} --homozyg-snp {parlist[1]} --homozyg-kb {parlist[2]} --homozyg-gap {GAP} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[3]} --homozyg-density {dens} --out {params}")
-		if parlist[0] > 100:
-			shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[4]} --fam {input[2]} --homozyg-window-snp {parlist[1]} --homozyg-snp {parlist[1]} --homozyg-kb {parlist[2]} --homozyg-gap {parlist[4]} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[3]} --homozyg-density {parlist[0]} --out {params}")
+		if parlist[0]== 0:
+			prun= 'none'
+		if parlist[0]== 1:
+			prun= 'soft'
+		if parlist[0]== 2:
+			prun= 'moderate'
+		if parlist[0]== 3:
+			prun= 'hard'
+		bed= [bed for bed in input if prun in bed and 'bed' in bed]
+		fam= [fam for fam in input if prun in fam and 'fam' in fam]
+		GAP= round(parlist[5] * 1000)
+		SNPwm= round(parlist[3] * 0.05)
+		dens= round(parlist[1] * 1000)
+		if parlist[1] < 100:
+			bim= [bim for bim in input if prun in bim and 'bim' in bim and 'cm' in bim]
+			shell("/home/pol.sole.navais/soft/plink --bed {bed} --bim {bim} --fam {fam} --homozyg-window-snp {parlist[2]} --homozyg-snp {parlist[2]} --homozyg-kb {parlist[3]} --homozyg-gap {GAP} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[4]} --homozyg-density {dens} --out {params}")
+		if parlist[1] > 100:
+			bim= [bim for bim in input if prun in bim and 'bim' in bim and 'cm' not in bim]
+			shell("/home/pol.sole.navais/soft/plink --bed {bed} --bim {bim} --fam {fam} --homozyg-window-snp {parlist[2]} --homozyg-snp {parlist[2]} --homozyg-kb {parlist[3]} --homozyg-gap {parlist[5]} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[4]} --homozyg-density {parlist[1]} --out {params}")
+		l= list([bed, bim, fam])
+		with open(output[2], 'w') as f:
+			f.writelines( "%s\n" % item for item in l)
 
 rule combine_pca:
         'Obtain pca for all samples.'
@@ -555,8 +579,7 @@ rule mapping_ROHs:
         'Obtain matrix (rows= position, columns = subject), with all ROHs per subject (1= homozygous part of ROH).'
         input:
                 '/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom',
-                '/mnt/work/pol/ROH/{cohort}/genotypes/cm_pruned{cohort}_{sample}.bim',
-                '/mnt/work/pol/ROH/{cohort}/genotypes/pruned{cohort}_{sample}.fam'
+		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt' 
         output:
                 temp('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/maps_{sample}_chr{CHR}.txt.gz')
         script:
