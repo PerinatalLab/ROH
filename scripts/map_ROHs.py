@@ -1,8 +1,14 @@
 import pandas as pd
 
+
 d= pd.read_csv(snakemake.input[0], delim_whitespace= True)
-x= pd.read_csv(snakemake.input[1], delim_whitespace= True, header= None)
-fam= pd.read_csv(snakemake.input[2], delim_whitespace=True, header= None)
+
+x= [line.strip() for line in open(snakemake.inpt[1], 'r')]
+fam= [fam for fam in x if 'fam' in fam]
+bim= [bim for bim in x if 'bim' in bim]
+
+x= pd.read_csv(bed, delim_whitespace= True, header= None)
+fam= pd.read_csv(fam, delim_whitespace=True, header= None)
 
 x.columns= ['CHR','ID', 'CM', 'BP', 'A1','A2']
 d= d.loc[:, ['IID','CHR','POS1','POS2']]
