@@ -42,7 +42,7 @@ rule all:
 		expand('/mnt/work/pol/ROH/harvest/ibd/harvest_ibd_chr{CHR}.match', CHR= CHR_nms),
 		expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
-		expand('/home/pol.sole.navais/ROH/reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
+		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
 
 ## Snakemake code
 
@@ -523,7 +523,7 @@ rule estimate_ROH:
 		if parlist[1] > 100:
 			bim= [bim for bim in input if prun in bim and 'bim' in bim and 'cm' not in bim]
 			shell("/home/pol.sole.navais/soft/plink --bed {bed} --bim {bim} --fam {fam} --homozyg-window-snp {parlist[2]} --homozyg-snp {parlist[2]} --homozyg-kb {parlist[3]} --homozyg-gap {parlist[5]} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[4]} --homozyg-density {parlist[1]} --out {params}")
-		l= list([bed, bim, fam])
+		l= list(["".join(bed), "".join(bim), "".join(fam)])
 		with open(output[2], 'w') as f:
 			f.writelines( "%s\n" % item for item in l)
 
@@ -593,7 +593,7 @@ rule ROH_freq:
                 '/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}'
         run:
                 for i in input:
-                        for chunk in pd.read_csv(gzip.open(i), sep ='\t', index_col= 0, chunksize= 500):
+                        for chunk in pd.read_csv(gzip.open(i), sep ='\t', header= 0, chunksize= 500):
                                 chunk.fillna(0, inplace= True)
                                 x= chunk.iloc[:,2:].mean(axis= 1)
                                 x= pd.concat([chunk.iloc[:,0:2], x], axis= 1, ignore_index= True, sort= False)
@@ -665,14 +665,12 @@ rule generate_report:
                 expand('/mnt/work/pol/ROH/{{cohort}}/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
                 '/mnt/work/pol/harvest/pheno/q1_pdb1724_v9.csv',
 		'/mnt/work/pol/rotterdam1/pheno/q1_pdb315_v9.csv',
-                expand('/mnt/work/pol/ROH/harvest/runs/harvest_{sample}.hom', sample= smpl_nms, batch= batch_nms),
-                expand('/mnt/work/pol/ROH/rotterdam1/runs/rotterdam1_{sample}.hom', sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}', CHR= CHR_nms, sample= smpl_nms)
+                expand('/mnt/work/pol/ROH/{{cohort}}/runs/{{cohort}}_{sample}.hom', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}', CHR= CHR_nms, sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/{{cohort}}/runs/frequency/ROH_frequency_{sample}', sample= smpl_nms)
         output:
-                '/home/pol.sole.navais/ROH/reports/ROH_{cohort}_analysis.html'
-        shell:
-                """
-                echo 'rmarkdown::render(input="scripts/report_ROH.Rmd", output_file="{output}")' | R --vanilla
-                """
+                'reports/ROH_{cohort}_analysis.html'
+	script:
+		'scripts/report_ROH.Rmd'
 
 
