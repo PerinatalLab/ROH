@@ -36,13 +36,13 @@ input= snakemake@input
 
 if (grepl('harvest', input[1])){
 
-moms= input[grep(input, 'runs_mfr_maternal.txt')]
-dads= input[grep(input, 'runs_mfr_paternal.txt')]
-fets= input[grep(input, 'runs_mfr_fetal.txt')]
+moms= unlist(input[grep('runs_mfr_maternal.txt', input)])
+dads= unlist(input[grep('runs_mfr_paternal.txt', input)])
+fets= unlist(input[grep('runs_mfr_fetal.txt', input)])
 moms= read.table(moms, h=T, sep= '\t')
 dads= read.table(dads, h=T, sep= '\t')
 fets= read.table(fets, h=T, sep= '\t')
-q1= input[grep(input, '_q1_v9.csv')]
+q1= unlist(input[grep('q1_pdb1724_v9.csv', input)])
 q1= read.table(q1, h=T, sep= ';')
 
 filter_df= function(df){
@@ -88,28 +88,19 @@ q1$income[q1$AA1315==1 & q1$AA1316==1]= 2
 q1$height= ifelse(q1$AA87>= 140 | q1$AA87<= 210, q1$AA87, NA)
 q1= q1 %>% select(PREG_ID_1724, edu, income, height)
 
-m= input[grep(input, 'harvestm12_maternal.hom')]
+m= unlist(input[grep('harvest_maternal.hom', input)])
 m= fread(m)
-m24= input[grep(input, 'harvestm24_maternal.hom')]
-m24= fread(m24)
 
-m= rbind(m, m24)
 ms= m %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
-d= input[grep(input, 'harvestm12_paternal.hom')]
+d= unlist(input[grep('harvest_paternal.hom', input)])
 d= fread(d)
-d24= input[grep(input, 'harvestm24_paternal.hom')]
-d24= fread(d24)
 
-d= rbind(d, d24)
 ds= d %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
-fe= input[grep(input, 'harvestm12_fetal.hom')]
+fe= unlist(input[grep('harvest_fetal.hom', input)])
 fe= fread(fe)
-fe24= input[grep(input, 'harvestm24_fetal.hom')]
-fe24= fread(fe24)
 
-fe= rbind(fe, fe24)
 fes= fe %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
 moms= filter_df(moms)
@@ -120,36 +111,41 @@ moms_c= inner_join(moms, q1, by= 'PREG_ID_1724')
 dads_c= inner_join(dads, q1, by= 'PREG_ID_1724')
 fets_c= inner_join(fets, q1, by= 'PREG_ID_1724')
 
-freqm= input[grep(input, 'runs/frequency/ROH_frequency_maternal')]
+freqm= unlist(input[grep('runs/frequency/ROH_frequency_maternal', input)])
 freqm= read.table(freqm, h=F, sep= '\t')
 names(freqm)= c('chr','pos','freqm')
 
-freqd= input[grep(input, 'runs/frequency/ROH_frequency_paternal')]
+freqd= unlist(input[grep('runs/frequency/ROH_frequency_paternal', input)])
 freqd= read.table(freqd, h=F, sep= '\t')
 names(freqd)= c('chr','pos','freqd')
 
-flist= input[grep(input, '/ROH/harvest/results/maps_cox/maternal/')]
+freqf= unlist(input[grep('runs/frequency/ROH_frequency_fetal', input)])
+freqf= read.table(freqf, h=F, sep= '\t')
+names(freqf)= c('chr','pos','freqf')
+
+flist= unlist(input[grep('/ROH/harvest/results/maps_cox/maternal/', input)])
 res_m= lapply(flist, read.table)
 res_m= do.call("rbind", res_m)
 res_m= data.frame(res_m)
 
-flist= input[grep(input, '/mnt/work/pol/ROH/harvest/results/maps_cox/fetal/')]
+flist= unlist(input[grep('/mnt/work/pol/ROH/harvest/results/maps_cox/fetal/', input)])
 res_f= lapply(flist, read.table)
 res_f= do.call("rbind", res_f)
 res_f= data.frame(res_f)
 
+freq= inner_join(freqm, freqf, by= c('chr','pos'))
 
 }
 
 if (grepl('rott', input[1])){
 
-moms= input[grep(input, 'runs_mfr_maternal.txt')]
+moms= unlist(input[grep('runs_mfr_maternal.txt', input)])
 moms= read.table(moms, h=T, sep= '\t')
-dads= input[grep(input, 'runs_mfr_paternal.txt')]
+dads= unlist(input[grep('runs_mfr_paternal.txt', input)])
 dads= read.table(dads, h=T, sep= '\t')
-fets= input[grep(input, 'runs_mfr_fetal.txt')]
+fets= unlist(input[grep('runs_mfr_fetal.txt', input)])
 fets= read.table(fets, h=T, sep= '\t')
-q1= input[grep(input, '_q1_v9.csv')]
+q1= unlist(input[grep('q1_pdb315_v9.csv', input)])
 q1= read.table(q1, h=T, sep= ';')
 
 filter_df= function(df){
@@ -194,16 +190,16 @@ q1$income[q1$AA1315==1 & q1$AA1316==1]= 2
 q1$height= ifelse(q1$AA87>= 140 | q1$AA87<= 210, q1$AA87, NA)
 q1= q1 %>% select(PREG_ID_315, edu, income, height)
 
-m= input[grep(input, 'rotterdam1_maternal.hom')]
+m= unlist(input[grep('rotterdam1_maternal.hom', input)])
 m= fread(m)
 
 ms= m %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
-d= input[grep(input, 'rotterdam1_paternal.hom')]
+d= unlist(input[grep('rotterdam1_paternal.hom', input)])
 d= fread(d)
 
 ds= d %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
-fe= input[grep(input, 'rotterdam1_fetal.hom')]
+fe= unlist(input[grep('rotterdam1_fetal.hom', input)])
 fe= fread(fe)
 
 fes= fe %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
@@ -215,22 +211,28 @@ fets= filter_df(fets)
 moms_c= inner_join(moms, q1, by= 'PREG_ID_315')
 dads_c= inner_join(dads, q1, by= 'PREG_ID_315')
 fets_c= inner_join(fets, q1, by= 'PREG_ID_315')
-freq= input[grep(input, '/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_maternal')]
+
 freqm= read.table(freqm, h=F, sep= '\t')
 names(freqm)= c('chr','pos','freqm')
 
-freqd= input[grep(input, '/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_paternal')]
+freqd= unlist(input[grep('/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_paternal', input)])
 freqd= read.table(freqd, h=F, sep= '\t')
 names(freqf)= c('chr','pos','freqd')
 
+freqf= unlist(input[grep('runs/frequency/ROH_frequency_fetal', input)])
+freqf= read.table(freqf, h=F, sep= '\t')
+names(freqf)= c('chr','pos','freqf')
+
+
+
 freq= inner_join(freqm, freqf, by= c('chr','pos'))
 
-flist_m= input[grep(input, '/mnt/work/pol/ROH/rotterdam1/results/maps_cox/maternal/')]
+flist_m= unlist(input[grep('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/maternal/', input)])
 res_m= lapply(flist_m, read.table)
 res_m= do.call("rbind", res_m)
 res_m= data.frame(res_m)
 
-flist_f= input[grep(input,'/mnt/work/pol/ROH/rotterdam1/results/maps_cox/fetal/')]
+flist_f= unlist(input[grep('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/fetal/', input)])
 res_f= lapply(flist_f, read.table)
 res_f= do.call("rbind", res_f)
 res_f= data.frame(res_f)
@@ -477,9 +479,9 @@ Total number of:
 
 ```{r filter_data_sets, echo= F, message= F, dpi= 300}
 
-x= moms %>% summarize(mKB= mean(KB, na.rm=T), mNSEG= mean(NSEG, na.rm=T), nlongROH= mean(long_ROH_count, na.rm=T), mlongROH= mean(KB_long,na.rm=T), mshortROH= mean(KB_short, na.rm=T))
-x1= dads %>% summarize(mKB= mean(KB, na.rm=T), mNSEG= mean(NSEG, na.rm=T), nlongROH= mean(long_ROH_count, na.rm=T), mlongROH= mean(KB_long,na.rm=T), mshortROH= mean(KB_short, na.rm=T))
-x2= fets %>% summarize(mKB= mean(KB, na.rm=T), mNSEG= mean(NSEG, na.rm=T), nlongROH= mean(long_ROH_count, na.rm=T), mlongROH= mean(KB_long,na.rm=T), mshortROH= mean(KB_short, na.rm=T))
+x= moms %>% summarize(mKB= mean(KB, na.rm=T), mNSEG= mean(NSEG, na.rm=T))
+x1= dads %>% summarize(mKB= mean(KB, na.rm=T), mNSEG= mean(NSEG, na.rm=T))
+x2= fets %>% summarize(mKB= mean(KB, na.rm=T), mNSEG= mean(NSEG, na.rm=T))
 
 d= do.call("rbind", list(x, x2, x1))
 d$role= c('Mother', 'Father', 'Child')
@@ -488,9 +490,9 @@ d$role= c('Mother', 'Father', 'Child')
 #print(paste('Total number of fathers:', nrow(dads)))
 #print(paste('Total number of children:', nrow(fets)))
 
-d= d %>% select(role, mKB, mNSEG, nlongROH, mlongROH, mshortROH)
+d= d %>% select(role, mKB, mNSEG)
 
-kable(d, col.names = c('Role', 'ROH length', 'N ROH', 'Prop. \nlong ROH', 'Long \nROH length', 'Short \nROH length'), caption= 'ROH description per sample', digits= 1, align= c('l','c','c','c','c','c')) %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F, position = "center", font_size = 12) %>%   column_spec(1, bold = T, border_right = T)
+kable(d, col.names = c('Role', 'ROH length', 'N ROH'), caption= 'ROH description per sample', digits= 1, align= c('l','c','c')) %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F, position = "center", font_size = 12) %>%   column_spec(1, bold = T, border_right = T)
 
 ```
 
@@ -640,16 +642,17 @@ geom_hline(aes(yintercept= 1), colour= 'grey', linetype= 'dashed') +
 
 ```{r echo=F, fig.width= 12, fig.height= 10, dpi= 300}
 
-moms$QKB <- with(moms, cut(KB, breaks=quantile(KB, probs=seq(0,1, by=0.33), na.rm=TRUE), include.lowest=TRUE))
+#moms$QKB <- with(moms, cut(KB, breaks=quantile(KB, probs=seq(0,1, by=0.25), na.rm=TRUE), include.lowest=TRUE))
 
-coxm= survfit(Surv(SVLEN_UL_DG, spont)~ QKB, moms)
+moms= moms %>% mutate(FKB= ifelse(KB==0,0,1))
+coxm= survfit(Surv(SVLEN_UL_DG, spont)~ FKB, moms)
 
 p= ggsurvplot(
   coxm,                     # survfit object with calculated statistics.
   data = moms,  # data used to fit survival curves. 
   risk.table = TRUE,
   palette =
-    c("gold", "#41b6c4","#253494"),# show risk table.
+    c( "#41b6c4","#253494"),# show risk table. "gold"
   pval = TRUE,             # show p-value of log-rank test.
   conf.int = FALSE,         # show confidence intervals for 
   # point estimaes of survival curves.
@@ -661,7 +664,7 @@ p= ggsurvplot(
   risk.table.y.text = FALSE, # show bars instead of names in text annotations
   # in legend of risk table
   xlab = "Time in days",
-  legend.labs = c("Low tertile", "Mid-tertile", "Higher Tertile"),
+  legend.labs = c("No ROH", "ROH"),
   surv.median.line = "hv",
   censor=FALSE,
   font.family= 'URWHelvetica')
@@ -678,12 +681,13 @@ p= ggpar(p,  font.title    = c(16, "bold", "#969696"),
 p
 
 ```
-# Long and short ROH
+
+
 
 
 ---
 
-```{r echo=F, dpi= 300}
+```{r echo=F, eval=F, dpi= 300}
 fullcoxml= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
 fullcoxdl= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
 fullcoxfl= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
