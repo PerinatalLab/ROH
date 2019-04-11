@@ -10,9 +10,11 @@ def pheno_harvest():
 	mfr= pd.read_csv(snakemake.input[2], sep= ';', header= 0)
 	link= pd.read_csv(snakemake.input[3], sep= ';', header= 0)
 	pca= pd.read_csv(snakemake.input[4], sep= ' ', header= None, names= ['SentrixID_1', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10'])
-	bim= pd.read_csv(snakemake.input[5], sep= '\t', header= None, names= ['chr', 'snp', 'cM', 'pos', 'A1', 'A2'])
+	bim= [line.strip() for line in open(snakemake.input[7], 'r')]
+	bim= "".join(bim[1])
+	bim= pd.read_csv(bim, sep= '\t', header= None, names= ['chr', 'snp', 'cM', 'pos', 'A1', 'A2'])
 	
-	bp= bim.groupby(['chr'])['pos'].diff(1).sum()
+	bp= bim.groupby(['chr'])['pos'].diff(1).sum() / 1000000
 	
 	
 	link= link.loc[link.PREG_ID_1724.str.isnumeric(), :]
@@ -22,9 +24,9 @@ def pheno_harvest():
 	mfr= pd.merge(mfr, pca, on= ['SentrixID_1'], how= 'inner')
 	
 	d= pd.merge(d, mfr, left_on= ['IID'], right_on= ['SentrixID_1'], how= 'inner')
-	d['KB']= d['KB'] * 1000
+	d['KB']= d['KB'] / 1000000 * 1000
 	d[['FKB', 'FKBAVG', 'FNSEG']]= d[['KB', 'KBAVG', 'NSEG']].divide(bp, axis=1)
-	fam= pd.read_csv(snakemake.input[7], sep=' ', header= None)
+	fam= pd.read_csv(snakemake.input[6], sep=' ', header= None)
 	fam.columns= ['FID','IID','m','f','sex','pheno']
 	
 	d= d[(d['FLERFODSEL']==0)]
@@ -51,12 +53,15 @@ def pheno_rotterdam1():
 	mfr= pd.read_csv(snakemake.input[2], sep= '\t', header= 0)
 	link= pd.read_csv(snakemake.input[3], sep= ' ', header= 0)
 	pca= pd.read_csv(snakemake.input[4], sep= ' ', header= None, names= ['SentrixID', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10'])
-	bim= pd.read_csv(snakemake.input[5], sep= '\t', header= None, names=['chr', 'snp', 'cM', 'pos', 'A1', 'A2'])
-	bp= bim.groupby(['chr'])['pos'].diff(1).sum()
+	bim= [line.strip() for line in open(snakemake.input[7], 'r')]
+	bim= "".join(bim[1])
+	bim= pd.read_csv(bim, sep= '\t', header= None, names=['chr', 'snp', 'cM', 'pos', 'A1', 'A2'])
+	bp= bim.groupby(['chr'])['pos'].diff(1).sum() / 1000000
 	mfr= pd.merge(mfr, link, on= ['PREG_ID_315'], how= 'inner')
 	mfr= pd.merge(mfr, pca, on= ['SentrixID'], how= 'inner')
 	
 	d= pd.merge(d, mfr, left_on= ['IID'], right_on= ['SentrixID'], how= 'inner')
+	d['KB']= d['KB'] / 1000000 * 1000
 	d[['FKB', 'FKBAVG', 'FNSEG']]= d[['KB', 'KBAVG', 'NSEG']].divide(bp, axis=1)
 	d= d[(d['FLERFODSEL']=='Enkeltfødsel')]
 	d= d[d['DODKAT'].str.contains('Levendefødt')]
@@ -75,7 +80,7 @@ def pheno_rotterdam1():
 ### Relatedness
 
 def selectUnrelated(df, x):
-	kin= pd.read_csv(snakemake.input[6], sep= '\t')
+	kin= pd.read_csv(snakemake.input[5], sep= '\t')
 	kin= kin.loc[kin.KINSHIP > 0.0884, :]
 	kin= kin.loc[kin.ID1.isin(x.values)]
 	kin= kin.loc[:, ['ID1','ID2','KINSHIP']]
