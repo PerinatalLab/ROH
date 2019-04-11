@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import gzip
+import functools
 
 cohort_nms= ['harvest','rotterdam1']
 smpl_nms= ['maternal','paternal', 'fetal']
@@ -430,8 +431,7 @@ rule replace_bp_cm:
 		df['X']= np.where(df['Genetic_Map(cM)'].isna(), df['newX'], df['Genetic_Map(cM)'])
 		df['X']= (df.X*10**4).round() * 100
 		df['X']= df['X'] + df.groupby(['chr', 'X']).cumcount()
-		df['pos']= df['X']
-		df['X']= 0
+		df[['pos', 'X']]= df[['X','pos']]
 		df= df[['chr', 'SNP', 'X', 'pos', 'A1', 'A2']]
 		df.to_csv(output[0], sep= '\t', header= False, index= False)
 
@@ -567,9 +567,10 @@ rule phenofile:
                 '/mnt/work/pol/{cohort}/pheno/{cohort}_mfr.csv',
                 '/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv',
                 '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
-                '/mnt/work/pol/ROH/{cohort}/genotypes/cm_pruned{cohort}_{sample}.bim',
                 '/mnt/work/pol/ROH/{cohort}/pheno/relatedness/relatedness_{sample}.kin0',
-		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.fam'
+		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.fam',
+		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.bim', pruning= pruning_nms)
         output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
         script:
@@ -620,6 +621,7 @@ rule dl_genetic_map:
 		mv 1000GP_Phase3 /mnt/work/pol/ROH/1KG/
 		rm /mnt/work/pol/ROH/1KG/1000GP_Phase3.tgz /mnt/work/pol/ROH/1KG/1000GP_Phase3/*hap.gz /mnt/work/pol/ROH/1KG/1000GP_Phase3/*.legend.gz /mnt/work/pol/ROH/1KG/1000GP_Phase3/1000GP_Phase3.sample
 		'''
+
 rule concat_genetic_map:
 	'Concat all genetic map files.'
 	input:
@@ -659,6 +661,38 @@ rule map_format_geneticmap:
 		d['SNP']= d.chr.map(str) + ':' + d.position.map(str)
 		d.to_csv(output[0], header= False, index= False, sep= '\t')
 
+rule excess_homozygosity:
+	'Compute excess homozygosity using PLINK --het flag.'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{sample}.bed',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{sample}.bim',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{sample}.fam'
+	output:
+		temp(expand('/mnt/work/pol/ROH/{{cohort}}/results/het/{{pruning}}_excess_hom_{{sample}}.{ext}', ext= ['het', 'log']))
+	params:
+		'/mnt/work/pol/ROH/{cohort}/results/het/{pruning}_excess_hom_{sample}'
+	shell:
+		'~/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --het --out {params[0]}'
+
+rule merge_homozygosity:
+	'Merge excess homozygosity from different pruning.'
+	input:
+		expand('/mnt/work/pol/ROH/{{cohort}}/results/het/{pruning}_excess_hom_{{sample}}.het', pruning= pruning_nms)
+	output:
+		'/mnt/work/pol/ROH/{cohort}/results/het/{sample}_excess_hom.txt'
+	run:
+		dflist= list()
+		for i in input:
+			d= pd.read_csv(i, delim_whitespace=True, header=0)
+			d= d[['IID', 'F']]
+			if 'none' in i:	d.columns= ['IID', 'none_F']
+			if 'soft' in i: d.columns= ['IID', 'soft_F']
+			if 'moderate' in i: d.columns= ['IID', 'moderate_F']
+			if 'hard' in i: d.columns= ['IID', 'hard_F']
+			dflist.append(d)
+		d= functools.reduce(lambda x, y: pd.merge(x, y, on= 'IID'), dflist)
+		d.to_csv(output[0], index=False, header= True, sep= '\t')
+
 rule generate_report:
         'Generate report for harvest analysis.'
         input:
@@ -667,7 +701,15 @@ rule generate_report:
 		'/mnt/work/pol/rotterdam1/pheno/q1_pdb315_v9.csv',
                 expand('/mnt/work/pol/ROH/{{cohort}}/runs/{{cohort}}_{sample}.hom', sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}', CHR= CHR_nms, sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/{{cohort}}/runs/frequency/ROH_frequency_{sample}', sample= smpl_nms)
+		expand('/mnt/work/pol/ROH/{{cohort}}/runs/frequency/ROH_frequency_{sample}', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{sample}.bim', pruning= pruning_nms, sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/cm_pruned{{cohort}}_{sample}.bim', pruning= pruning_nms, sample= smpl_nms),
+		'/mnt/work/pol/ROH/{cohort}/runs/maternal_input_ROH_geno.txt',
+		'/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',
+		'/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt',
+		expand('/mnt/work/pol/ROH/{{cohort}}/results/het/{sample}_excess_hom.txt', sample= smpl_nms),
+		'/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
+		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
         output:
                 'reports/ROH_{cohort}_analysis.html'
 	script:
