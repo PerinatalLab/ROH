@@ -55,7 +55,10 @@ dataChunk= fread(text=block.text, sep="\t", col.names= colnames)
 	sd= summary(cox_coef)$coefficient[1,3]
 	n= summary(cox_coef)$n
 	pvalue= summary(cox_coef)$coefficient[1,5]
-	txt = sprintf( "%s\t%e\t%e\t%e\t%e\n", snp, n, coef, sd, pvalue)
+	zph= cox.zph(cox_cief)
+	correlation= zph$table[1, 1]
+	corr_pvalue= zph$table[1, 3]
+	txt = sprintf( "%s\t%e\t%e\t%e\t%e\t%e\t%e\n", snp, n, coef, sd, pvalue, correlation, corr_pvalue)
 cat(txt, file= outfile, append= T)
 }
 )
