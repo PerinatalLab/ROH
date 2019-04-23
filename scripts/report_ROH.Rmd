@@ -104,6 +104,7 @@ q1$income[q1$AA1315==1 & q1$AA1316==1]= 2
 
 q1$height= ifelse(q1$AA87>= 140 | q1$AA87<= 210, q1$AA87, NA)
 q1= q1 %>% select(PREG_ID_1724, edu, income, height)
+q1$edu= as.factor(q1$edu)
 
 m= unlist(input[grep('harvest_maternal.hom', input)])
 m= fread(m)
@@ -219,6 +220,7 @@ q1$income[q1$AA1315==1 & q1$AA1316==1]= 2
 
 q1$height= ifelse(q1$AA87>= 140 | q1$AA87<= 210, q1$AA87, NA)
 q1= q1 %>% select(PREG_ID_315, edu, income, height)
+q1$edu= as.factor(q1$edu)
 
 m= unlist(input[grep('rotterdam1_maternal.hom', input)])
 m= fread(m)
