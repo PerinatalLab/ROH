@@ -366,11 +366,12 @@ rule ibd_GERMLINE:
 		'/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}.ped',
 		'/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_complete_chr{CHR}.map'
 	output:
-		'/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.match'
+		'/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.match',
+		temp('/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.log')
 	params:
 		'/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}'
 	run:	
-		shell("~/soft/germline-1-5-3/bin/germline -input {input[0]} {input[1]} -output {params[0]} || true")
+		shell("~/soft/germline-1-5-3/bin/germline -input {input[0]} {input[1]} -min_m 1 -output {params[0]} || true")
 
 rule lightweight_ibd:
 	'Remove columns from GERMLINE ibd file.'
