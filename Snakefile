@@ -43,7 +43,8 @@ rule all:
 		expand('/mnt/work/pol/ROH/harvest/ibd/harvest_ibd_chr{CHR}.match', CHR= CHR_nms),
 		expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
-		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
+		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms),
+		expand('figures/Figure1_{cohort}.eps', cohort= cohort_nms)
 
 ## Snakemake code
 
@@ -366,12 +367,12 @@ rule ibd_GERMLINE:
 		'/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}.ped',
 		'/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_complete_chr{CHR}.map'
 	output:
-		'/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.match',
+		temp('/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.match'),
 		temp('/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.log')
 	params:
 		'/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}'
 	run:	
-		shell("~/soft/germline-1-5-3/bin/germline -input {input[0]} {input[1]} -min_m 1 -output {params[0]} || true")
+		shell("~/soft/germline-1-5-3/bin/germline -input {input[0]} {input[1]} -min_m 2 -output {params[0]} || true")
 
 rule lightweight_ibd:
 	'Remove columns from GERMLINE ibd file.'
@@ -469,15 +470,21 @@ rule run_ROH_multi_arg_bp:
 		shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {wildcards.SNPbp} --homozyg-snp {wildcards.SNPbp} --homozyg-kb {wildcards.lengthbp} --homozyg-gap {wildcards.GAPbp} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {wildcards.hetbp} --homozyg-density {wildcards.densbp} --out {params[0]}")
 
 
+                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
+                '/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam',
+                '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
+                '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_fetal.txt'
+
+
 rule determine_arguments_ROH:
 	'Determine ROH estimation arguments that maximise ROH - parental IBD correlation.'
 	input:
-		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam',
-		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.fam',
-		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
-		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms),
-		'/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
+                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
+                '/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam',
+                '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
+		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms),	
 		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms)
 	output:
 		'/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',
@@ -694,7 +701,7 @@ rule merge_homozygosity:
 		d= functools.reduce(lambda x, y: pd.merge(x, y, on= 'IID'), dflist)
 		d.to_csv(output[0], index=False, header= True, sep= '\t')
 
-rule generate_report:
+rule preliminary_report:
         'Generate report for harvest analysis.'
         input:
                 expand('/mnt/work/pol/ROH/{{cohort}}/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
@@ -716,4 +723,33 @@ rule generate_report:
 	script:
 		'scripts/report_ROH.Rmd'
 
+rule fam_to_phasing:
+	'Obtain a fam file for those samples in which IBD detection was applied.'
+	input:
+		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.fam',
+		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.fam',
+		'/mnt/archive/ROTTERDAM1/delivery-fhi/data/to_phasing/merged/hrc-update-complete-all.fam'
+	output:
+		'/mnt/work/pol/ROH/harvest/ibd/to_phase.fam',
+		'/mnt/work/pol/ROH/rotterdam1/ibd/to_phase.fam'
+	run:
+		d12= pd.read_csv(input[0], delim_whitespace= True, header=None)
+		d24= pd.read_csv(input[1], delim_whitespace= True, header=None)
+		d= pd.concat([d12, d24])
+		d.to_csv(output[0], sep= '\t', index=False, header=False)
+		d= pd.read_csv(input[2], delim_whitespace= True, header= None)
+		d.to_csv(output[1], sep= '\t', index= False, header= False)
+
+rule figure1:
+	'Figure 1 for results section.'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
+		'/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam',
+		'/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
+		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_fetal.txt'
+	output:
+		'figures/Figure1_{cohort}.eps'
+	script:
+		'scripts/figure1.R'
 
