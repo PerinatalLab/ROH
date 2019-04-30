@@ -1042,7 +1042,7 @@ mht= function(df){ # Column names needed (chr, pos, pvalue)
 }
 
 
-names(res_m)= c('id', 'N', 'beta', 'sd', 'pvalue')
+names(res_m)= c('id', 'N', 'beta', 'sd', 'pvalue', 'schoenfeld', 'p_scheonfeld')
 res_m= res_m %>% separate(id, c('chr', 'pos'), ':')
 res_m= res_m %>% mutate(chr= as.numeric(chr), pos= as.numeric(pos))
 
@@ -1050,7 +1050,6 @@ x1= mht(res_m)
 
 grid.arrange(x1, x, nrow= 2)
 ```
-
 
 
 ```{r echo=F, dpi= 300}
@@ -1095,6 +1094,7 @@ geom_hline(yintercept = 0, size= 0.5, color= 'grey',linetype='dashed', alpha= 0.
 }
 ```
 
+
 ```{r echo=F, dpi= 300}
 
 res_m= inner_join(res_m, freqm, by= c('chr', 'pos'))
@@ -1129,7 +1129,7 @@ ggtitle("Mothers") +
 ```{r echo=F, dpi= 300}
 
 
-names(res_f)= c('id', 'N_f', 'beta_f', 'sd_f', 'pvalue_f')
+names(res_f)= c('id', 'N_f', 'beta_f', 'sd_f', 'pvalue_f', 'schoenfeld_f', 'p_scheonfeld_f')
 res_f= res_f %>% separate(id, c('chr', 'pos'), ':')
 res_f= res_f %>% mutate(chr= as.numeric(chr), pos= as.numeric(pos))
 
@@ -1172,7 +1172,7 @@ ggtitle("Per-SNP ROH beta estimates") +
 ```{r echo= F, dpi= 300}
 
 names(freqf)= c('chr', 'pos','freq') 
-names(res_f)= c('chr','pos','N', 'beta', 'sd', 'pvalue') 
+names(res_f)= c('chr','pos','N', 'beta', 'sd', 'pvalue', 'schoenfeld', 'p_scheonfeld') 
 
 x= mhtf(freqf) 
  
