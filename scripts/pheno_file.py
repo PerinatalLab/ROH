@@ -49,7 +49,7 @@ def pheno_harvest():
 	d.drop_duplicates(subset= ['PREG_ID_1724'], keep= 'first', inplace= True)
 	return d
 
-def pheno_rotterdam1():
+def pheno_rotterdam():
 	d= pd.read_csv(snakemake.input[1], delim_whitespace= True)
 	mfr= pd.read_csv(snakemake.input[2], sep= '\t', header= 0)
 	link= pd.read_csv(snakemake.input[3], sep= ' ', header= 0)
@@ -108,8 +108,8 @@ if wild == 'harvest':
 	d= pheno_harvest()
 	remove= selectUnrelated(d, d.SentrixID_1)
 	d= d[~d.SentrixID_1.isin(remove)]
-elif wild == 'rotterdam1':
-	d= pheno_rotterdam1()
+elif wild == 'rotterdam':
+	d= pheno_rotterdam()
 	remove= selectUnrelated(d, d.SentrixID)
 	d= d[~d.SentrixID.isin(remove)]
 

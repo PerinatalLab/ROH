@@ -222,16 +222,16 @@ q1$height= ifelse(q1$AA87>= 140 | q1$AA87<= 210, q1$AA87, NA)
 q1= q1 %>% select(PREG_ID_315, edu, income, height)
 q1$edu= as.factor(q1$edu)
 
-m= unlist(input[grep('rotterdam1_maternal.hom', input)])
+m= unlist(input[grep('_maternal.hom', input)])
 m= fread(m)
 
 ms= m %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
-d= unlist(input[grep('rotterdam1_paternal.hom', input)])
+d= unlist(input[grep('_paternal.hom', input)])
 d= fread(d)
 
 ds= d %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
-fe= unlist(input[grep('rotterdam1_fetal.hom', input)])
+fe= unlist(input[grep('_fetal.hom', input)])
 fe= fread(fe)
 
 fes= fe %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
@@ -244,11 +244,11 @@ moms_c= inner_join(moms, q1, by= 'PREG_ID_315')
 dads_c= inner_join(dads, q1, by= 'PREG_ID_315')
 fets_c= inner_join(fets, q1, by= 'PREG_ID_315')
 
-freqm= unlist(input[grep('/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_maternal', input)])
+freqm= unlist(input[grep('/runs/frequency/ROH_frequency_maternal', input)])
 freqm= read.table(freqm, h=F, sep= '\t')
 names(freqm)= c('chr','pos','freqm')
 
-freqd= unlist(input[grep('/mnt/work/pol/ROH/rotterdam1/runs/frequency/ROH_frequency_paternal', input)])
+freqd= unlist(input[grep('/runs/frequency/ROH_frequency_paternal', input)])
 freqd= read.table(freqd, h=F, sep= '\t')
 names(freqd)= c('chr','pos','freqd')
 
@@ -260,12 +260,12 @@ names(freqf)= c('chr','pos','freqf')
 
 freq= inner_join(freqm, freqf, by= c('chr','pos'))
 
-flist_m= unlist(input[grep('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/maternal/', input)])
+flist_m= unlist(input[grep('/results/maps_cox/maternal/', input)])
 res_m= lapply(flist_m, read.table)
 res_m= do.call("rbind", res_m)
 res_m= data.frame(res_m)
 
-flist_f= unlist(input[grep('/mnt/work/pol/ROH/rotterdam1/results/maps_cox/fetal/', input)])
+flist_f= unlist(input[grep('/results/maps_cox/fetal/', input)])
 res_f= lapply(flist_f, read.table)
 res_f= do.call("rbind", res_f)
 res_f= data.frame(res_f)

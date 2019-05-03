@@ -24,7 +24,7 @@ pheno= mutate(pheno, spont= as.numeric(FSTART==1 & (is.na(KSNITT) | KSNITT>1) &
                 INDUKSJON_OXYTOCIN==0 & 
 		INDUKSJON_AMNIOTOMI==0), 
 		PARITY0= as.numeric(PARITET_5==0))
-} else if (grepl('rotterdam1', phenofile)){
+} else if (grepl('rotterdam', phenofile)){
 pheno= mutate(pheno, spont= as.numeric(FSTART=='Spontan' & (KSNITT=='' | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
                 INDUKSJON_PROSTAGLANDIN=='Nei' & 
                 INDUKSJON_ANNET=='Nei' &
