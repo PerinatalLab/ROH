@@ -26,6 +26,7 @@ def pheno_harvest():
 	d= pd.merge(d, mfr, left_on= ['IID'], right_on= ['SentrixID_1'], how= 'inner')
 	d['KB']= d['KB'] / 1000000 * 1000
 	d[['FKB', 'FKBAVG', 'FNSEG']]= d[['KB', 'KBAVG', 'NSEG']].divide(bp, axis=1)
+
 	fam= pd.read_csv(snakemake.input[6], sep=' ', header= None)
 	fam.columns= ['FID','IID','m','f','sex','pheno']
 	

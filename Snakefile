@@ -4,7 +4,7 @@ import os
 import gzip
 import functools
 
-cohort_nms= ['harvest','rotterdam1']
+cohort_nms= ['harvest','rotterdam1', 'rotterdam2']
 smpl_nms= ['maternal','paternal', 'fetal']
 batch_nms= ['m12', 'm24']
 CHR_nms= [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
@@ -48,6 +48,49 @@ rule all:
 
 ## Snakemake code
 
+rule fix_rott2_FID:
+        'Merge inferred FID and PDB_315.'
+        input:
+                '/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped.fam',
+                '/mnt/archive/ROTTERDAM2/connections/Kvalitetskontroll_MoBa_PDB315_926_930_rotterdam2.csv',
+                '/mnt/archive/ROTTERDAM2/delivery-fhi/data/aux/recode-files/recode-files-original-fhi/recode-ids-rotterdam2.txt',
+                '/mnt/archive/ROTTERDAM2/delivery-fhi/data/aux/flag-list/sample_flag_list.txt',
+                '/mnt/work/pol/rotterdam1/pheno/rotterdam1_mfr.csv'
+        output:
+                '/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_trios.txt',
+                '/mnt/work/pol/rotterdam2/pheno/rotterdam2_linkage.csv',
+                '/mnt/work/pol/rotterdam2/pheno/rotterdam2_mfr.csv'
+        script:
+                'scripts/rotterdam2_FID_fix.R'
+
+rule pca_rotterdam2:
+        'Calculate pca for core offspring and parents in rotterdam2.'
+        input:
+                '/mnt/work/pol/ROH/rotterdam2/pheno/fetal_ids',
+		expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed', 'bim', 'fam'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_parents.{ext}', ext= ['log', 'eigenval', 'eigenvec'])),
+		temp(expand('/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_offspring.{ext}', ext= ['log', 'eigenval', 'eigenvec']))
+	params:
+		'/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped',
+		'/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_parents',
+		'/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_offspring'
+	shell:
+		'''
+		~/soft/plink2 --bfile {params[0]} --maf 0.01 --remove {input[0]} --pca --out {params[1]}
+		~/soft/plink2 --bfile {params[0]} --maf 0.01 --keep {input[0]} --pca --out {params[1]}
+		'''
+
+rule merge_pca_rotterdam2:
+	'Merge offspring and parental pca in rotterdam2.'
+	input:
+		'/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_parents.eigenvec',
+		'/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_offspring.eigenvec'
+	output:
+		'/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_pca.txt'
+	shell:
+		'cat {input[0]} {input[1]} > {output[0]}'
+
 rule ids_to_keep:
         'List of maternal, paternal and fetal ids acceptable by PLINK for --keep.'
         input:
@@ -66,7 +109,7 @@ rule ids_to_keep:
 	                mat.columns= ['FID', 'IID']
 		        fet.columns= ['FID', 'IID']
 			fat.columns= ['FID', 'IID']
-		if 'rotterdam1' in input[1]:
+		if 'rotterdam' in input[1]:
 			x= pd.read_csv(input[1], sep= ' ')
 			x.dropna(subset= ['Role'], inplace= True)
 			x.rename({'SentrixID': 'IID', 'postFID': 'FID'}, inplace= True, axis= 1)
@@ -131,17 +174,22 @@ rule merge_batches_harvest_genotyped:
                 '~/soft/plink --bfile {params[0]} --bmerge {params[1]} --merge-equal-pos --make-bed --out {params[2]}'
 
 rule copy_rott_genotyped:
-	'Copy genotype PLINK files and change name.'
-	input:
-		expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed', 'bim', 'fam'])
-	output:
-		temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_genotyped.{ext}', ext= ['bed', 'bim', 'fam']))
-	shell:
-		'''
-		cp {input[0]} {output[0]}
-		cp {input[1]} {output[1]}
-		cp {input[2]} {output[2]}
-		'''
+        'Copy genotype PLINK files and change name.'
+        input:
+                expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed', 'bim', 'fam'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_genotyped.{ext}', ext= ['bed', 'bim', 'fam'])),
+                temp(expand('/mnt/work/pol/ROH/rotterdam2/genotypes/temp/rotterdam2_genotyped.{ext}', ext= ['bed', 'bim', 'fam']))
+        shell:
+                '''
+                cp {input[0]} {output[0]}
+                cp {input[1]} {output[1]}
+                cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}
+                cp {input[4]} {output[4]}
+                cp {input[5]} {output[5]}
+                '''
 
 rule exclude_non_biallelic:
         'Set range file for multi-allelic SNP detected in ROTTERDAM1.'
@@ -277,17 +325,22 @@ rule merge_batches_harvest_phasing:
 		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --merge-equal-pos --make-bed --out {params[2]}'
 
 rule copy_rotterdam1_to_phasing:
-	'Copy and rename PLINK files for phasing.'
-	input:
-		expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/to_phasing/merged/hrc-update-complete-all.{ext}', ext= ['bed', 'bim', 'fam'])
-	output:
-		temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_to_phasing.{ext}', ext= ['bed', 'bim', 'fam']))
-	shell:
-		'''
-		cp {input[0]} {output[0]}
-		cp {input[1]} {output[1]}
-		cp {input[2]} {output[2]}
-		'''
+        'Copy and rename PLINK files for phasing.'
+        input:
+                expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/to_phasing/merged/hrc-update-complete-all.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
+                temp(expand('/mnt/work/pol/ROH/rotterdam2/genotypes/temp/rotterdam2_to_phasing.{ext}', ext= ['bed', 'bim', 'fam']))
+        shell:
+                '''
+                cp {input[0]} {output[0]}
+                cp {input[1]} {output[1]}
+                cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}
+                cp {input[4]} {output[4]}
+                cp {input[5]} {output[5]}
+                '''
 
 rule split_PLINK_chr:
 	'Split PLINK binary files for phasing into one file per chromosome.'
@@ -556,13 +609,13 @@ rule combine_pca:
 rule relatedness:
         'Calculate relatedness using KING function from PLINK2.'
         input:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/pruned{cohort}_{sample}.bed',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_{sample}.bed',
                 '/mnt/work/pol/ROH/{cohort}/pheno/{sample}_ids',
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/none/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed','bim','fam']),
         output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/relatedness/relatedness_{sample}.kin0'
         params:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/pruned{cohort}_{sample}',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_{sample}',
 		'/mnt/work/pol/ROH/{cohort}/pheno/relatedness/relatedness_{sample}'
         shell:
                 '~/soft/plink2 --bfile {params[0]} --keep {input[1]} --make-king-table --king-table-filter 0.03125 --out {params[1]}'
@@ -724,21 +777,25 @@ rule preliminary_report:
 		'scripts/report_ROH.Rmd'
 
 rule fam_to_phasing:
-	'Obtain a fam file for those samples in which IBD detection was applied.'
-	input:
-		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.fam',
-		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.fam',
-		'/mnt/archive/ROTTERDAM1/delivery-fhi/data/to_phasing/merged/hrc-update-complete-all.fam'
-	output:
-		'/mnt/work/pol/ROH/harvest/ibd/to_phase.fam',
-		'/mnt/work/pol/ROH/rotterdam1/ibd/to_phase.fam'
-	run:
-		d12= pd.read_csv(input[0], delim_whitespace= True, header=None)
-		d24= pd.read_csv(input[1], delim_whitespace= True, header=None)
-		d= pd.concat([d12, d24])
-		d.to_csv(output[0], sep= '\t', index=False, header=False)
-		d= pd.read_csv(input[2], delim_whitespace= True, header= None)
-		d.to_csv(output[1], sep= '\t', index= False, header= False)
+        'Obtain a fam file for those samples in which IBD detection was applied.'
+        input:
+                '/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.fam',
+                '/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.fam',
+                '/mnt/archive/ROTTERDAM1/delivery-fhi/data/to_phasing/merged/hrc-update-complete-all.fam',
+                '/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.fam'
+        output:
+                '/mnt/work/pol/ROH/harvest/ibd/to_phase.fam',
+                '/mnt/work/pol/ROH/rotterdam1/ibd/to_phase.fam',
+                '/mnt/work/pol/ROH/rotterdam2/ibd/to_phase.fam'
+        run:
+                d12= pd.read_csv(input[0], delim_whitespace= True, header=None)
+                d24= pd.read_csv(input[1], delim_whitespace= True, header=None)
+                d= pd.concat([d12, d24])
+                d.to_csv(output[0], sep= '\t', index=False, header=False)
+                d= pd.read_csv(input[2], delim_whitespace= True, header= None)
+                d.to_csv(output[1], sep= '\t', index= False, header= False)
+                d= pd.read_csv(input[3], delim_whitespace= True, header= None)
+                d.to_csv(output[2], sep= '\t', index= False, header= False)
 
 rule figure1:
 	'Figure 1 for results section.'
