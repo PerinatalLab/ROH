@@ -40,6 +40,7 @@ df= df.pivot(index= 'BP', columns= 'IID', values= 'Value')
 df['BP']= df.index
 df['CHR']= CHR
 
+df= df.loc[(df.BP.isin(chr_df.POS1.values.tolist())) | (df.BP.isin(chr_df.POS2.values.tolist())), :]
 cols = ['CHR', 'BP']  + [col for col in df if col not in 'CHR,BP']
 df= df[cols]
 
