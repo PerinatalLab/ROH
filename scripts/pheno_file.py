@@ -108,7 +108,7 @@ if wild == 'harvest':
 	d= pheno_harvest()
 	remove= selectUnrelated(d, d.SentrixID_1)
 	d= d[~d.SentrixID_1.isin(remove)]
-elif wild == 'rotterdam':
+else:
 	d= pheno_rotterdam()
 	remove= selectUnrelated(d, d.SentrixID)
 	d= d[~d.SentrixID.isin(remove)]
