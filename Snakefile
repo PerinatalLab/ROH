@@ -4,7 +4,7 @@ import os
 import gzip
 import functools
 
-cohort_nms= ['harvest','rotterdam1', 'rotterdam2']
+cohort_nms= ['harvest','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
 smpl_nms= ['maternal','paternal', 'fetal']
 batch_nms= ['m12', 'm24']
 CHR_nms= [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
@@ -78,18 +78,94 @@ rule pca_rotterdam2:
 	shell:
 		'''
 		~/soft/plink2 --bfile {params[0]} --maf 0.01 --remove {input[0]} --pca --out {params[1]}
-		~/soft/plink2 --bfile {params[0]} --maf 0.01 --keep {input[0]} --pca --out {params[1]}
+		~/soft/plink2 --bfile {params[0]} --maf 0.01 --keep {input[0]} --pca --out {params[2]}
 		'''
 
-rule merge_pca_rotterdam2:
-	'Merge offspring and parental pca in rotterdam2.'
+rule fix_norment_FID:
+        'Merge Sentrix_ID and PDB_315 in Norment.'
+        input:
+                '/mnt/archive/NORMENT1/connection-files/norment_to_pdb_315/norment_to_pdb315_28k_samples/Kvalitetskontroll_MoBa_Norment.csv',
+                '/mnt/archive/NORMENT1/connection-files/sentrixid-to-pregid_norment/MorBarn_Alias_Feb2018_9674PN_sentrix.txt',
+                '/mnt/archive/NORMENT1/connection-files/sentrixid-to-pregid_norment/MorBarn_Alias_May2016_19611PN_sentrix.txt',
+                '/mnt/archive/ROTTERDAM2/delivery-fhi/data/aux/flag-list/sample_flag_list.txt',
+                '/mnt/work/pol/rotterdam1/pheno/rotterdam1_mfr.csv'
+        output:
+                '/mnt/work/pol/ROH/normentfeb/pheno/normentfeb_trios.txt',
+                '/mnt/work/pol/ROH/normentmay/pheno/normentmay_trios.txt',
+                '/mnt/work/pol/normentfeb/pheno/normentfeb_linkage.csv',
+                '/mnt/work/pol/normentmay/pheno/normentmay_linkage.csv',
+                '/mnt/work/pol/normentfeb/pheno/normentfeb_mfr.csv',
+                '/mnt/work/pol/normentmay/pheno/normentmay_mfr.csv'
+        run:
+                con= pd.read_csv(input[0], sep= ',', header= 0)
+                con= pd.melt(con, id_vars= ['PREG_ID_315'], var_name= 'Role', value_name= 'Retrieval', value_vars= ['retrievalDetail_ID_B_1479', 'retrievalDetail_ID_M_1479', 'retrievalDetail_ID_F_1479'])
+                con['Role']= np.where(con['Role'].str.contains('_M_'), 'Mother', np.where(con['Role'].str.contains('_F_'), 'Father', 'Child'))
+                con['Retrieval']= con['Retrieval'].apply(pd.to_numeric, errors='coerce')
+                feb= pd.read_csv(input[1], sep= '\t', header= 0)
+                may= pd.read_csv(input[2], sep= '\t', header= 0)
+                feb= pd.merge(feb, con, left_on= ['Alias'], right_on= ['Retrieval'])
+                feb1= feb.pivot(index= 'PREG_ID_315', columns= 'Role', values= 'Chip_ID')
+                feb1['PREG_ID_315']= feb1.index
+                feb1.to_csv(output[0], sep= '\t', index= False, header= True)
+                feb= feb.rename({'Chip_ID': 'SentrixID'}, axis= 1)
+                feb.to_csv(output[2], sep= '\t', index= False, header= True, columns= ['PREG_ID_315', 'SentrixID', 'Role'])
+                may= pd.merge(may, con, left_on= ['Alias'], right_on= ['Retrieval'])
+                may1= may.pivot(index= 'BP', columns= 'IID', values= 'Value')
+                may1['PREG_ID_315']= may1.index
+                may1.to_csv(output[1], sep= '\t', index= False, header= True)
+                may= may.rename({'Chip_ID': 'SentrixID'}, axis= 1)
+                may.to_csv(output[3], sep= '\t', index= False, header= True, columns= ['PREG_ID_315', 'SentrixID', 'Role'])
+                d= pd.read_csv(input[3], sep= '\t', header=0)
+                d.to_csv(output[4], header= True, index= False, sep= '\t')
+                d.to_csv(output[5], header= True, index= False, sep= '\t')
+
+rule pca_norment:
+        'Calculate pca for core offspring and parents in norment.'
+        input:
+                '/mnt/work/pol/ROH/normentfeb/pheno/fetal_ids',
+                '/mnt/work/pol/ROH/normentmay/pheno/fetal_ids',
+                expand('/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/feb18/genotyped.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/may16/genotyped.{ext}', ext= ['bed', 'bim', 'fam'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/normentfeb/pheno/normentfeb_parents.{ext}', ext= ['log', 'eigenval', 'eigenvec'])),
+                temp(expand('/mnt/work/pol/ROH/normentfeb/pheno/normentfeb_offspring.{ext}', ext= ['log', 'eigenval', 'eigenvec'])),
+                temp(expand('/mnt/work/pol/ROH/normentmay/pheno/normentmay_parents.{ext}', ext= ['log', 'eigenval', 'eigenvec'])),
+                temp(expand('/mnt/work/pol/ROH/normentmay/pheno/normentmay_offspring.{ext}', ext= ['log', 'eigenval', 'eigenvec']))
+        params:
+                '/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/feb18/genotyped',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/may16/genotyped',
+                '/mnt/work/pol/ROH/normentfeb/pheno/normentfeb_parents',
+                '/mnt/work/pol/ROH/normentfeb/pheno/normentfeb_offspring',
+                '/mnt/work/pol/ROH/normentmay/pheno/normentmay_parents',
+                '/mnt/work/pol/ROH/normentmay/pheno/normentmay_offspring'
+	shell:
+		'''
+                ~/soft/plink2 --bfile {params[0]} --maf 0.01 --remove {input[0]} --pca --out {params[2]}
+                ~/soft/plink2 --bfile {params[0]} --maf 0.01 --keep {input[0]} --pca --out {params[3]}
+                ~/soft/plink2 --bfile {params[1]} --maf 0.01 --remove {input[1]} --pca --out {params[4]}
+                ~/soft/plink2 --bfile {params[1]} --maf 0.01 --keep {input[1]} --pca --out {params[5]}
+                '''
+
+
+rule merge_pca_rotterdam2_norment:
+	'Merge offspring and parental pca in rotterdam2 and norment.'
 	input:
 		'/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_parents.eigenvec',
-		'/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_offspring.eigenvec'
+		'/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_offspring.eigenvec',
+		'/mnt/work/pol/ROH/normentfeb/pheno/normentfeb_parents.eigenvec',
+                '/mnt/work/pol/ROH/normentfeb/pheno/normentfeb_offspring.eigenvec',
+                '/mnt/work/pol/ROH/normentmay/pheno/normentmay_parents.eigenvec',
+                '/mnt/work/pol/ROH/normentmay/pheno/normentmay_offspring.eigenvec'
 	output:
-		'/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_pca.txt'
+		'/mnt/work/pol/ROH/rotterdam2/pheno/rotterdam2_pca.txt',
+		'/mnt/work/pol/ROH/normentfeb/pheno/normentfeb_pca.txt',
+		'/mnt/work/pol/ROH/normentmay/pheno/normentmay_pca.txt'
 	shell:
-		'cat {input[0]} {input[1]} > {output[0]}'
+		'''
+		cat {input[0]} {input[1]} > {output[0]}
+		cat {input[2]} {input[3]} > {output[1]}
+		cat {input[4]} {input[5]} > {output[2]}
+		'''
 
 rule ids_to_keep:
         'List of maternal, paternal and fetal ids acceptable by PLINK for --keep.'
@@ -177,22 +253,33 @@ rule copy_rott_genotyped:
         'Copy genotype PLINK files and change name.'
         input:
                 expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed', 'bim', 'fam']),
-                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed', 'bim', 'fam'])
+                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed', 'bim', 'fam']),
         output:
                 temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_genotyped.{ext}', ext= ['bed', 'bim', 'fam'])),
-                temp(expand('/mnt/work/pol/ROH/rotterdam2/genotypes/temp/rotterdam2_genotyped.{ext}', ext= ['bed', 'bim', 'fam']))
+                temp(expand('/mnt/work/pol/ROH/rotterdam2/genotypes/temp/rotterdam2_genotyped.{ext}', ext= ['bed', 'bim', 'fam'])),
         shell:
                 '''
-                cp {input[0]} {output[0]}
-                cp {input[1]} {output[1]}
-                cp {input[2]} {output[2]}
-                cp {input[3]} {output[3]}
-                cp {input[4]} {output[4]}
-                cp {input[5]} {output[5]}
+                cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
                 '''
 
+rule copy_norment_genotyped:
+        'Copy genotype PLINK files and change name.'
+        input:
+                expand('/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/feb18/genotyped.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/may16/genotyped.{ext}', ext= ['bed', 'bim', 'fam'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/normentfeb/genotypes/temp/normentfeb_genotyped.{ext}', ext= ['bed', 'bim', 'fam'])),
+                temp(expand('/mnt/work/pol/ROH/normentmay/genotypes/temp/normentmay_genotyped.{ext}', ext= ['bed', 'bim', 'fam']))
+        shell:
+                '''
+                cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
+                '''
+
+
 rule exclude_non_biallelic:
-        'Set range file for multi-allelic SNP detected in ROTTERDAM1.'
+        'Set range file for multi-allelic SNPs.'
         input:
                 '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped.bim'
         output:
@@ -328,19 +415,32 @@ rule copy_rotterdam1_to_phasing:
         'Copy and rename PLINK files for phasing.'
         input:
                 expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/to_phasing/merged/hrc-update-complete-all.{ext}', ext= ['bed', 'bim', 'fam']),
-                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam'])
+                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam']),
+		expand('/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/feb18/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam']),
+		expand('/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/may16/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam'])
         output:
                 temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
-                temp(expand('/mnt/work/pol/ROH/rotterdam2/genotypes/temp/rotterdam2_to_phasing.{ext}', ext= ['bed', 'bim', 'fam']))
+                temp(expand('/mnt/work/pol/ROH/rotterdam2/genotypes/temp/rotterdam2_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
         shell:
                 '''
-                cp {input[0]} {output[0]}
-                cp {input[1]} {output[1]}
-                cp {input[2]} {output[2]}
-                cp {input[3]} {output[3]}
-                cp {input[4]} {output[4]}
-                cp {input[5]} {output[5]}
+                cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
                 '''
+
+rule copy_norment_to_phasing:
+        'Copy and rename PLINK files for phasing.'
+        input:
+                expand('/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/feb18/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/may16/merge/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/normentfeb/genotypes/temp/normentfeb_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
+                temp(expand('/mnt/work/pol/ROH/normentmay/genotypes/temp/normentmay_to_phasing.{ext}', ext= ['bed', 'bim', 'fam']))
+        shell:
+                '''
+                cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
+                '''
+
 
 rule split_PLINK_chr:
 	'Split PLINK binary files for phasing into one file per chromosome.'
@@ -782,11 +882,15 @@ rule fam_to_phasing:
                 '/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.fam',
                 '/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.fam',
                 '/mnt/archive/ROTTERDAM1/delivery-fhi/data/to_phasing/merged/hrc-update-complete-all.fam',
-                '/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.fam'
+                '/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.fam',
+		'/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/feb18/merged/hrc-update-complete.fam',
+		'/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/may16/merge/hrc-update-complete.fam'
         output:
                 '/mnt/work/pol/ROH/harvest/ibd/to_phase.fam',
                 '/mnt/work/pol/ROH/rotterdam1/ibd/to_phase.fam',
-                '/mnt/work/pol/ROH/rotterdam2/ibd/to_phase.fam'
+                '/mnt/work/pol/ROH/rotterdam2/ibd/to_phase.fam',
+		'/mnt/work/pol/ROH/normentfeb/ibd/to_phase.fam',
+		'/mnt/work/pol/ROH/normentmay/ibd/to_phase.fam'
         run:
                 d12= pd.read_csv(input[0], delim_whitespace= True, header=None)
                 d24= pd.read_csv(input[1], delim_whitespace= True, header=None)
