@@ -185,7 +185,7 @@ rule ids_to_keep:
 	                mat.columns= ['FID', 'IID']
 		        fet.columns= ['FID', 'IID']
 			fat.columns= ['FID', 'IID']
-		if 'rotterdam' in input[1]:
+		if ('rotterdam' in input[1] | 'norment' in input[1]):
 			x= pd.read_csv(input[1], sep= ' ')
 			x.dropna(subset= ['Role'], inplace= True)
 			x.rename({'SentrixID': 'IID', 'postFID': 'FID'}, inplace= True, axis= 1)
