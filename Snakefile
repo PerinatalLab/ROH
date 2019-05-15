@@ -101,6 +101,7 @@ rule fix_norment_FID:
                 con= pd.melt(con, id_vars= ['PREG_ID_315'], var_name= 'Role', value_name= 'Retrieval', value_vars= ['retrievalDetail_ID_B_1479', 'retrievalDetail_ID_M_1479', 'retrievalDetail_ID_F_1479'])
                 con['Role']= np.where(con['Role'].str.contains('_M_'), 'Mother', np.where(con['Role'].str.contains('_F_'), 'Father', 'Child'))
                 con['Retrieval']= con['Retrieval'].apply(pd.to_numeric, errors='coerce')
+		con.drop_duplicates(keep= 'first', inplace= True)
                 feb= pd.read_csv(input[1], sep= '\t', header= 0)
                 may= pd.read_csv(input[2], sep= '\t', header= 0)
                 feb= pd.merge(feb, con, left_on= ['Alias'], right_on= ['Retrieval'])
@@ -110,7 +111,8 @@ rule fix_norment_FID:
                 feb= feb.rename({'Chip_ID': 'SentrixID'}, axis= 1)
                 feb.to_csv(output[2], sep= '\t', index= False, header= True, columns= ['PREG_ID_315', 'SentrixID', 'Role'])
                 may= pd.merge(may, con, left_on= ['Alias'], right_on= ['Retrieval'])
-                may1= may.pivot(index= 'BP', columns= 'IID', values= 'Value')
+                may.drop_duplicates(keep= 'first', inplace= True)
+		may1= may.pivot(index= 'PREG_ID_315', columns= 'Role', values= 'Chip_ID')
                 may1['PREG_ID_315']= may1.index
                 may1.to_csv(output[1], sep= '\t', index= False, header= True)
                 may= may.rename({'Chip_ID': 'SentrixID'}, axis= 1)
