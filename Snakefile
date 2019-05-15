@@ -887,21 +887,23 @@ rule fam_to_phasing:
                 '/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.fam',
 		'/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/feb18/merged/hrc-update-complete.fam',
 		'/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/may16/merge/hrc-update-complete.fam'
-        output:
-                '/mnt/work/pol/ROH/harvest/ibd/to_phase.fam',
-                '/mnt/work/pol/ROH/rotterdam1/ibd/to_phase.fam',
-                '/mnt/work/pol/ROH/rotterdam2/ibd/to_phase.fam',
-		'/mnt/work/pol/ROH/normentfeb/ibd/to_phase.fam',
-		'/mnt/work/pol/ROH/normentmay/ibd/to_phase.fam'
-        run:
-                d12= pd.read_csv(input[0], delim_whitespace= True, header=None)
-                d24= pd.read_csv(input[1], delim_whitespace= True, header=None)
-                d= pd.concat([d12, d24])
-                d.to_csv(output[0], sep= '\t', index=False, header=False)
-                d= pd.read_csv(input[2], delim_whitespace= True, header= None)
-                d.to_csv(output[1], sep= '\t', index= False, header= False)
-                d= pd.read_csv(input[3], delim_whitespace= True, header= None)
-                d.to_csv(output[2], sep= '\t', index= False, header= False)
+	output:
+		'/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam'
+	run:
+		if wildcards.cohort== 'harvest':
+	                d12= pd.read_csv(input[0], delim_whitespace= True, header=None)
+		        d24= pd.read_csv(input[1], delim_whitespace= True, header=None)
+			d= pd.concat([d12, d24])
+		if wildcards.cohort== 'rotterdam1':
+			d= pd.read_csv(input[2], delim_whitespace= True, header= None)
+		if wildcards.cohort== 'rotterdam2':
+			d= pd.read_csv(input[3], delim_whitespace= True, header= None)
+		if wildcards.cohort== 'normentfeb':
+			d= pd.read_csv(input[4], delim_whitespace= True, header= None)
+		if wildcards.cohort== 'normentmay':
+			d= pd.read_csv(input[5], delim_whitespace= True, header= None)
+		d.to_csv(output[0], sep= '\t', index= False, header= False)
+
 
 rule figure1:
 	'Figure 1 for results section.'
