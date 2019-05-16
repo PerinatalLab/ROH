@@ -88,7 +88,9 @@ rule fix_norment_FID:
                 '/mnt/archive/NORMENT1/connection-files/sentrixid-to-pregid_norment/MorBarn_Alias_Feb2018_9674PN_sentrix.txt',
                 '/mnt/archive/NORMENT1/connection-files/sentrixid-to-pregid_norment/MorBarn_Alias_May2016_19611PN_sentrix.txt',
                 '/mnt/archive/ROTTERDAM2/delivery-fhi/data/aux/flag-list/sample_flag_list.txt',
-                '/mnt/work/pol/rotterdam1/pheno/rotterdam1_mfr.csv'
+                '/mnt/work/pol/rotterdam1/pheno/rotterdam1_mfr.csv',
+		'/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/feb18/genotyped.fam',
+		'/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/may16/genotyped.fam'
         output:
                 '/mnt/work/pol/ROH/normentfeb/pheno/normentfeb_trios.txt',
                 '/mnt/work/pol/ROH/normentmay/pheno/normentmay_trios.txt',
@@ -109,14 +111,20 @@ rule fix_norment_FID:
                 feb1['PREG_ID_315']= feb1.index
                 feb1.to_csv(output[0], sep= '\t', index= False, header= True)
                 feb= feb.rename({'Chip_ID': 'SentrixID'}, axis= 1)
-                feb.to_csv(output[2], sep= '\t', index= False, header= True, columns= ['PREG_ID_315', 'SentrixID', 'Role'])
+		famfeb= pd.read_csv(input[5], delim_whitespace= True, header= None)
+                famfeb.columns= ['FID', 'IID', 'x1', 'x2', 'x3', 'x4']
+		feb= pd.merge(feb, famfeb, left_on= ['SentrixID'], right_on= ['IID'])
+                feb.to_csv(output[2], sep= '\t', index= False, header= True, columns= ['PREG_ID_315', 'FID', 'SentrixID', 'Role'])
                 may= pd.merge(may, con, left_on= ['Alias'], right_on= ['Retrieval'])
                 may.drop_duplicates(keep= 'first', inplace= True)
 		may1= may.pivot(index= 'PREG_ID_315', columns= 'Role', values= 'Chip_ID')
                 may1['PREG_ID_315']= may1.index
                 may1.to_csv(output[1], sep= '\t', index= False, header= True)
                 may= may.rename({'Chip_ID': 'SentrixID'}, axis= 1)
-                may.to_csv(output[3], sep= '\t', index= False, header= True, columns= ['PREG_ID_315', 'SentrixID', 'Role'])
+		fammay= pd.read_csv(input[6], delim_whitespace= True, header= None)
+                fammay.columns= ['FID', 'IID', 'x1', 'x2', 'x3', 'x4']
+                may= pd.merge(may, fammay, left_on= ['SentrixID'], right_on= ['IID'])
+                may.to_csv(output[3], sep= '\t', index= False, header= True, columns= ['PREG_ID_315', 'FID', 'SentrixID', 'Role'])
                 d= pd.read_csv(input[3], sep= '\t', header=0)
                 d.to_csv(output[4], header= True, index= False, sep= '\t')
                 d.to_csv(output[5], header= True, index= False, sep= '\t')
@@ -187,8 +195,8 @@ rule ids_to_keep:
 	                mat.columns= ['FID', 'IID']
 		        fet.columns= ['FID', 'IID']
 			fat.columns= ['FID', 'IID']
-		if ('rotterdam' in input[1] | 'norment' in input[1]):
-			x= pd.read_csv(input[1], sep= ' ')
+		if (('rotterdam' in input[1]) | ('norment' in input[1])):
+			x= pd.read_csv(input[1], delim_whitespace= True)
 			x.dropna(subset= ['Role'], inplace= True)
 			x.rename({'SentrixID': 'IID', 'postFID': 'FID'}, inplace= True, axis= 1)
 			d= pd.read_csv(input[0], sep= '\t')

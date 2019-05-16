@@ -28,12 +28,12 @@ df= select(d, PREG_ID_315, IID, x1, x2)
 names(df)= c('PREG_ID_315', 'Child', 'Father', 'Mother')
 df= filter(df, !is.na(Child), !is.na(Father), !is.na(Mother))
 
-write.table(df, snakemake@output[[1]], col.names=T, row.names=F, sep= '\t')
+write.table(df, snakemake@output[[1]], col.names=T, row.names=F, sep= '\t', quote= F)
 
 d= d %>% select(FID, IID, PREG_ID_315, ROLE)
-names(d)= c('postFID', 'SentrixID', 'PREG_ID_315', 'Role')
-write.table(d, snakemake@output[[2]], col.names= T, row.names=F, sep= '\t')
+names(d)= c('FID', 'SentrixID', 'PREG_ID_315', 'Role')
+write.table(d, snakemake@output[[2]], col.names= T, row.names=F, sep= '\t', quote=F)
 
 mfr= fread(snakemake@input[[5]])
 
-write.table(mfr, snakemake@output[[3]], col.names=T, row.names=F, sep= '\t')
+write.table(mfr, snakemake@output[[3]], col.names=T, row.names=F, sep= '\t', quote=F)
