@@ -52,8 +52,8 @@ def pheno_harvest():
 def pheno_rotterdam():
 	d= pd.read_csv(snakemake.input[1], delim_whitespace= True)
 	mfr= pd.read_csv(snakemake.input[2], sep= '\t', header= 0)
-	link= pd.read_csv(snakemake.input[3], sep= ' ', header= 0)
-	pca= pd.read_csv(snakemake.input[4], sep= ' ', header= None, names= ['SentrixID', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10'])
+	link= pd.read_csv(snakemake.input[3], delim_whitespace= True, header= 0)
+	pca= pd.read_csv(snakemake.input[4], delim_whitespace= True, header= None, names= ['SentrixID', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10'])
 	bim= [line.strip() for line in open(snakemake.input[7], 'r')]
 	bim= "".join(bim[1])
 	bim= pd.read_csv(bim, sep= '\t', header= None, names=['chr', 'snp', 'cM', 'pos', 'A1', 'A2'])
