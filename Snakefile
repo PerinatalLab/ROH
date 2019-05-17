@@ -125,7 +125,7 @@ rule fix_norment_FID:
                 fammay.columns= ['FID', 'IID', 'x1', 'x2', 'x3', 'x4']
                 may= pd.merge(may, fammay, left_on= ['SentrixID'], right_on= ['IID'])
                 may.to_csv(output[3], sep= '\t', index= False, header= True, columns= ['PREG_ID_315', 'FID', 'SentrixID', 'Role'])
-                d= pd.read_csv(input[3], sep= '\t', header=0)
+                d= pd.read_csv(input[4], sep= '\t', header=0)
                 d.to_csv(output[4], header= True, index= False, sep= '\t')
                 d.to_csv(output[5], header= True, index= False, sep= '\t')
 
