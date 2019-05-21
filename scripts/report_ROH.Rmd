@@ -155,7 +155,7 @@ freq= inner_join(freqm, freqf, by= c('chr','pos'))
 
 }
 
-if (grepl('rott', input[1])){
+if (!grepl('harvest', input[1])){
 
 moms= unlist(input[grep('runs_mfr_maternal.txt', input)])
 moms= read.table(moms, h=T, sep= '\t')
