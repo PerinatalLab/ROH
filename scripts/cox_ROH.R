@@ -14,7 +14,7 @@ covars= c('PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PARITY0')
 
 options(stringsAsFactors=FALSE)
 
-pheno= read.table(phenofile, h= T, sep='\t')
+pheno= fread(phenofile)
 
 if (grepl('harvest', phenofile)){
 pheno= mutate(pheno, spont= as.numeric(FSTART==1 & (is.na(KSNITT) | KSNITT>1) &
@@ -50,7 +50,7 @@ dataChunk= fread(text=block.text, sep="\t", col.names= colnames)
         dataChunk$id= gsub('X','',rownames(dataChunk))
 	names(dataChunk)[1:length(genvars)]= genvars
         geno= inner_join(pheno, dataChunk, by= c('SentrixID_1' = 'id'))
-	cox_coef= mclapply(names(geno[,-c(1:dim(pheno)[2])]), mc.cores= 2, function(snp){cox_coef= coxph(Surv( geno$SVLEN_UL_DG, geno$spont)~ geno[,snp] + geno$PARITY0 + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6, na.action = na.omit)
+	cox_coef= lapply(names(geno[,-c(1:dim(pheno)[2])]), function(snp){cox_coef= coxph(Surv( geno$SVLEN_UL_DG, geno$spont)~ geno[,snp] + geno$PARITY0 + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6, na.action = na.omit)
 	coef = summary( cox_coef)$coefficients[1,1]
 	sd= summary(cox_coef)$coefficient[1,3]
 	n= summary(cox_coef)$n

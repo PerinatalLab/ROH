@@ -45,7 +45,9 @@ def pheno_harvest():
 	d= d[(d.C00_MALF_ALL==0)]
 	d['BATCH']= np.where(d.SentrixID_1.isin(fam.IID), 0, 1)
 	d= d.sample(frac=1)
-	
+	flag= pd.read_csv(snakemake.input[8], sep= '\t', header= 0)
+	flag= flag[(flag['genotypesOK']== True) & (flag['phenotypesOK']== True) & (flag['coreOK']== True)]
+	d= d.loc[d.IID.isin(flag.IID), :]
 	d.drop_duplicates(subset= ['PREG_ID_1724'], keep= 'first', inplace= True)
 	return d
 
@@ -53,7 +55,8 @@ def pheno_rotterdam():
 	d= pd.read_csv(snakemake.input[1], delim_whitespace= True)
 	mfr= pd.read_csv(snakemake.input[2], sep= '\t', header= 0)
 	link= pd.read_csv(snakemake.input[3], delim_whitespace= True, header= 0)
-	pca= pd.read_csv(snakemake.input[4], delim_whitespace= True, header= None, names= ['SentrixID', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10'])
+	pca= pd.read_csv(snakemake.input[4], delim_whitespace= True, header= 0)
+	pca.columns= ['FID', 'SentrixID', 'NMISS_ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10']
 	bim= [line.strip() for line in open(snakemake.input[7], 'r')]
 	bim= "".join(bim[1])
 	bim= pd.read_csv(bim, sep= '\t', header= None, names=['chr', 'snp', 'cM', 'pos', 'A1', 'A2'])
@@ -75,6 +78,9 @@ def pheno_rotterdam():
 	d= d[(d.PLACENTA_PREVIA=='Nei') ]
 	d= d[(d.FOSTERV_POLYHYDRAMNION=='Nei')]
 	d= d[(d.C00_MALF_ALL=='Nei')]
+	flag= pd.read_csv(snakemake.input[8], sep= '\t', header= 0)
+	flag= flag[(flag['genotypesOK']== True) & (flag['phenoOK']== True) & (flag['coreLMM']== True)]
+	d= d.loc[d.IID.isin(flag.IID), :]
 	d.drop_duplicates(subset= ['PREG_ID_315'], keep= 'first', inplace= True)
 	return d
 
@@ -84,6 +90,7 @@ def selectUnrelated(df, x):
 	kin= pd.read_csv(snakemake.input[5], sep= '\t')
 	kin= kin.loc[kin.KINSHIP > 0.0884, :]
 	kin= kin.loc[kin.ID1.isin(x.values)]
+	kin= kin.loc[kin.ID2.isin(x.values)]
 	kin= kin.loc[:, ['ID1','ID2','KINSHIP']]
 	kin_temp= kin.copy()
 	kin_temp.columns= ['ID2', 'ID1', 'KINSHIP']
@@ -99,8 +106,7 @@ def selectUnrelated(df, x):
 			to_keep.append(kin_temp.iloc[i, 0])
 	to_remove= [i for i in kin_temp.ID1 if i not in to_keep]
 	to_remove= list(set(to_remove))
-	remove= pd.DataFrame(to_remove)
-	remove.columns= ['FID']
+	remove= pd.DataFrame({'FID': to_remove})
 	remove['IID']= remove.FID
 	return remove
 
@@ -108,7 +114,7 @@ if wild == 'harvest':
 	d= pheno_harvest()
 	remove= selectUnrelated(d, d.SentrixID_1)
 	d= d[~d.SentrixID_1.isin(remove)]
-else:
+if wild != 'harvest':
 	d= pheno_rotterdam()
 	remove= selectUnrelated(d, d.SentrixID)
 	d= d[~d.SentrixID.isin(remove)]

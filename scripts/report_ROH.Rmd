@@ -37,7 +37,11 @@ options(width = 1800)
 ```{r read_files, include= F}
 input= snakemake@input
 
+flag= fread(unlist(input[grep('flat_list.txt', input)]))
+
 if (grepl('harvest', input[1])){
+
+flag= rename(coreLMM= coreOK, phenoOK= phenotypesOK)
 
 moms= unlist(input[grep('runs_mfr_maternal.txt', input)])
 dads= unlist(input[grep('runs_mfr_paternal.txt', input)])
@@ -45,7 +49,7 @@ fets= unlist(input[grep('runs_mfr_fetal.txt', input)])
 moms= read.table(moms, h=T, sep= '\t')
 dads= read.table(dads, h=T, sep= '\t')
 fets= read.table(fets, h=T, sep= '\t')
-q1= unlist(input[grep('q1_pdb1724_v9.csv', input)])
+q1= unlist(input[grep('q1_v9.txt', input)])
 q1= read.table(q1, h=T, sep= ';')
 
 fmoms= unlist(input[grep('/results/het/maternal', input)])
@@ -163,7 +167,7 @@ dads= unlist(input[grep('runs_mfr_paternal.txt', input)])
 dads= read.table(dads, h=T, sep= '\t')
 fets= unlist(input[grep('runs_mfr_fetal.txt', input)])
 fets= read.table(fets, h=T, sep= '\t')
-q1= unlist(input[grep('q1_pdb315_v9.csv', input)])
+q1= unlist(input[grep('q1_v9.txt', input)])
 q1= read.table(q1, h=T, sep= '\t')
 
 fmoms= unlist(input[grep('/results/het/maternal', input)])
@@ -303,6 +307,10 @@ maxarg$flags= c('Pruning', 'density', 'SNP', 'length', 'het', 'GAP')
 nSNP= as.numeric(maxarg[3,1])
 pvalue_t= (0.05 / nrow(bim)) * nSNP
 
+
+flag= fread(unlist(input[grep('flat_list.txt', input)]))
+
+flag= filter(flag, genotypesOK== TRUE, coreLMM== TRUE, phenoOK== TRUE)
 
 ```
 
