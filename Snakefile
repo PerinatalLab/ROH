@@ -44,7 +44,7 @@ rule all:
 		expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
 		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms),
-		expand('figures/Figure1_{cohort}.eps', cohort= cohort_nms)
+#		expand('figures/Figure1_{cohort}.eps', cohort= cohort_nms)
 
 ## Snakemake code
 
@@ -514,10 +514,13 @@ rule run_ROH_multi_arg_bp:
 rule determine_arguments_ROH:
 	'Determine ROH estimation arguments that maximise ROH - parental IBD correlation.'
 	input:
-                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
+                '/mnt/work/pol/{cohort}/pca/{cohort}_pca.txt',
                 '/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam',
                 '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam',
                 '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
+		'/mnt/work/pol/{cohort}/pheno/flag_list.txt',
+		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
+		'/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0',
 		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms),	
 		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms)
 	output:
@@ -569,38 +572,6 @@ rule estimate_ROH:
 		with open(output[2], 'w') as f:
 			f.writelines( "%s\n" % item for item in l)
 
-rule combine_pca:
-        'Obtain pca for all samples.'
-        input:
-                '/mnt/archive/HARVEST/delivery-fhi/data/aux/pca-core/m12-founders-pca-covariates',
-                '/mnt/archive/HARVEST/delivery-fhi/data/aux/pca-core/m24-founders-pca-covariates',
-                '/mnt/archive/HARVEST/delivery-fhi/data/aux/pca-core/m12-offspring-pca-covariates',
-                '/mnt/archive/HARVEST/delivery-fhi/data/aux/pca-core/m24-offspring-pca-covariates',
-                '/mnt/archive/ROTTERDAM1/delivery-fhi/data/aux/pca-covar/offspring/pca/final_pca_covars.txt',
-                '/mnt/archive/ROTTERDAM1/delivery-fhi/data/aux/pca-covar/founders/pca/final_pca_covars.txt'
-        output:
-                '/mnt/work/pol/ROH/harvest/pheno/harvest_pca.txt',
-                '/mnt/work/pol/ROH/rotterdam1/pheno/rotterdam1_pca.txt'
-        shell:
-                '''
-                cat /mnt/archive/HARVEST/delivery-fhi/data/aux/pca-core/*-pca-covariates > {output[0]}
-                cat {input[4]} {input[5]} > {output[1]}
-                '''
-
-rule relatedness:
-        'Calculate relatedness using KING function from PLINK2.'
-        input:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_{sample}.bed',
-                '/mnt/work/pol/ROH/{cohort}/pheno/{sample}_ids',
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/none/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed','bim','fam']),
-        output:
-                '/mnt/work/pol/ROH/{cohort}/pheno/relatedness/relatedness_{sample}.kin0'
-        params:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_{sample}',
-		'/mnt/work/pol/ROH/{cohort}/pheno/relatedness/relatedness_{sample}'
-        shell:
-                '~/soft/plink2 --bfile {params[0]} --keep {input[1]} --make-king-table --king-table-filter 0.03125 --out {params[1]}'
-
 rule phenofile:
         'Merge all data necessary to create a phenotype file with ROH.'
         input:
@@ -608,10 +579,11 @@ rule phenofile:
                 '/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom.indiv',
                 '/mnt/work/pol/{cohort}/pheno/{cohort}_mfr.csv',
                 '/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv',
-                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
-                '/mnt/work/pol/ROH/{cohort}/pheno/relatedness/relatedness_{sample}.kin0',
+                '/mnt/work/pol/{cohort}/pca/{cohort}_pca.txt',
+                '/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0',
 		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.fam',
 		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
+		'/mnt/work/pol/{cohort}/pheno/flag_list.txt',
 		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.bim', pruning= pruning_nms)
         output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
@@ -739,8 +711,8 @@ rule preliminary_report:
         'Generate report for harvest analysis.'
         input:
                 expand('/mnt/work/pol/ROH/{{cohort}}/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
-                '/mnt/work/pol/harvest/pheno/q1_pdb1724_v9.csv',
-		'/mnt/work/pol/rotterdam1/pheno/q1_pdb315_v9.csv',
+                '/mnt/work/pol/{cohort}/pheno/q1_v9.txt',
+		'/mnt/work/pol/{cohort}/pheno/flag_list.txt',
                 expand('/mnt/work/pol/ROH/{{cohort}}/runs/{{cohort}}_{sample}.hom', sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}', CHR= CHR_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/{{cohort}}/runs/frequency/ROH_frequency_{sample}', sample= smpl_nms),
