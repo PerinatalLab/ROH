@@ -37,11 +37,11 @@ options(width = 1800)
 ```{r read_files, include= F}
 input= snakemake@input
 
-flag= fread(unlist(input[grep('flat_list.txt', input)]))
+flag= fread(unlist(input[grep('flag_list.txt', input)]))
 
 if (grepl('harvest', input[1])){
 
-flag= rename(coreLMM= coreOK, phenoOK= phenotypesOK)
+flag= rename(flag, coreLMM= coreOK, phenoOK= phenotypesOK)
 
 moms= unlist(input[grep('runs_mfr_maternal.txt', input)])
 dads= unlist(input[grep('runs_mfr_paternal.txt', input)])
@@ -50,7 +50,7 @@ moms= read.table(moms, h=T, sep= '\t')
 dads= read.table(dads, h=T, sep= '\t')
 fets= read.table(fets, h=T, sep= '\t')
 q1= unlist(input[grep('q1_v9.txt', input)])
-q1= read.table(q1, h=T, sep= ';')
+q1= fread(q1)
 
 fmoms= unlist(input[grep('/results/het/maternal', input)])
 fmoms= fread(fmoms)
@@ -162,13 +162,13 @@ freq= inner_join(freqm, freqf, by= c('chr','pos'))
 if (!grepl('harvest', input[1])){
 
 moms= unlist(input[grep('runs_mfr_maternal.txt', input)])
-moms= read.table(moms, h=T, sep= '\t')
+moms= fread(moms)
 dads= unlist(input[grep('runs_mfr_paternal.txt', input)])
-dads= read.table(dads, h=T, sep= '\t')
+dads= fread(dads)
 fets= unlist(input[grep('runs_mfr_fetal.txt', input)])
-fets= read.table(fets, h=T, sep= '\t')
+fets= fread(fets)
 q1= unlist(input[grep('q1_v9.txt', input)])
-q1= read.table(q1, h=T, sep= '\t')
+q1= fread(q1)
 
 fmoms= unlist(input[grep('/results/het/maternal', input)])
 fmoms= fread(fmoms)
@@ -194,10 +194,10 @@ names(df)[names(df) == 'SentrixID'] <- 'SentrixID_1'
 return(df)
 }
 
-q1$AA1124= as.integer(q1$AA1124)
-q1$AA1125= as.integer(q1$AA1125)
-q1$AA1128= as.integer(q1$AA1128)
-q1$AA1129= as.integer(q1$AA1129)
+q1$AA1124= as.integer(as.factor(q1$AA1124))
+q1$AA1125= as.integer(as.factor(q1$AA1125))
+q1$AA1128= as.integer(as.factor(q1$AA1128))
+q1$AA1129= as.integer(as.factor(q1$AA1129))
 
 q1$edu[q1$AA1124 <3 | q1$AA1125<3]= 1
 q1$edu[q1$AA1124 ==3 | q1$AA1125==3]= 2
@@ -206,8 +206,8 @@ q1$edu[q1$AA1124 ==5 | q1$AA1125==5]= 3
 q1$edu[q1$AA1124 ==6 | q1$AA1125==6]= 4
 q1$edu[(is.na(q1$edu) & q1$AA1128==6) | (is.na(q1$edu) & q1$AA1129==1)]= 5
 
-q1$AA1315= as.integer(q1$AA1315)
-q1$AA1316= as.integer(q1$AA1316)
+q1$AA1315= as.integer(as.factor(q1$AA1315))
+q1$AA1316= as.integer(as.factor(q1$AA1316))
 
 q1$AA1315[q1$AA1315==1 | q1$AA1315==2| q1$AA1315==3| q1$AA1315==4]= 0
 q1$AA1315[q1$AA1315==5 | q1$AA1315==6 | q1$AA1315==7]= 1
@@ -306,9 +306,6 @@ maxarg$flags= c('Pruning', 'density', 'SNP', 'length', 'het', 'GAP')
 
 nSNP= as.numeric(maxarg[3,1])
 pvalue_t= (0.05 / nrow(bim)) * nSNP
-
-
-flag= fread(unlist(input[grep('flat_list.txt', input)]))
 
 flag= filter(flag, genotypesOK== TRUE, coreLMM== TRUE, phenoOK== TRUE)
 
@@ -809,6 +806,7 @@ d= d %>% select(role, model, exp.coef., lower..95, upper..95)
 
 kable(d, caption= 'FROH length and risk of spontaneous delivery', col.names = c('Role', 'Model', 'Hazard Ratio', 'Lower 95%CI', 'Upper 95%CI'), digits= 3) %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F, position = "center", font_size = 12) %>%   column_spec(1, bold = T, border_right = T)  %>%   footnote(general = 'Adjusted by: crude: none; model 1: PC1-10 and parity; model 2: model 1 + maternal educational attainment and household income.')
 ```
+
 
 
 ```{r echo=F, dpi= 300}
@@ -1440,6 +1438,8 @@ grid.arrange(x, x1, x2, x3, nrow= 2, top= 'Fathers')
 
 ## Results - Fhom and spontaneous delivery risk (no pruning)
 
+
+
 ```{r echo=F, dpi= 300}
 
 crudecoxm= coxph(Surv(SVLEN_UL_DG, spont)~ none_F, moms)
@@ -1585,6 +1585,7 @@ grid.arrange(z,z1,z2, ncol= 2, top= 'Fhom and spontaneous delivery risk')
 ```
 
 # Associations between fetal Fhom and parental IBD
+
 
 ```{r echo=F}
 
