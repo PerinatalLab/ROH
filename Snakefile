@@ -40,7 +40,6 @@ rule all:
 	'Collect the main outputs of the workflow.'
 	input:
 		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/harvest/ibd/harvest_ibd_chr{CHR}.match', CHR= CHR_nms),
 		expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
 		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms),
@@ -51,38 +50,33 @@ rule all:
 rule ids_to_keep:
         'List of maternal, paternal and fetal ids acceptable by PLINK for --keep.'
         input:
-                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
 		'/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv'
         output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/maternal_ids',
                 '/mnt/work/pol/ROH/{cohort}/pheno/paternal_ids',
-                '/mnt/work/pol/ROH/{cohort}/pheno/fetal_ids'
+                '/mnt/work/pol/ROH/{cohort}/pheno/fetal_ids',
+		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
 	run:
-		if 'harvest' in input[1]:
-			d= pd.read_csv(input[0], sep= '\t')
-			mat= d.loc[:,['Mother', 'Mother']]
-			fet= d.loc[:, ['Child', 'Child']]
-			fat= d.loc[:, ['Father', 'Father']]
-	                mat.columns= ['FID', 'IID']
-		        fet.columns= ['FID', 'IID']
-			fat.columns= ['FID', 'IID']
-		if (('rotterdam' in input[1]) | ('norment' in input[1])):
-			x= pd.read_csv(input[1], delim_whitespace= True)
-			x.dropna(subset= ['Role'], inplace= True)
-			x.rename({'SentrixID': 'IID', 'postFID': 'FID'}, inplace= True, axis= 1)
-			d= pd.read_csv(input[0], sep= '\t')
-			mat= d.loc[:,['Mother', 'Mother']]
-			fet= d.loc[:, ['Child', 'Child']]
-			fat= d.loc[:, ['Father', 'Father']]
-			mat.columns= ['Mother', 'IID']
-			fet.columns= ['Child', 'IID']
-			fat.columns= ['Father', 'IID']
-			mat= pd.merge(mat, x, on= 'IID')
-			fet= pd.merge(fet, x, on= 'IID')
-			fat= pd.merge(fat, x, on= 'IID')
-		mat.to_csv(output[0], header= None, columns= ['FID', 'IID'], index= False, sep= '\t')
-                fet.to_csv(output[2], header= None, columns= ['FID', 'IID'], index= False, sep= '\t')
-                fat.to_csv(output[1], header= None, columns= ['FID', 'IID'], index= False, sep= '\t')
+		if 'harvest' in input[0]:
+			d= pd.read_csv(input[0], sep= ';', header= 0)
+			d.dropna(subset= ['Role'], inplace= True)
+			x= d.pivot(index='PREG_ID_1724', columns='Role', values= ['FID', 'SentrixID_1'])
+			x.columns= x.columns.droplevel()
+			x= x.iloc[:, 2:]
+			x.reset_index(inplace=True)
+			x.columns= ['PREG_ID_1724', 'FID', 'Child', 'Father', 'Father']
+		if (('rotterdam' in input[0]) | ('norment' in input[0])):
+			d= pd.read_csv(input[0], delim_whitespace= True, header= 0)
+			d.dropna(subset= ['Role'], inplace= True)
+			x= d.pivot(index= 'PREG_ID_315', columns= 'Role', values= ['FID', 'SentrixID'])
+			x.columns= x.columns.droplevel()
+			x= x.iloc[:, 2:]
+			x.reset_index(inplace=True)
+			x.columns= ['PREG_ID_315', 'FID', 'Child', 'Father', 'Father']
+		mat.to_csv(output[0], header= None, columns= ['FID', 'Mother'], index= False, sep= '\t')
+                fet.to_csv(output[2], header= None, columns= ['FID', 'Child'], index= False, sep= '\t')
+                fat.to_csv(output[1], header= None, columns= ['FID', 'Father'], index= False, sep= '\t')
+		x.to_csv(output[3], header= True, sep= '\t', index= False)
 
 rule overlaping_variants:
         'List overlapping variants between m12 and m24.'
@@ -120,7 +114,7 @@ rule overlapping_plink_geno:
 rule merge_batches_harvest_genotyped:
         'Merge batch PLINK files for ROH calling.'
         input:
-                expand('/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_genotyped.{ext}', batch= batch_nms, ext= ['bed','bim','fam']),
+                expand('/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_genotyped.{ext}', batch= batch_nms, ext= ['bed','bim','fam'])
         output:
                 temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_genotyped.{ext}', ext= ['bed','bim','fam', 'log', 'nosex']))
         params:
