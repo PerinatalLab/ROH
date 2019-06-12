@@ -48,35 +48,43 @@ rule all:
 ## Snakemake code
 
 rule ids_to_keep:
-        'List of maternal, paternal and fetal ids acceptable by PLINK for --keep.'
-        input:
+	'List maternal, paternal and fetal ids acceptable by PLINK for --keep.'
+	input:
 		'/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv'
-        output:
+	output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/maternal_ids',
                 '/mnt/work/pol/ROH/{cohort}/pheno/paternal_ids',
                 '/mnt/work/pol/ROH/{cohort}/pheno/fetal_ids',
 		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
 	run:
-		if 'harvest' in input[0]:
+		if wildcards.cohort == 'harvest':
 			d= pd.read_csv(input[0], sep= ';', header= 0)
 			d.dropna(subset= ['Role'], inplace= True)
-			x= d.pivot(index='PREG_ID_1724', columns='Role', values= ['FID', 'SentrixID_1'])
+			x= d.pivot(index='PREG_ID_1724', columns='Role', values= [ 'SentrixID_1'])
 			x.columns= x.columns.droplevel()
-			x= x.iloc[:, 2:]
 			x.reset_index(inplace=True)
-			x.columns= ['PREG_ID_1724', 'FID', 'Child', 'Father', 'Father']
-		if (('rotterdam' in input[0]) | ('norment' in input[0])):
+			x.columns= ['PREG_ID_1724', 'Child', 'Father', 'Mother']
+			x.dropna(inplace= True)
+			x.to_csv(output[0], header= None, columns= ['Mother', 'Mother'], index= False, sep= '\t')
+	                x.to_csv(output[2], header= None, columns= ['Child', 'Child'], index= False, sep= '\t')
+		        x.to_csv(output[1], header= None, columns= ['Father', 'Father'], index= False, sep= '\t')
+			x.to_csv(output[3], header= True, sep= '\t', index= False)
+		if wildcards.cohort != 'harvest':
 			d= pd.read_csv(input[0], delim_whitespace= True, header= 0)
 			d.dropna(subset= ['Role'], inplace= True)
 			x= d.pivot(index= 'PREG_ID_315', columns= 'Role', values= ['FID', 'SentrixID'])
 			x.columns= x.columns.droplevel()
+			x.iloc[:,2]= x.iloc[:,2].fillna(x.iloc[:,0])
+			x.iloc[:,2]= x.iloc[:,2].fillna(x.iloc[:,1])
 			x= x.iloc[:, 2:]
 			x.reset_index(inplace=True)
-			x.columns= ['PREG_ID_315', 'FID', 'Child', 'Father', 'Father']
-		mat.to_csv(output[0], header= None, columns= ['FID', 'Mother'], index= False, sep= '\t')
-                fet.to_csv(output[2], header= None, columns= ['FID', 'Child'], index= False, sep= '\t')
-                fat.to_csv(output[1], header= None, columns= ['FID', 'Father'], index= False, sep= '\t')
-		x.to_csv(output[3], header= True, sep= '\t', index= False)
+			x.columns= ['PREG_ID_315', 'FID', 'Child', 'Father', 'Mother']
+			x['PREG_ID_315']= x['PREG_ID_315'].astype(int)
+			x.dropna(inplace= True)
+			x.to_csv(output[0], header= None, columns= ['FID', 'Mother'], index= False, sep= '\t')
+		        x.to_csv(output[2], header= None, columns= ['FID', 'Child'], index= False, sep= '\t')
+			x.to_csv(output[1], header= None, columns= ['FID', 'Father'], index= False, sep= '\t')
+			x.to_csv(output[3], header= True, sep= '\t', index= False)
 
 rule overlaping_variants:
         'List overlapping variants between m12 and m24.'
