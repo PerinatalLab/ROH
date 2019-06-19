@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-d= pd.read_csv(snakemake.input[0], delim_whitespace= True, header= True)
+d= pd.read_csv(snakemake.input[0], delim_whitespace= True, header= 0)
 
 x= [line.strip() for line in open(snakemake.input[1], 'r')]
 fam= [i for i in x if 'fam' in i]
