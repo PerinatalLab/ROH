@@ -17,9 +17,9 @@ def pheno_harvest():
 	bp= bim.groupby(['chr'])['pos'].diff(1).sum() / 1000000
 	
 	
-	link= link.loc[link.PREG_ID_1724.str.isnumeric(), :]
-	link['PREG_ID_1724']= link['PREG_ID_1724'].astype(str).astype(int)
-	
+#	link= link.loc[link.PREG_ID_1724.str.isnumeric(), :]
+#	link['PREG_ID_1724']= link['PREG_ID_1724'].astype(str).astype(int)
+	link.dropna(subset= ['PREG_ID_1724'], inplace= True)
 	mfr= pd.merge(mfr, link, on= ['PREG_ID_1724'], how= 'inner')
 	mfr= pd.merge(mfr, pca, on= ['SentrixID_1'], how= 'inner')
 	
@@ -110,11 +110,11 @@ def selectUnrelated(df, x):
 	remove['IID']= remove.FID
 	return remove
 
-if wild == 'harvest':
+if 'harvest' in wild:
 	d= pheno_harvest()
 	remove= selectUnrelated(d, d.SentrixID_1)
 	d= d[~d.SentrixID_1.isin(remove)]
-if wild != 'harvest':
+if 'harvest' not in wild:
 	d= pheno_rotterdam()
 	remove= selectUnrelated(d, d.SentrixID)
 	d= d[~d.SentrixID.isin(remove)]

@@ -4,10 +4,10 @@ import os
 import gzip
 import functools
 
-cohort_nms= ['harvest','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
+cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
 smpl_nms= ['maternal','paternal', 'fetal']
 batch_nms= ['m12', 'm24']
-CHR_nms= [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
 
 # Other arguments:
 
@@ -42,8 +42,8 @@ rule all:
 		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
-		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms),
-#		expand('figures/Figure1_{cohort}.eps', cohort= cohort_nms)
+		expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
+		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
 
 ## Snakemake code
 
@@ -57,7 +57,7 @@ rule ids_to_keep:
                 '/mnt/work/pol/ROH/{cohort}/pheno/fetal_ids',
 		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
 	run:
-		if wildcards.cohort == 'harvest':
+		if 'harvest' in wildcards.cohort:
 			d= pd.read_csv(input[0], sep= ';', header= 0)
 			d.dropna(subset= ['Role'], inplace= True)
 			x= d.pivot(index='PREG_ID_1724', columns='Role', values= [ 'SentrixID_1'])
@@ -69,7 +69,7 @@ rule ids_to_keep:
 	                x.to_csv(output[2], header= None, columns= ['Child', 'Child'], index= False, sep= '\t')
 		        x.to_csv(output[1], header= None, columns= ['Father', 'Father'], index= False, sep= '\t')
 			x.to_csv(output[3], header= True, sep= '\t', index= False)
-		if wildcards.cohort != 'harvest':
+		if 'harvest' not in wildcards.cohort:
 			d= pd.read_csv(input[0], delim_whitespace= True, header= 0)
 			d.dropna(subset= ['Role'], inplace= True)
 			x= d.pivot(index= 'PREG_ID_315', columns= 'Role', values= ['FID', 'SentrixID'])
@@ -80,63 +80,32 @@ rule ids_to_keep:
 			x.reset_index(inplace=True)
 			x.columns= ['PREG_ID_315', 'FID', 'Child', 'Father', 'Mother']
 			x['PREG_ID_315']= x['PREG_ID_315'].astype(int)
+			x= x[pd.to_numeric(x['FID'], errors='coerce').notnull()]
+			x['FID']= x['FID'].astype(int)
 			x.dropna(inplace= True)
 			x.to_csv(output[0], header= None, columns= ['FID', 'Mother'], index= False, sep= '\t')
 		        x.to_csv(output[2], header= None, columns= ['FID', 'Child'], index= False, sep= '\t')
 			x.to_csv(output[1], header= None, columns= ['FID', 'Father'], index= False, sep= '\t')
 			x.to_csv(output[3], header= True, sep= '\t', index= False)
 
-rule overlaping_variants:
-        'List overlapping variants between m12 and m24.'
-        input:
-                '/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.bim',
-                '/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m24/m24-genotyped.bim'
-        output:
-                temp('/mnt/work/pol/ROH/harvest/genotypes/temp/geno_to_extract')
-        run:
-                d12= pd.read_csv(input[0], header= None, sep= '\t')
-                d24= pd.read_csv(input[1], header= None, sep= '\t')
-                d12.columns= d24.columns= ['CHR','SNP','cM', 'POS', 'REF', 'ALT']
-                d24.loc[d24.ALT< d24.REF, ['REF', 'ALT']]= d24.loc[d24.ALT< d24.REF, ['ALT', 'REF']]
-                d12.loc[d12.ALT< d12.REF, ['REF', 'ALT']]= d12.loc[d12.ALT< d12.REF, ['ALT', 'REF']]
-                d12['variant']= d12.iloc[:,0].astype(str) + ':' + d12.iloc[:,3].astype(str)+ ':' + d12.iloc[:,4] + ':' + d12.iloc[:,5]
-                d24['variant']= d24.iloc[:,0].astype(str) + ':' + d24.iloc[:,3].astype(str)+ ':' + d24.iloc[:,4] + ':' + d24.iloc[:,5]
-                d= pd.merge(d12, d24, on= ['variant', 'CHR', 'POS'])
-                d= d.loc[:, ['CHR', 'POS', 'POS', 'variant']]
-                d= d.loc[d.CHR !=23 , :]
-                d.to_csv(output[0], header= False, sep= '\t', index= False)
-
-rule overlapping_plink_geno:
-        'Extract overlapping SNPs from each batch.'
-        input:
-                expand('/mnt/archive/HARVEST/delivery-fhi/data/genotyped/{{batch}}/{{batch}}-genotyped.{ext}', ext= ['bed','bim','fam']),
-                '/mnt/work/pol/ROH/harvest/genotypes/temp/geno_to_extract'
-        output:
-                temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/{{batch}}_genotyped.{ext}', ext= ['bed','bim','fam', 'log']))
-        params:
-                '/mnt/archive/HARVEST/delivery-fhi/data/genotyped/{batch}/{batch}-genotyped',
-                '/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_genotyped'
-        shell:
-                '~/soft/plink --bfile {params[0]} --extract range {input[3]} --make-bed --out {params[1]}'
-
-rule merge_batches_harvest_genotyped:
-        'Merge batch PLINK files for ROH calling.'
-        input:
-                expand('/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_genotyped.{ext}', batch= batch_nms, ext= ['bed','bim','fam'])
-        output:
-                temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_genotyped.{ext}', ext= ['bed','bim','fam', 'log', 'nosex']))
-        params:
-                '/mnt/work/pol/ROH/harvest/genotypes/temp/m12_genotyped',
-                '/mnt/work/pol/ROH/harvest/genotypes/temp/m24_genotyped',
-                '/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_genotyped'
-        shell:
-                '~/soft/plink --bfile {params[0]} --bmerge {params[1]} --merge-equal-pos --make-bed --out {params[2]}'
-
+rule copy_harvest_genotyped:
+	''
+	input:
+		expand('/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m24/m24-genotyped.{ext}', ext= ['bed', 'bim', 'fam'])
+	output:
+		temp(expand('/mnt/work/pol/ROH/harvestm12/genotypes/temp/harvestm12_genotyped.{ext}', ext= ['bed', 'bim', 'fam'])),
+                temp(expand('/mnt/work/pol/ROH/harvestm24/genotypes/temp/harvestm24_genotyped.{ext}', ext= ['bed', 'bim', 'fam']))
+	shell:
+		'''
+		cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
+		'''
 rule copy_rott_genotyped:
         'Copy genotype PLINK files and change name.'
         input:
                 expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed', 'bim', 'fam']),
-                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed', 'bim', 'fam'])
         output:
                 temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_genotyped.{ext}', ext= ['bed', 'bim', 'fam'])),
                 temp(expand('/mnt/work/pol/ROH/rotterdam2/genotypes/temp/rotterdam2_genotyped.{ext}', ext= ['bed', 'bim', 'fam'])),
@@ -247,60 +216,25 @@ rule plink_bfile_prune:
 		~/soft/plink --bfile {params[0]} --exclude {input[2]} --make-bed --out {params[3]}
 		'''
 
-rule overlaping_variants_phasing:
-	'List overlapping variants between m12 and m24.'
+rule copy_harvest_to_phasing:
+	''
 	input:
-		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.bim',
-		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.bim'
+		expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.{ext}', ext= ['bed', 'bim', 'fam'])
 	output:
-		temp('/mnt/work/pol/ROH/harvest/genotypes/temp/to_extract')
-	run:
-		d12= pd.read_csv(input[0], header= None, sep= '\t')
-		d24= pd.read_csv(input[1], header= None, sep= '\t')
-		d12.columns= d24.columns= ['CHR','SNP','cM', 'POS', 'REF', 'ALT']
-		d24.loc[d24.ALT< d24.REF, ['REF', 'ALT']]= d24.loc[d24.ALT< d24.REF, ['ALT', 'REF']]
-		d12.loc[d12.ALT< d12.REF, ['REF', 'ALT']]= d12.loc[d12.ALT< d12.REF, ['ALT', 'REF']]
-		d12['variant']= d12.iloc[:,0].astype(str) + ':' + d12.iloc[:,3].astype(str)+ ':' + d12.iloc[:,4] + ':' + d12.iloc[:,5]
-		d24['variant']= d24.iloc[:,0].astype(str) + ':' + d24.iloc[:,3].astype(str)+ ':' + d24.iloc[:,4] + ':' + d24.iloc[:,5]
-		d= pd.merge(d12, d24, on= ['variant', 'CHR', 'POS'])
-		d= d.loc[:, ['CHR', 'POS', 'POS', 'variant']]
-		d= d.loc[d.CHR !=23 , :]
-		d.to_csv(output[0], header= False, sep= '\t', index= False)
-
-rule overlaping_plink_phasing:
-	'Extract overlaping SNPs from each batch.'
-	input:
-		expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/{{batch}}/{{batch}}-ready-for-imputation.{ext}', ext= ['bed','bim','fam']),
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/to_extract'
-	output:
-		temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/{{batch}}_ready_for_imputation.{ext}', ext= ['bed','bim','fam', 'log']))
-	params:
-		'/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/{batch}/{batch}-ready-for-imputation',
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/{batch}_ready_for_imputation'
+		temp(expand('/mnt/work/pol/ROH/harvestm12/genotypes/temp/harvestm12_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
+                temp(expand('/mnt/work/pol/ROH/harvestm24/genotypes/temp/harvestm24_to_phasing.{ext}', ext= ['bed', 'bim', 'fam']))
 	shell:
-		'~/soft/plink --bfile {params[0]} --extract range {input[3]} --make-bed --out {params[1]}'
-		
-rule merge_batches_harvest_phasing:
-	'Merge batch PLINK files for phasing.'
-	input:
-		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/m12_ready_for_imputation.{ext}', ext= ['bed','bim','fam']),
-		expand('/mnt/work/pol/ROH/harvest/genotypes/temp/m24_ready_for_imputation.{ext}', ext= ['bed','bim','fam'])
-	output:
-		temp(expand('/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing.{ext}', ext= ['bed','bim','fam', 'log', 'nosex']))
-	params:
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/m12_ready_for_imputation',
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/m24_ready_for_imputation',
-		'/mnt/work/pol/ROH/harvest/genotypes/temp/harvest_to_phasing'
-	shell:
-		'~/soft/plink --bfile {params[0]} --bmerge {params[1]} --merge-equal-pos --make-bed --out {params[2]}'
+		'''
+		cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
+		'''
 
 rule copy_rotterdam1_to_phasing:
         'Copy and rename PLINK files for phasing.'
         input:
                 expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/to_phasing/merged/hrc-update-complete-all.{ext}', ext= ['bed', 'bim', 'fam']),
-                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam']),
-		expand('/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/feb18/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam']),
-		expand('/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/may16/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam'])
+                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam'])
         output:
                 temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
                 temp(expand('/mnt/work/pol/ROH/rotterdam2/genotypes/temp/rotterdam2_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
@@ -592,20 +526,20 @@ rule phenofile:
         script:
                 'scripts/pheno_file.py'
 
-rule mapping_ROHs:
-        'Obtain matrix (rows= position, columns = subject), with all ROHs per subject (1= homozygous part of ROH).'
+rule mapping_ROH_segments:
+        'Obtain matrix (rows= segment, columns = subject), with all minimum segmental ROHs per subject (1= homozygous part of ROH).'
         input:
                 '/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom',
 		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt' 
         output:
-                temp('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/maps_{sample}_chr{CHR}.txt.gz')
+                temp('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz')
         script:
-                'scripts/map_ROHs.py'
+                'scripts/segment_map_ROH.py'
 
 rule ROH_freq:
         'Count per-position relative frequency of ROHs.'
         input:
-                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/maps/{{sample}}/maps_{{sample}}_chr{CHR}.txt.gz', CHR= CHR_nms)
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/maps/{{sample}}/segments_maps_{{sample}}_chr{CHR}.txt.gz', CHR= CHR_nms)
         output:
                 '/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}'
         run:
@@ -619,12 +553,12 @@ rule ROH_freq:
 rule cox_ph_analysis:
 	'Cox proportional hazard analyis on bined ROH calls.'
 	input:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/maps_{sample}_chr{CHR}.txt.gz',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz',
 		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
 	output:
 		'/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}'
 	script:
-		'scripts/cox_ROH.R'
+		'scripts/cox_segments.R'
 
 rule dl_genetic_map:
 	'Download the genetic map estimated in 1KG (https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.html), from IMPUTE2.'
@@ -743,20 +677,38 @@ rule fam_to_phasing:
 	output:
 		'/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam'
 	run:
-		if wildcards.cohort== 'harvest':
-	                d12= pd.read_csv(input[0], delim_whitespace= True, header=None)
-		        d24= pd.read_csv(input[1], delim_whitespace= True, header=None)
-			d= pd.concat([d12, d24])
-		if wildcards.cohort== 'rotterdam1':
-			d= pd.read_csv(input[2], delim_whitespace= True, header= None)
-		if wildcards.cohort== 'rotterdam2':
-			d= pd.read_csv(input[3], delim_whitespace= True, header= None)
-		if wildcards.cohort== 'normentfeb':
-			d= pd.read_csv(input[4], delim_whitespace= True, header= None)
-		if wildcards.cohort== 'normentmay':
-			d= pd.read_csv(input[5], delim_whitespace= True, header= None)
-		d.to_csv(output[0], sep= '\t', index= False, header= False)
+		if wildcards.cohort== 'harvestm12': fam= input[0]
+		if wildcards.cohort== 'harvestm24': fam= input[1]
+		if wildcards.cohort== 'rotterdam1': fam= input[2]
+		if wildcards.cohort== 'rotterdam2': fam= input[3]
+		if wildcards.cohort== 'normentfeb': fam= input[4]
+		if wildcards.cohort== 'normentmay': fam= input[5]
+		shell('cp {fam} {output[0]}')
 
+rule html_meta_report:
+        'Generate report for all cohorts together.'
+        input:
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/q1_v9.txt', cohort= cohort_nms), 
+                expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}', cohort= cohort_nms, CHR= CHR_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}', cohort= cohort_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{sample}.bim', cohort= cohort_nms, pruning= pruning_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/cm_pruned{cohort}_{sample}.bim', cohort= cohort_nms, pruning= pruning_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/results/het/{sample}_excess_hom.txt', cohort= cohort_nms, sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/{cohort}/pca/{cohort}_pca.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam', cohort= cohort_nms),
+		expand('/mnt/work/pol/{cohort}/pheno/flag_list.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0', cohort= cohort_nms)
+        output:
+                'reports/html_meta_ROH_analysis.html'
+        script:
+                'scripts/html_meta_ROH.Rmd'
 
 rule figure1:
 	'Figure 1 for results section.'
