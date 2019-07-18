@@ -43,9 +43,6 @@ colnames= unlist(strsplit(colnames, '\t'))
 
 dataChunk= fread(cmd= paste('gzip -cd', infile), sep="\t", col.names= colnames)
         genvars= paste(dataChunk$CHR, dataChunk$segment, sep=':')
-
-        if (length(genvars) == 0) break
-	
 	dataChunk= subset( dataChunk, select = -c(CHR,segment))
 
 

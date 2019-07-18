@@ -2,7 +2,9 @@ import pandas as pd
 import numpy as np
 import os
 import gzip
-import functools
+from functools import reduce
+import scipy.stats as st
+import statsmodels.stats.multitest as multi
 
 cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
 smpl_nms= ['maternal','paternal', 'fetal']
@@ -36,13 +38,14 @@ def isfloat(str):
 
 # Rules
 
+include: 'scripts/Snakefile'
+
 rule all:
 	'Collect the main outputs of the workflow.'
 	input:
 		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
-		expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
-		expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
+		expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),	
 		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms)
 
 ## Snakemake code
@@ -58,7 +61,7 @@ rule ids_to_keep:
 		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
 	run:
 		if 'harvest' in wildcards.cohort:
-			d= pd.read_csv(input[0], sep= ';', header= 0)
+			d= pd.read_csv(input[0], sep= '\t', header= 0)
 			d.dropna(subset= ['Role'], inplace= True)
 			x= d.pivot(index='PREG_ID_1724', columns='Role', values= [ 'SentrixID_1'])
 			x.columns= x.columns.droplevel()
@@ -216,167 +219,6 @@ rule plink_bfile_prune:
 		~/soft/plink --bfile {params[0]} --exclude {input[2]} --make-bed --out {params[3]}
 		'''
 
-rule copy_harvest_to_phasing:
-	''
-	input:
-		expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.{ext}', ext= ['bed', 'bim', 'fam']),
-                expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.{ext}', ext= ['bed', 'bim', 'fam'])
-	output:
-		temp(expand('/mnt/work/pol/ROH/harvestm12/genotypes/temp/harvestm12_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
-                temp(expand('/mnt/work/pol/ROH/harvestm24/genotypes/temp/harvestm24_to_phasing.{ext}', ext= ['bed', 'bim', 'fam']))
-	shell:
-		'''
-		cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
-                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
-		'''
-
-rule copy_rotterdam1_to_phasing:
-        'Copy and rename PLINK files for phasing.'
-        input:
-                expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/to_phasing/merged/hrc-update-complete-all.{ext}', ext= ['bed', 'bim', 'fam']),
-                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam'])
-        output:
-                temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
-                temp(expand('/mnt/work/pol/ROH/rotterdam2/genotypes/temp/rotterdam2_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
-        shell:
-                '''
-                cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
-                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
-                '''
-
-rule copy_norment_to_phasing:
-        'Copy and rename PLINK files for phasing.'
-        input:
-                expand('/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/feb18/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam']),
-                expand('/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/may16/merge/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam'])
-        output:
-                temp(expand('/mnt/work/pol/ROH/normentfeb/genotypes/temp/normentfeb_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
-                temp(expand('/mnt/work/pol/ROH/normentmay/genotypes/temp/normentmay_to_phasing.{ext}', ext= ['bed', 'bim', 'fam']))
-        shell:
-                '''
-                cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
-                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
-                '''
-
-
-rule split_PLINK_chr:
-	'Split PLINK binary files for phasing into one file per chromosome.'
-	input:
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_to_phasing.{ext}', ext= ['bed','bim','fam'])
-	output:
-		temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_to_phasing_chr{{CHR}}.{ext}', ext= ['bed','bim','fam']))
-	params:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_to_phasing',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_to_phasing_chr{CHR}'
-	shell:
-		'~/soft/plink --bfile {params[0]} --chr {wildcards.CHR} --mind --make-bed --out {params[1]}'
-
-rule eagle_phasing:
-	'Phasing with eagle.'
-	input:
-		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_to_phasing_chr{{CHR}}.{ext}', ext= ['bed','bim','fam'])
-	output:
-		temp('/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.haps.gz'),
-		'/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.sample'
-	params:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_to_phasing_chr{CHR}',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}'
-	shell:
-		"~/soft/Eagle_v2.4.1/eagle --bfile={params[0]} --geneticMapFile={input[0]} --numThreads=10 --outPrefix={params[1]}"
-
-rule ungzip_haps:
-	'UnGzip haps output from eagle2.'
-	input:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.haps.gz'
-	output:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.haps'
-	shell:
-		'gzip -d {input[0]}'
-
-rule haps_to_ped:
-	'Format file as .ped required by GERMLINE.'
-	input:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.haps',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.sample'
-	output:
-		temp('/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}.ped'),
-		temp('/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}.map')
-	params:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}'
-	run:
-		shell("/home/pol.sole.navais/soft/germline-1-5-3/bin/impute_to_ped {input[0]} {input[1]} {params[0]} || true")
-
-rule add_genetic_map:
-	'Adding genetic map to .map file generated.'
-	input:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}.map',
-		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt'
-	output:
-		temp('/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_complete_chr{CHR}.map')
-	run:
-		d= pd.read_csv(input[0], sep= ' ', header= None)
-		g= pd.read_csv(input[1], sep= ' ', header= 0)
-                g['SNP']= g.chr.map(str) + ':' + g.position.map(str)
-                g= g[['chr', 'SNP', 'Genetic_Map(cM)', 'position']]
-		d.columns= g.columns
-                g= g.loc[g.chr== int(wildcards.CHR), :]
-                d= d.loc[:, ['chr','position']]
-                df= pd.merge(g, d, on= ['chr', 'position'], how= 'right')
-                df= df.loc[df['Genetic_Map(cM)'].isna(), :]
-                df['Genetic_Map(cM)']= np.interp(df.position, g['position'], g['Genetic_Map(cM)'])
-                g= g.append(df)
-                g['SNP']= g.chr.map(str) + ':' + g.position.map(str)
-		d= pd.merge(d, g, on= ['chr', 'position'], how= 'left')
-		d= d[['chr', 'SNP', 'Genetic_Map(cM)', 'position']]
-                d.to_csv(output[0], header= False, index= False, sep= '\t')
-
-rule ibd_GERMLINE:
-	'Estimate shared IBD segments between subjects using GERMLINE.'
-	input:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}.ped',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_complete_chr{CHR}.map'
-	output:
-		temp('/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.match'),
-		temp('/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.log')
-	params:
-		'/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}'
-	run:	
-		shell("~/soft/germline-1-5-3/bin/germline -input {input[0]} {input[1]} -min_m 2 -output {params[0]} || true")
-
-rule lightweight_ibd:
-	'Remove columns from GERMLINE ibd file.'
-	input:
-		'/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.match'
-	output:
-		temp('/mnt/work/pol/ROH/{cohort}/ibd/lw_{cohort}_ibd_chr{CHR}.match')
-	shell:
-		"cut -d$'\t' -f1-4,7 {input[0]} > {output[0]}"
-
-rule filter_ibd:
-	'Keep only parental pairs.'
-	input:
-		expand('/mnt/work/pol/ROH/{{cohort}}/ibd/lw_{{cohort}}_ibd_chr{CHR}.match', CHR= CHR_nms),
-		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
-	output:
-		'/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt'
-	run:
-		trio= [file for file in input if 'trios' in file]
-		trio= pd.read_csv("".join(trio), sep= '\t', header= 0)
-		df= pd.DataFrame()
-		flist= [file for file in input if 'ibd' in file]
-		for infile in flist:
-			d= pd.read_csv(infile, header= None, delim_whitespace= True)
-			d.columns= ['FID1', 'IID1', 'FID2', 'IID2', 'CHR', 'start', 'end', 'cM']
-			d= d.loc[((d.IID1.isin(trio.Father.values)) & (d.IID2.isin(trio.Mother.values))) | ((d.IID1.isin(trio.Mother.values)) & (d.IID2.isin(trio.Father.values))), : ]
-			d['Mother']= np.where(d.IID1.isin(trio.Mother.values), d.IID1, d.IID2)
-			d['Father']= np.where(d.Mother != d.IID1, d.IID1, d.IID2)
-			d= pd.merge(d, trio, on= ['Mother', 'Father'])
-			d= d[['Mother','Father','Child','CHR', 'start', 'end', 'cM']]
-			df= df.append(d)
-		df= df.groupby(['Mother', 'Father', 'Child'])['cM'].sum().reset_index()
-		df.to_csv(output[0], sep= '\t', header= True, index= False)
-
 rule replace_bp_cm:
 	'PLINK cannot use cM to estimate ROH length, so we replace bp position to cM in the .bim file.'
 	input:
@@ -457,6 +299,7 @@ rule determine_arguments_ROH:
 		'/mnt/work/pol/{cohort}/pheno/flag_list.txt',
 		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
 		'/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0',
+		'/mnt/work/pol/{cohort}/pca/all_pca_outliers_hapmap.txt',
 		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms),	
 		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms)
 	output:
@@ -520,6 +363,7 @@ rule phenofile:
 		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.fam',
 		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
 		'/mnt/work/pol/{cohort}/pheno/flag_list.txt',
+		'/mnt/work/pol/{cohort}/pca/all_pca_outliers_hapmap.txt',
 		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.bim', pruning= pruning_nms)
         output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
@@ -530,7 +374,8 @@ rule mapping_ROH_segments:
         'Obtain matrix (rows= segment, columns = subject), with all minimum segmental ROHs per subject (1= homozygous part of ROH).'
         input:
                 '/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom',
-		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt' 
+		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.fam', pruning= pruning_nms)
         output:
                 temp('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz')
         script:
@@ -556,9 +401,18 @@ rule cox_ph_analysis:
 		'/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz',
 		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
 	output:
-		'/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}'
+		temp('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}')
 	script:
 		'scripts/cox_segments.R'
+
+rule concat_cox:
+	'Concat cox results from multiple chromosomes.'
+	input:
+		expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/{{sample}}/cox_spont_{{sample}}_chr{CHR}', CHR= CHR_nms)
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}')
+	shell:
+		'cat {input} > {output[0]}'
 
 rule dl_genetic_map:
 	'Download the genetic map estimated in 1KG (https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.html), from IMPUTE2.'
@@ -640,30 +494,9 @@ rule merge_homozygosity:
 			if 'moderate' in i: d.columns= ['IID', 'moderate_F']
 			if 'hard' in i: d.columns= ['IID', 'hard_F']
 			dflist.append(d)
-		d= functools.reduce(lambda x, y: pd.merge(x, y, on= 'IID'), dflist)
+		d= reduce(lambda x, y: pd.merge(x, y, on= 'IID'), dflist)
 		d.to_csv(output[0], index=False, header= True, sep= '\t')
 
-rule preliminary_report:
-        'Generate report for harvest analysis.'
-        input:
-                expand('/mnt/work/pol/ROH/{{cohort}}/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
-                '/mnt/work/pol/{cohort}/pheno/q1_v9.txt',
-		'/mnt/work/pol/{cohort}/pheno/flag_list.txt',
-                expand('/mnt/work/pol/ROH/{{cohort}}/runs/{{cohort}}_{sample}.hom', sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}', CHR= CHR_nms, sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/{{cohort}}/runs/frequency/ROH_frequency_{sample}', sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{sample}.bim', pruning= pruning_nms, sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/cm_pruned{{cohort}}_{sample}.bim', pruning= pruning_nms, sample= smpl_nms),
-		'/mnt/work/pol/ROH/{cohort}/runs/maternal_input_ROH_geno.txt',
-		'/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',
-		'/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt',
-		expand('/mnt/work/pol/ROH/{{cohort}}/results/het/{sample}_excess_hom.txt', sample= smpl_nms),
-		'/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
-		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
-        output:
-                'reports/ROH_{cohort}_analysis.html'
-	script:
-		'scripts/report_ROH.Rmd'
 
 rule fam_to_phasing:
         'Obtain a fam file for those samples in which IBD detection was applied.'
@@ -685,12 +518,220 @@ rule fam_to_phasing:
 		if wildcards.cohort== 'normentmay': fam= input[5]
 		shell('cp {fam} {output[0]}')
 
+rule split_segments:
+	'Split overlapping segments between sub-cohorts.'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}',
+		expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{{sample}}/cox_spont_{{sample}}', cohort= cohort_nms)
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}_temp')
+	script:
+		'scripts/overlap_split_segment.py'
+
+rule cox_cM_to_bp:
+        'Convert cM to bp in cox results.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}_temp',
+                expand('/mnt/work/pol/ROH/{cohort}/runs/{{sample}}_input_ROH_geno.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{{sample}}.bim', cohort= cohort_nms, pruning= pruning_nms)
+        output:
+                '/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}'
+	run:
+		d= pd.read_csv(input[0], header= 0, sep= '\t')
+		flist= [infile for infile in input if 'geno.txt' in infile]
+		bim_list= list()
+		for infile in flist:
+			x= [line.strip() for line in open("".join(infile), 'r')]
+			bim= [i for i in x if 'bim' in i]
+			bim= pd.read_csv("".join(bim), delim_whitespace= True, header= None, names= ['chr', 'id', 'pos', 'cM', 'A1', 'A2'])
+			bim_list.append(bim)
+		bim= pd.concat(bim_list)
+		bim.drop_duplicates(subset= ['chr', 'pos'], keep= 'first', inplace= True)
+		bim.drop_duplicates(subset= ['chr', 'cM'], keep= 'first', inplace= True)
+		bim= bim[['chr', 'pos', 'cM']]
+		d= pd.merge(d, bim, left_on= ['chr', 'cM1'], right_on= ['chr', 'cM'])
+		d.rename(columns= {'pos': 'pos1'}, inplace= True)
+		d= pd.merge(d, bim, left_on= ['chr', 'cM2'], right_on= ['chr', 'cM'])
+		d.rename(columns= {'pos': 'pos2'}, inplace= True)
+		d.drop(['cM_x', 'cM_y'], axis= 1, inplace= True)
+		d.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule high_conf_segments:
+	'Obtain a set of high confidence intervals with an FDR< 0.05 and <0.1.'
+	input:
+		expand('/mnt/work/pol/ROH/{cohort}/results/cox_spont_{{sample}}', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
+		'/mnt/work/pol/ROH/results/LC_{sample}_cox_spont',
+		'/mnt/work/pol/ROH/results/NC_{sample}_cox_spont'
+	run:
+		i= 0
+		df_list= list()
+		for infile in input:
+			d= pd.read_csv(infile, sep= '\t', header= 0)
+			d['w_zscore']= (d.beta / d.sd) * (1/d.sd)
+			d['denominator']= (1/ d.sd)**2
+			d['segment']= d.chr.map(str) + ':' + d.cM1.map(str) + ':' + d.cM2.map(str)
+			d.rename(columns={'w_zscore': 'w_zscore'+str(i), 'denominator': 'denominator'+ str(i), 'pos1': 'pos1'+ str(i), 'pos2': 'pos2'+ str(i)}, inplace=True)
+			d.drop(['cM1', 'cM2', 'chr', 'n', 'beta', 'sd', 'pvalue', 'R', 'R_pvalue'], inplace= True, axis= 1)
+			i+= 1
+			df_list.append(d)
+		df= reduce(lambda x, y: pd.merge(x, y, on = 'segment', how= 'outer'), df_list)
+		cols= [col for col in df.columns if 'w_zscore' in col]
+		df['numerator']= df[cols].sum(axis= 1)
+		cols2= [col for col in df.columns if 'denominator' in col]
+		df['denominator']= df[cols2].sum(axis =1)
+		df['zscore']= df['numerator'] / df['denominator']**(1/2)
+		df['pvalue']= 2*st.norm.cdf(-abs(df['zscore']))
+		df['nonmissing']= df[cols].apply(lambda x: x.count(), axis=1)
+		df= df.loc[df.nonmissing >= 5, :]
+		df['pos1']= np.where(pd.notna(df.pos10), df.pos10, np.where(pd.notna(df.pos11), df.pos11, df.pos12))
+		df['pos2']= np.where(pd.notna(df.pos20), df.pos20, np.where(pd.notna(df.pos21), df.pos21, df.pos22))
+		df['inorout']= multi.multipletests(df.pvalue, alpha= 0.05, method= 'fdr_bh')[0]
+		dfHC= df.loc[df.inorout== True, :]
+		df['inorout']= multi.multipletests(df.pvalue, alpha= 0.1, method= 'fdr_bh')[0]
+		dfLC= df.loc[df.inorout== True,:]
+		dfHC.sort_values(by=['pvalue'], inplace= True, ascending= True)
+		dfLC.sort_values(by=['pvalue'], inplace= True, ascending= True)
+		dfLC= dfLC.iloc[len(dfHC.index):, :]
+		dfNC= df.loc[df.inorout== False, :]
+		dfHC.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'zscore', 'pvalue'])
+		dfLC.to_csv(output[1], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'zscore', 'pvalue'])
+		dfNC.to_csv(output[2], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'zscore', 'pvalue'])
+
+rule extract_HC:
+	'List of variants for extracting genotype.'
+	input:
+		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont'
+	output:
+		temp('/mnt/work/pol/ROH/results/HC_toextract_{sample}')
+	run:
+		d= pd.read_csv(input[0], sep= '\t', header= 0)
+		d[['chr', 'cM1', 'cM2']]= d['segment'].str.split(':',expand=True)
+		d['chr']= d.chr.astype(float)
+		d= d[['chr', 'pos1', 'pos2']]
+		d= d.applymap(np.int64)
+		d.to_csv(output[0], sep= '\t', index= False, header= False)
+
+rule extract_vcf_samples:
+        'Extract samples id included in the VCF file, for each batch.'
+        input:
+                '/mnt/archive/HARVEST/delivery-fhi/data/imputed/imputed_m12/1.vcf.gz',
+                '/mnt/archive/HARVEST/delivery-fhi/data/imputed/imputed_m24/1.vcf.gz',
+                '/mnt/archive/ROTTERDAM1/delivery-fhi/data/imputed/1.vcf.gz',
+                '/mnt/archive/ROTTERDAM2/delivery-fhi/data/imputed/1.vcf.gz',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/feb18/1.vcf.gz',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/may16/1.vcf.gz'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/genotypes/vcf_ids')
+        run:
+                if 'harvestm12' == wildcards.cohort: vcf= input[0]
+                if 'harvestm24' == wildcards.cohort: vcf= input[1]
+                if 'rotterdam1' == wildcards.cohort: vcf= input[2]
+                if 'rotterdam2' == wildcards.cohort: vcf= input[3]
+                if 'normentfeb' == wildcards.cohort: vcf= input[4]
+                if 'normentmay' == wildcards.cohort: vcf= input[5]
+                shell("set +o pipefail; zgrep -v '##' {vcf} | head -1 | cut -f10- | sed 's/\\t/\\n/g'  > {output[0]} ")
+
+
+rule extract_samples:
+        'Samples for filtering VCF files.'
+        input:
+                '/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/vcf_ids'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract')
+        run:
+                if 'harvest' in wildcards.cohort:
+                        d= pd.read_csv(input[0], delim_whitespace= True, header= 0)
+                        Sentrix= 'SentrixID_1'
+                if 'harvest' not in wildcards.cohort:
+                        d= pd.read_csv(input[0], delim_whitespace= True, header= 0)
+                        Sentrix= 'SentrixID'
+                if 'maternal' in wildcards.sample:
+                        d= d.loc[d.Role=='Mother', :]
+                if 'paternal' in wildcards.sample:
+                        d= d.loc[d.Role=='Father', :]
+                if 'fetal' in wildcards.sample:
+                        d= d.loc[d.Role=='Child', :]
+                x= [line.strip() for line in open(input[1], 'r')]
+                d= d.loc[d[Sentrix].isin(x)]
+                d.drop_duplicates(subset= [Sentrix], inplace= True)
+                d.to_csv(output[0], header= False, columns= [Sentrix], index= False, sep= '\t')
+
+rule extract_GT:
+	'Extract genotype for HC segments.'
+	input:
+		'/mnt/work/pol/ROH/results/HC_toextract_{sample}',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract',
+                '/mnt/archive/HARVEST/delivery-fhi/data/imputed/imputed_m12/{CHR}.vcf.gz',
+                '/mnt/archive/HARVEST/delivery-fhi/data/imputed/imputed_m24/{CHR}.vcf.gz',
+                '/mnt/archive/ROTTERDAM1/delivery-fhi/data/imputed/{CHR}.vcf.gz',
+                '/mnt/archive/ROTTERDAM2/delivery-fhi/data/imputed/{CHR}.vcf.gz',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/feb18/{CHR}.vcf.gz',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/may16/{CHR}.vcf.gz'
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/genotypes/GT/{sample}_gt{CHR}_HC')
+	run:
+		if 'harvestm12' in wildcards.cohort: vcf= input[2]
+		if 'harvestm24' in wildcards.cohort: vcf= input[3]
+		if 'rotterdam1' in wildcards.cohort: vcf= input[4]
+		if 'rotterdam2' in wildcards.cohort: vcf= input[5]
+		if 'normentfeb' in wildcards.cohort: vcf= input[6]
+		if 'normentmay' in wildcards.cohort: vcf= input[7]
+		shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {vcf} -o {output[0]}")
+
+rule cox_imputed:
+	'Cox regression for imputed variants within HC segments.'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/GT/{sample}_gt{CHR}_HC',
+		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract'
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}_temp_{CHR}')
+	script:
+		'scripts/cox_imputed.R'
+
+rule cat_cox_imputed:
+	'Concat results from all CHR for imputed variants.'
+	input:
+		expand('/mnt/work/pol/ROH/{{cohort}}/results/imputed/imputed_cox_spont_{{sample}}_temp_{CHR}', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_result_{sample}'
+	shell:
+		'cat {input} > {output[0]}'
+
+rule preliminary_report:
+        'Generate report for harvest analysis.'
+	input:
+                expand('/mnt/work/pol/ROH/{{cohort}}/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
+                '/mnt/work/pol/{cohort}/pheno/q1_v9.txt',
+                '/mnt/work/pol/{cohort}/pheno/flag_list.txt',
+                expand('/mnt/work/pol/ROH/{{cohort}}/runs/{{cohort}}_{sample}.hom', sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{{cohort}}/runs/frequency/ROH_frequency_{sample}', sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{sample}.bim', pruning= pruning_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/cm_pruned{{cohort}}_{sample}.bim', pruning= pruning_nms, sample= smpl_nms),
+                '/mnt/work/pol/ROH/{cohort}/runs/maternal_input_ROH_geno.txt',
+                '/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',
+                '/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt',
+                expand('/mnt/work/pol/ROH/{{cohort}}/results/het/{sample}_excess_hom.txt', sample= smpl_nms),
+                '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
+                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
+                expand('/mnt/work/pol/ROH/results/{conf}_{sample}_cox_spont', sample= smpl_nms, conf= ['HC', 'LC', 'NC']),
+		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_result_{sample}', cohort= cohort_nms, sample= smpl_nms),
+#		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/cox_spont_{sample}_{CHR}_temp', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
+#		expand('/mnt/work/pol/ROH/{cohort}/genotypes/GT/{sample}_gt{CHR}_HC', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms)
+        output:
+                'reports/ROH_{cohort}_analysis.html'
+        script:
+                'scripts/report_ROH.Rmd'
+
+
 rule html_meta_report:
         'Generate report for all cohorts together.'
         input:
                 expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
                 expand('/mnt/work/pol/{cohort}/pheno/q1_v9.txt', cohort= cohort_nms), 
-                expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}', cohort= cohort_nms, CHR= CHR_nms, sample= smpl_nms),
                 expand('/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}', cohort= cohort_nms, sample= smpl_nms),
                 expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{sample}.bim', cohort= cohort_nms, pruning= pruning_nms, sample= smpl_nms),
                 expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/cm_pruned{cohort}_{sample}.bim', cohort= cohort_nms, pruning= pruning_nms, sample= smpl_nms),
@@ -710,16 +751,4 @@ rule html_meta_report:
         script:
                 'scripts/html_meta_ROH.Rmd'
 
-rule figure1:
-	'Figure 1 for results section.'
-	input:
-		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
-		'/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam',
-		'/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam',
-		'/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
-		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_fetal.txt'
-	output:
-		'figures/Figure1_{cohort}.eps'
-	script:
-		'scripts/figure1.R'
 
