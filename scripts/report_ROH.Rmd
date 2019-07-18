@@ -37,28 +37,28 @@ options(width = 1800)
 ```{r read_files, include= F}
 input= snakemake@input
 
-flag= fread(unlist(input[grep('flag_list.txt', input)]))
+flag= fread(unlist(input[grepl('flag_list.txt', input)]))
 
 if (grepl('harvest', input[1])){
 
 flag= rename(flag, coreLMM= coreOK, phenoOK= phenotypesOK)
 
-moms= unlist(input[grep('runs_mfr_maternal.txt', input)])
-dads= unlist(input[grep('runs_mfr_paternal.txt', input)])
-fets= unlist(input[grep('runs_mfr_fetal.txt', input)])
+moms= unlist(input[grepl('runs_mfr_maternal.txt', input)])
+dads= unlist(input[grepl('runs_mfr_paternal.txt', input)])
+fets= unlist(input[grepl('runs_mfr_fetal.txt', input)])
 moms= read.table(moms, h=T, sep= '\t')
 dads= read.table(dads, h=T, sep= '\t')
 fets= read.table(fets, h=T, sep= '\t')
-q1= unlist(input[grep('q1_v9.txt', input)])
+q1= unlist(input[grepl('q1_v9.txt', input)])
 q1= fread(q1)
 
-fmoms= unlist(input[grep('/results/het/maternal', input)])
+fmoms= unlist(input[grepl('/results/het/maternal', input)])
 fmoms= fread(fmoms)
 
-fdads= unlist(input[grep('/results/het/paternal', input)])
+fdads= unlist(input[grepl('/results/het/paternal', input)])
 fdads= fread(fdads)
 
-ffets= unlist(input[grep('/results/het/fetal', input)])
+ffets= unlist(input[grepl('/results/het/fetal', input)])
 ffets= fread(ffets)
 
 moms= full_join(moms, fmoms, by= 'IID')
@@ -110,17 +110,17 @@ q1$height= ifelse(q1$AA87>= 140 | q1$AA87<= 210, q1$AA87, NA)
 q1= q1 %>% select(PREG_ID_1724, edu, income, height)
 q1$edu= as.factor(q1$edu)
 
-m= unlist(input[grep('harvest_maternal.hom', input)])
+m= unlist(input[grepl('maternal.hom', input)])
 m= fread(m)
 
 ms= m %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
-d= unlist(input[grep('harvest_paternal.hom', input)])
+d= unlist(input[grepl('paternal.hom', input)])
 d= fread(d)
 
 ds= d %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
 
-fe= unlist(input[grep('harvest_fetal.hom', input)])
+fe= unlist(input[grepl('fetal.hom', input)])
 fe= fread(fe)
 
 fes= fe %>% group_by(CHR) %>% summarize(n= n(), KB= median(KB, na.rm=T))
@@ -145,15 +145,11 @@ freqf= unlist(input[grep('runs/frequency/ROH_frequency_fetal', input)])
 freqf= read.table(freqf, h=F, sep= '\t')
 names(freqf)= c('chr','pos','freqf')
 
-flist= unlist(input[grep('/ROH/harvest/results/maps_cox/maternal/', input)])
-res_m= lapply(flist, read.table)
-res_m= do.call("rbind", res_m)
-res_m= data.frame(res_m)
+res_m= unlist(input[grep('results/maps_cox/maternal/', input)])
+res_m= fread(res_m)
 
-flist= unlist(input[grep('/mnt/work/pol/ROH/harvest/results/maps_cox/fetal/', input)])
-res_f= lapply(flist, read.table)
-res_f= do.call("rbind", res_f)
-res_f= data.frame(res_f)
+res_f= unlist(input[grep('results/maps_cox/fetal/', input)])
+res_f= fread(res_f)
 
 freq= inner_join(freqm, freqf, by= c('chr','pos'))
 
@@ -264,15 +260,11 @@ names(freqf)= c('chr','pos','freqf')
 
 freq= inner_join(freqm, freqf, by= c('chr','pos'))
 
-flist_m= unlist(input[grep('/results/maps_cox/maternal/', input)])
-res_m= lapply(flist_m, read.table)
-res_m= do.call("rbind", res_m)
-res_m= data.frame(res_m)
+res_m= unlist(input[grep('/results/maps_cox/maternal/', input)])
+res_m= fread(res_m)
 
-flist_f= unlist(input[grep('/results/maps_cox/fetal/', input)])
-res_f= lapply(flist_f, read.table)
-res_f= do.call("rbind", res_f)
-res_f= data.frame(res_f)
+res_f= unlist(input[grep('/results/maps_cox/fetal/', input)])
+res_f= fread(res_f)
 
 }
 
@@ -304,8 +296,6 @@ maxarg= unlist(input[grep('/mnt/work/pol/ROH/arguments/max_R2', input)])
 maxarg= fread(maxarg)
 maxarg$flags= c('Pruning', 'density', 'SNP', 'length', 'het', 'GAP')
 
-nSNP= as.numeric(maxarg[3,1])
-pvalue_t= (0.05 / nrow(bim)) * nSNP
 
 flag= filter(flag, genotypesOK== TRUE, coreLMM== TRUE, phenoOK== TRUE)
 
@@ -963,16 +953,19 @@ geom_abline(intercept= 0, slope=1, colour= 'grey', linetype= 'dashed') +
 ```{r echo=F, dpi= 300}
 
 names(freqm)=  c('chr','pos','freq')
+freqm= freqm %>% separate(pos, into= c('pos1', 'pos2'), sep= ':')
+freqm= mutate(freqm, chr= as.numeric(chr), pos1= as.numeric(pos1), pos2= as.numeric(pos2))
+freqm$pos= (freqm$pos1 + freqm$pos2) / 2
 
 mhtf= function(df){ # Column names needed (chr, pos, freq)
-  if (class(df$chr) != 'integer') {
-    df$chr= ifelse(df$chr== 'X', '23', df$chr)
-    df$chr= as.numeric(as.character(df$chr))
-  }
+#  if (class(df$chr) != 'integer') {
+#    df$chr= ifelse(df$chr== 'X', '23', df$chr)
+#    df$chr= as.numeric(as.character(df$chr))
+#  }
   require(dplyr)
   require(ggplot2)
   df = df %>% filter(!is.na(chr))
-
+df= df %>% filter(!is.na(chr))
   don <- df %>%
     group_by(chr)      %>%
     summarise(chr_len= max(pos)) %>%
@@ -1003,16 +996,25 @@ theme_bw(base_family = "Source Sans Pro") + # Custom the theme
           axis.line.y = element_line(color="black", size = 0.2))
 }
 
+
 x= mhtf(freqm)
+
+x
+
+```
+
+```{r echo= F}
+
 
 mht= function(df){ # Column names needed (chr, pos, pvalue)
   if (class(df$chr) != 'integer') {
-    df$chr= ifelse(df$chr== 'X', '23', df$chr)
+   df$chr= ifelse(df$chr== 'X', '23', df$chr)
     df$chr= as.numeric(as.character(df$chr))
   }
   require(dplyr)
   require(ggplot2)
   df = df %>% filter(!is.na(chr))
+df= df %>% filter(!is.na(beta))
 
   don <- df %>%
     group_by(chr)      %>%
@@ -1023,7 +1025,7 @@ mht= function(df){ # Column names needed (chr, pos, pvalue)
     arrange(chr, pos) %>% # Add a cumulative position of each SNP
     mutate( BPcum=pos+tot)
 
-  axisdf = don %>% group_by(chr) %>% summarize(center=( max(BPcum) + min(BPcum) ) / 2 )
+  axisdf= don %>% group_by(chr) %>% summarize(center=( max(BPcum) + min(BPcum) ) / 2 )
   names(axisdf)= c('chr', 'center')
 
   ggplot(don, aes(x=BPcum, y= -log10(pvalue))) +
@@ -1031,8 +1033,8 @@ mht= function(df){ # Column names needed (chr, pos, pvalue)
     scale_colour_manual(values = rep(c("#1d91c0","#41b6c4"),  22 )) + # 08519c 3182bd "#006d2c","#31a354"
     scale_x_continuous( label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
     scale_y_continuous(expand = c(0, 0), limits= c(0, max(-log10(don$pvalue)) + 1)) +     # remove space between plot area and x axis
-#theme_bw() +
-	   theme_bw(base_family = "Source Sans Pro") + # Custom the theme
+theme_bw() +
+#	   theme_bw(base_family = "Source Sans Pro") + # Custom the theme
     theme( text = element_text(size= 14),
            legend.position="none",
            panel.border = element_blank(),
@@ -1043,19 +1045,24 @@ mht= function(df){ # Column names needed (chr, pos, pvalue)
     theme(axis.line.x = element_line(color="black", size = 0.2),
           axis.line.y = element_line(color="black", size = 0.2)) +
 #    geom_hline(yintercept = -log10(1*10^-5), size= 0.5, color= '#253494', alpha= 0.7) +
-    geom_hline(yintercept = -log10(pvalue_t), size= 0.5, color= 'gold', alpha= 0.7)
+    geom_hline(yintercept = -log10(0.05/ nrow(don)), size= 0.5, color= 'gold', alpha= 0.7)
 
 }
 
+```
 
+```{r echo=F}
 names(res_m)= c('id', 'N', 'beta', 'sd', 'pvalue', 'schoenfeld', 'p_scheonfeld')
-res_m= res_m %>% separate(id, c('chr', 'pos'), ':')
-res_m= res_m %>% mutate(chr= as.numeric(chr), pos= as.numeric(pos))
+res_m= res_m %>% separate(id, c('chr', 'pos1','pos2'), ':')
+res_m= res_m %>% mutate(chr= as.numeric(chr), pos1= as.numeric(pos1), 
+pos2= as.numeric(pos2))
+res_m$pos= (res_m$pos1 + res_m$pos2) / 2
 
 x1= mht(res_m)
 
 grid.arrange(x1, x, nrow= 2)
 ```
+
 
 
 ```{r echo=F, dpi= 300}
@@ -1101,7 +1108,7 @@ geom_hline(yintercept = 0, size= 0.5, color= 'grey',linetype='dashed', alpha= 0.
 ```
 
 
-```{r echo=F, dpi= 300}
+```{r echo=F, eval= F}
 
 res_m= inner_join(res_m, freqm, by= c('chr', 'pos'))
 res_m$maf= ifelse(res_m$freq>=0.5, 3, ifelse(res_m$freq>= 0.01, 2, ifelse(res_m$freq>=0.001, 1, 0)))
@@ -1132,7 +1139,7 @@ ggtitle("Mothers") +
 
 ## Materno-fetal correlations
 
-```{r echo=F, dpi= 300}
+```{r echo=F, eval= F}
 
 
 names(res_f)= c('id', 'N_f', 'beta_f', 'sd_f', 'pvalue_f', 'schoenfeld_f', 'p_scheonfeld_f')
@@ -1151,7 +1158,7 @@ filter(rank(pvalue, ties.method = "random")==1)
 
 ```
 
-```{r echo=F, dpi= 300}
+```{r echo=F, eval= F}
 ggplot(df_f, aes(x= I(beta/sd_f), y= I(beta_f/sd_f))) +
 geom_point(size= 0.01) +
 #theme_bw() +
@@ -1178,7 +1185,18 @@ ggtitle("Per-SNP ROH beta estimates") +
 ```{r echo= F, dpi= 300}
 
 names(freqf)= c('chr', 'pos','freq') 
-names(res_f)= c('chr','pos','N', 'beta', 'sd', 'pvalue', 'schoenfeld', 'p_scheonfeld') 
+names(res_f)= c('id','N', 'beta', 'sd', 'pvalue', 'schoenfeld', 'p_scheonfeld') 
+
+freqf= freqf %>% separate(pos, into= c('pos1', 'pos2'), ':')
+freqf= mutate(freqf, pos1= as.numeric(pos1), pos2= as.numeric(pos2))
+freqf$pos= (freqf$pos1 + freqf$pos2) / 2
+
+
+res_f= res_f %>% separate(id, c('chr', 'pos1','pos2'), ':')
+res_f= res_f %>% mutate(chr= as.numeric(chr), pos1= as.numeric(pos1),
+pos2= as.numeric(pos2))
+res_f$pos= (res_f$pos1 + res_f$pos2) / 2
+
 
 x= mhtf(freqf) 
  
@@ -1265,28 +1283,6 @@ grid.arrange(x, x1, x2, x3, nrow= 2, top= 'Mothers')
 
 ```
 
-## Fhom and PCA
-
-```{r echo=F, dpi= 300}
-
-ggplot(moms, aes(PC1, none_F, color= PC1)) +
-geom_point() +
-geom_smooth(method = "lm", se = FALSE, colour="#2c7fb8") +
-scale_colour_gradient(low="#a1dab4", high="#41b6c4") +
-#theme_bw() +
-theme_bw(base_family = "Source Sans Pro") +
-theme( text = element_text(size= 14),
-           legend.position="none",
-           panel.border = element_blank(),
-           panel.grid.major = element_blank(),
-           panel.grid.minor = element_blank()
-    ) + xlab('PC1') +
-    ylab('Excess homozygosity') +
-ggtitle("Mothers") +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))
-
-```
 
 
 ## Fhom and ROH

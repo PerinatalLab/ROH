@@ -46,8 +46,10 @@ ibd= full_join(ibd, trio, by= c('Child', 'Mother', 'Father'))
 
 flag= fread(snakemake@input[[5]])
 
+pca_out= fread(snakemake@input[[8]], h=F)
+
 if (grepl('harvest', snakemake@input[[1]])) {
-names(pca)= c('IID', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10')
+names(pca)= c('FID', 'IID', 'NMISS_ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10')
 flag= rename(flag, coreLMM = coreOK, phenoOK= phenotypesOK)
 } else {
 names(pca)= c('FID', 'IID', 'NMISS_ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10')
@@ -82,7 +84,10 @@ for (f in flist) {
 
 	d= filter(d, Mother %in% flag$IID,
                 Father %in% flag$IID, 
-		IID %in% flag$IID)
+		IID %in% flag$IID,
+		!(IID %in% pca_out$V2),
+		!(Father %in% pca_out$V2),
+		!(Mother %in% pca_out$V2))
 	
 	d$cM= ifelse(is.na(d$cM), 0, d$cM)
 	d$KB= ifelse(is.na(d$KB), 0, d$KB)

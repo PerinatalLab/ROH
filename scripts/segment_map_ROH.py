@@ -16,22 +16,24 @@ CHR= snakemake.wildcards.CHR
 
 chr_df= d.loc[d.CHR== int(float(CHR)),:]
 
-df_list= list()
-
 a= pd.concat([chr_df.POS1, chr_df.POS2])
 a= np.unique(a)
 a= np.sort(a)
 
+
+df_list= list()
+
 for id in set(chr_df.IID):
 	temp_df= chr_df.loc[chr_df.IID== id, :]	
-	bh= temp_df.POS2.values
-	bl= temp_df.POS1.values
-	i, j = np.where((a[:, None] >= bl) & (a[:, None] <= bh))
-	x= pd.DataFrame(a[i], columns= ['start']).dropna()
-	x['end']= x.start.shift(-1)
-	x.dropna(inplace= True)
-	x['IID']= id
-	df_list.append(x.copy())
+	for index, row in temp_df.iterrows():
+		bh= row.POS2
+		bl= row.POS1
+		i, j = np.where((a[:, None] >= bl) & (a[:, None] <= bh))
+		x= pd.DataFrame(a[i], columns= ['start']).dropna()
+		x['end']= x.start.shift(-1)
+		x.dropna(inplace= True)
+		x['IID']= id
+		df_list.append(x.copy())
 
 df= pd.concat(df_list)
 df['Value']= 1

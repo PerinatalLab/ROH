@@ -1,0 +1,197 @@
+import pandas as pd
+import numpy as np
+import os
+import gzip
+import functools
+
+cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
+smpl_nms= ['maternal','paternal', 'fetal']
+batch_nms= ['m12', 'm24']
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+
+# Other arguments:
+
+pruning_nms= ['none', 'soft', 'moderate', 'hard']
+
+dens_nms= [5]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_nms= [0.0000001]
+het_nms= [0, 1]
+GAP_nms= [5]
+
+dens_bp= [5000]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_bp= [0.0000001]
+het_bp= [0, 1]
+GAP_bp= [5000]
+
+# Functions
+
+def isfloat(str):
+    try:
+        float(str)
+        return True
+    except ValueError:
+        return False
+
+rule copy_harvest_to_phasing:
+        ''
+        input:
+                expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m12/m12-ready-for-imputation.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/HARVEST/delivery-fhi/data/to_imputation/m24/m24-ready-for-imputation.{ext}', ext= ['bed', 'bim', 'fam'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/harvestm12/genotypes/temp/harvestm12_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
+                temp(expand('/mnt/work/pol/ROH/harvestm24/genotypes/temp/harvestm24_to_phasing.{ext}', ext= ['bed', 'bim', 'fam']))
+        shell:
+                '''
+                cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
+                '''
+
+rule copy_rotterdam1_to_phasing:
+        'Copy and rename PLINK files for phasing.'
+        input:
+                expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/to_phasing/merged/hrc-update-complete-all.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/to_phasing/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/rotterdam1/genotypes/temp/rotterdam1_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
+                temp(expand('/mnt/work/pol/ROH/rotterdam2/genotypes/temp/rotterdam2_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
+        shell:
+                '''
+                cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
+                '''
+
+rule copy_norment_to_phasing:
+        'Copy and rename PLINK files for phasing.'
+        input:
+                expand('/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/feb18/merged/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/archive/NORMENT1/delivery-fhi/data/to_phasing/may16/merge/hrc-update-complete.{ext}', ext= ['bed', 'bim', 'fam'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/normentfeb/genotypes/temp/normentfeb_to_phasing.{ext}', ext= ['bed', 'bim', 'fam'])),
+                temp(expand('/mnt/work/pol/ROH/normentmay/genotypes/temp/normentmay_to_phasing.{ext}', ext= ['bed', 'bim', 'fam']))
+        shell:
+                '''
+                cp {input[0]} {output[0]}; cp {input[1]} {output[1]}; cp {input[2]} {output[2]}
+                cp {input[3]} {output[3]}; cp {input[4]} {output[4]}; cp {input[5]} {output[5]}
+                '''
+
+
+rule split_PLINK_chr:
+        'Split PLINK binary files for phasing into one file per chromosome.'
+        input:
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_to_phasing.{ext}', ext= ['bed','bim','fam'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_to_phasing_chr{{CHR}}.{ext}', ext= ['bed','bim','fam']))
+        params:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_to_phasing',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_to_phasing_chr{CHR}'
+        shell:
+                '~/soft/plink --bfile {params[0]} --chr {wildcards.CHR} --mind --make-bed --out {params[1]}'
+
+rule eagle_phasing:
+        'Phasing with eagle.'
+        input:
+                '/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_to_phasing_chr{{CHR}}.{ext}', ext= ['bed','bim','fam'])
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.haps.gz'),
+                '/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.sample'
+        params:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_to_phasing_chr{CHR}',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}'
+        shell:
+                "~/soft/Eagle_v2.4.1/eagle --bfile={params[0]} --geneticMapFile={input[0]} --numThreads=10 --outPrefix={params[1]}"
+
+rule ungzip_haps:
+        'UnGzip haps output from eagle2.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.haps.gz'
+        output:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.haps'
+        shell:
+                'gzip -d {input[0]}'
+
+rule haps_to_ped:
+        'Format file as .ped required by GERMLINE.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.haps',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/haps/{cohort}_phased_chr{CHR}.sample'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}.ped'),
+                temp('/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}.map')
+        params:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}'
+        run:
+                shell("/home/pol.sole.navais/soft/germline-1-5-3/bin/impute_to_ped {input[0]} {input[1]} {params[0]} || true")
+
+rule add_genetic_map:
+        'Adding genetic map to .map file generated.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}.map',
+                '/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_complete_chr{CHR}.map')
+        run:
+                d= pd.read_csv(input[0], sep= ' ', header= None)
+                g= pd.read_csv(input[1], sep= ' ', header= 0)
+                g['SNP']= g.chr.map(str) + ':' + g.position.map(str)
+                g= g[['chr', 'SNP', 'Genetic_Map(cM)', 'position']]
+                d.columns= g.columns
+                g= g.loc[g.chr== int(wildcards.CHR), :]
+                d= d.loc[:, ['chr','position']]
+                df= pd.merge(g, d, on= ['chr', 'position'], how= 'right')
+                df= df.loc[df['Genetic_Map(cM)'].isna(), :]
+                df['Genetic_Map(cM)']= np.interp(df.position, g['position'], g['Genetic_Map(cM)'])
+                g= g.append(df)
+                g['SNP']= g.chr.map(str) + ':' + g.position.map(str)
+                d= pd.merge(d, g, on= ['chr', 'position'], how= 'left')
+                d= d[['chr', 'SNP', 'Genetic_Map(cM)', 'position']]
+                d.to_csv(output[0], header= False, index= False, sep= '\t')
+
+rule ibd_GERMLINE:
+        'Estimate shared IBD segments between subjects using GERMLINE.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_chr{CHR}.ped',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/ibd/{cohort}_phased_complete_chr{CHR}.map'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.match'),
+                temp('/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.log')
+        params:
+                '/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}'
+        run:
+                shell("~/soft/germline-1-5-3/bin/germline -input {input[0]} {input[1]} -min_m 2 -output {params[0]} || true")
+
+rule lightweight_ibd:
+        'Remove columns from GERMLINE ibd file.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/ibd/{cohort}_ibd_chr{CHR}.match'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/ibd/lw_{cohort}_ibd_chr{CHR}.match')
+        shell:
+                "cut -d$'\t' -f1-4,7 {input[0]} > {output[0]}"
+
+rule filter_ibd:
+        'Keep only parental pairs.'
+        input:
+                expand('/mnt/work/pol/ROH/{{cohort}}/ibd/lw_{{cohort}}_ibd_chr{CHR}.match', CHR= CHR_nms),
+                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
+        output:
+                '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt'
+        run:
+                trio= [file for file in input if 'trios' in file]
+                trio= pd.read_csv("".join(trio), sep= '\t', header= 0)
+                df= pd.DataFrame()
+                flist= [file for file in input if 'ibd' in file]
+                for infile in flist:
+                        d= pd.read_csv(infile, header= None, delim_whitespace= True)
+                        d.columns= ['FID1', 'IID1', 'FID2', 'IID2', 'CHR', 'start', 'end', 'cM']
+                        d= d.loc[((d.IID1.isin(trio.Father.values)) & (d.IID2.isin(trio.Mother.values))) | ((d.IID1.isin(trio.Mother.values)) & (d.IID2.isin(trio.Father.values))), : ]
+                        d['Mother']= np.where(d.IID1.isin(trio.Mother.values), d.IID1, d.IID2)
+                        d['Father']= np.where(d.Mother != d.IID1, d.IID1, d.IID2)
+                        d= pd.merge(d, trio, on= ['Mother', 'Father'])
+                        d= d[['Mother','Father','Child','CHR', 'start', 'end', 'cM']]
+                        df= df.append(d)
+                df= df.groupby(['Mother', 'Father', 'Child'])['cM'].sum().reset_index()
+                df.to_csv(output[0], sep= '\t', header= True, index= False)
+

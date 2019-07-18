@@ -7,9 +7,10 @@ wild= snakemake.wildcards.cohort
 
 def pheno_harvest():
 	d= pd.read_csv(snakemake.input[1], delim_whitespace= True)
-	mfr= pd.read_csv(snakemake.input[2], sep= ';', header= 0)
-	link= pd.read_csv(snakemake.input[3], sep= ';', header= 0)
-	pca= pd.read_csv(snakemake.input[4], sep= ' ', header= None, names= ['SentrixID_1', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10'])
+	mfr= pd.read_csv(snakemake.input[2], sep= '\t', header= 0)
+	link= pd.read_csv(snakemake.input[3], sep= '\t', header= 0)
+	pca= pd.read_csv(snakemake.input[4], delim_whitespace= True, header= 0)
+	pca.columns= ['FID', 'SentrixID_1', 'NMISS_ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10'] 
 	bim= [line.strip() for line in open(snakemake.input[7], 'r')]
 	bim= "".join(bim[1])
 	bim= pd.read_csv(bim, sep= '\t', header= None, names= ['chr', 'snp', 'cM', 'pos', 'A1', 'A2'])
@@ -17,8 +18,6 @@ def pheno_harvest():
 	bp= bim.groupby(['chr'])['pos'].diff(1).sum() / 1000000
 	
 	
-#	link= link.loc[link.PREG_ID_1724.str.isnumeric(), :]
-#	link['PREG_ID_1724']= link['PREG_ID_1724'].astype(str).astype(int)
 	link.dropna(subset= ['PREG_ID_1724'], inplace= True)
 	mfr= pd.merge(mfr, link, on= ['PREG_ID_1724'], how= 'inner')
 	mfr= pd.merge(mfr, pca, on= ['SentrixID_1'], how= 'inner')
@@ -32,12 +31,9 @@ def pheno_harvest():
 	
 	d= d[(d['FLERFODSEL']==0)]
 	d= d[(d['DODKAT']<6) | (d['DODKAT']>10)]
-	d= d[(d['SVLEN_UL_DG']< '308')]
-	d= d[(d['SVLEN_UL_DG']> '154')]
-	d['SVLEN_UL_DG']= d['SVLEN_UL_DG'].replace(' ', np.nan)
-	d['SVLEN_UL_DG']= d.SVLEN_UL_DG.astype(str).astype(int)
+	d= d[(d['SVLEN_UL_DG']< 308)]
+	d= d[(d['SVLEN_UL_DG']> 154)]
 	d= d.dropna(subset= ['SVLEN_UL_DG'])
-	d['IVF']= d['IVF'].replace(' ', np.nan)
 	d= d[(pd.isnull(d['IVF']))] 
 	d= d[(d.ABRUPTIOP==0)]
 	d= d[(d.PLACENTA_PREVIA==0) ]
@@ -49,6 +45,8 @@ def pheno_harvest():
 	flag= flag[(flag['genotypesOK']== True) & (flag['phenotypesOK']== True) & (flag['coreOK']== True)]
 	d= d.loc[d.IID.isin(flag.IID), :]
 	d.drop_duplicates(subset= ['PREG_ID_1724'], keep= 'first', inplace= True)
+	pca_out= [line.strip() for line in open(snakemake.input[10], 'rt')]
+	d= d.loc[~d.IID.isin(pca_out), :]
 	return d
 
 def pheno_rotterdam():
@@ -82,6 +80,8 @@ def pheno_rotterdam():
 	flag= flag[(flag['genotypesOK']== True) & (flag['phenoOK']== True) & (flag['coreLMM']== True)]
 	d= d.loc[d.IID.isin(flag.IID), :]
 	d.drop_duplicates(subset= ['PREG_ID_315'], keep= 'first', inplace= True)
+	pca_out= [line.strip() for line in open(snakemake.input[10], 'rt')]
+	d= d.loc[~d.IID.isin(pca_out), :]
 	return d
 
 ### Relatedness

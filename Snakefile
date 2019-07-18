@@ -681,25 +681,25 @@ rule extract_GT:
 		if 'normentmay' in wildcards.cohort: vcf= input[7]
 		shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {vcf} -o {output[0]}")
 
+rule concat_GT:
+	'Concat GT form all chromosomes.'
+	input:
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/GT/{{sample}}_gt{CHR}_HC', CHR= CHR_nms)
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/genotypes/GT/{sample}_HC_temp')
+	shell:
+		'cat {input} > {output[0]}'
+
 rule cox_imputed:
 	'Cox regression for imputed variants within HC segments.'
 	input:
-		'/mnt/work/pol/ROH/{cohort}/genotypes/GT/{sample}_gt{CHR}_HC',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/GT/{sample}_HC_temp',
 		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt',
 		'/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract'
 	output:
-		temp('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}_temp_{CHR}')
+		'/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}'
 	script:
 		'scripts/cox_imputed.R'
-
-rule cat_cox_imputed:
-	'Concat results from all CHR for imputed variants.'
-	input:
-		expand('/mnt/work/pol/ROH/{{cohort}}/results/imputed/imputed_cox_spont_{{sample}}_temp_{CHR}', CHR= CHR_nms)
-	output:
-		'/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_result_{sample}'
-	shell:
-		'cat {input} > {output[0]}'
 
 rule preliminary_report:
         'Generate report for harvest analysis.'
@@ -718,7 +718,7 @@ rule preliminary_report:
                 '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
                 '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
                 expand('/mnt/work/pol/ROH/results/{conf}_{sample}_cox_spont', sample= smpl_nms, conf= ['HC', 'LC', 'NC']),
-		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_result_{sample}', cohort= cohort_nms, sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}', cohort= cohort_nms, sample= smpl_nms),
 #		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/cox_spont_{sample}_{CHR}_temp', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
 #		expand('/mnt/work/pol/ROH/{cohort}/genotypes/GT/{sample}_gt{CHR}_HC', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms)
         output:

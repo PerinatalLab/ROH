@@ -36,28 +36,30 @@ names(pheno)[names(pheno) == 'SentrixID'] <- 'SentrixID_1'
 ids= readLines(snakemake@input[[3]])
 
 colnames= c(list('chr', 'pos', 'ref', 'eff'), ids)
+colnames= unlist(colnames, use.names=FALSE)
 
 
 funk= function(block.text){
 	dataChunk= fread(text=block.text, sep="\t", col.names= colnames)
-	df= as.matrix(dataChunk[, 5:ncol(dataChunk)], ncol= length(dataChunk:ncol(dataChunk)), nrow= nrow(dataChunk))
+	df= as.matrix(dataChunk[, 5:ncol(dataChunk)], ncol= length(5:ncol(dataChunk)), nrow= nrow(dataChunk))
 	df[df== '1|0']= 1
 	df[df== '0|1']= 1
 	df[df== '0|0']= 0
 	df[df== '1|1']= 2
 
 	df= matrix(as.numeric(df), ncol= length(5:ncol(dataChunk)), nrow= nrow(dataChunk))
+	eaf= rowSums(df) / (rowSums(!is.na(df)) * 2)
+	
+	df[which(eaf>0.5), ]= abs(df[which(eaf>0.5), ] -2)
+	df[df== 1]= 0
 	dataChunk= cbind(dataChunk[,1:4], df)
-	eaf= rowSums(dataChunk[,5:ncol(dataChunk)]) / (rowSums(!is.na(dataChunk[, 5:ncol(dataChunk)])) * 2)
-
-	dataChunk[which(eaf>0.5), 5:ncol(dataChunk)]= abs(dataChunk[which(eaf>0.5), 5:ncol(dataChunk)] -2)
-
-	dataChunk[which(eaf>0.5), c(3,4)]= dataChunk[which(eaf>0.5), c(4,3)]
-
-	genvars= paste(d$chr, d$pos, d$ref, d$eff, sep=':')
+	dataChunk[which(eaf>0.5) + 4, c(3,4)]= dataChunk[which(eaf>0.5) + 4, c(4,3)]
+	names(dataChunk)= colnames
+	genvars= paste(dataChunk$chr, dataChunk$pos, dataChunk$ref, dataChunk$eff, sep=':')
+	dataChunk= subset(dataChunk, select = -c(chr, pos, ref, eff))
+	
         if (length(genvars) == 0) break
 
-	dataChunk= subset( dataChunk, select = -c(chr,pos, ref, eff))
 	dataChunk= as.data.frame(t(dataChunk))
         dataChunk$id= gsub('X', '',rownames(dataChunk))
         names(dataChunk)[1:length(genvars)]= genvars
