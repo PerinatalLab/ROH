@@ -2,6 +2,10 @@ library(dplyr)
 library(tidyr)
 library(survival)
 library(data.table)
+library(RhpcBLASctl)
+
+blas_set_num_threads(4)
+
 
 infile= snakemake@input[[1]]
 phenofile= snakemake@input[[2]]
@@ -57,12 +61,12 @@ funk= function(block.text){
 	names(dataChunk)= colnames
 	genvars= paste(dataChunk$chr, dataChunk$pos, dataChunk$ref, dataChunk$eff, sep=':')
 	dataChunk= subset(dataChunk, select = -c(chr, pos, ref, eff))
-	
-        if (length(genvars) == 0) break
 
 	dataChunk= as.data.frame(t(dataChunk))
-        dataChunk$id= gsub('X', '',rownames(dataChunk))
-        names(dataChunk)[1:length(genvars)]= genvars
+	names(dataChunk)[1:length(genvars)]= genvars
+	dataChunk= Filter(function(col) length(unique(col[!is.na(col)])) > 1, dataChunk)
+	if (ncol(dataChunk)== 0) {return(NULL)}
+        dataChunk$id= gsub('X', '',rownames(dataChunk)) 
         geno= inner_join(pheno, dataChunk, by= c('SentrixID_1' = 'id'))
         cox_coef= lapply(names(geno[,-c(1:dim(pheno)[2])]), function(snp){cox_coef= coxph(Surv( geno$SVLEN_UL_DG, geno$spont)~ geno[,snp] + geno$PARITY0 + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6, na.action = na.omit)
         coef = summary( cox_coef)$coefficients[1,1]
@@ -85,7 +89,7 @@ open(con)
 
 
 repeat {
-block.text= readLines(con, n= 350)
+block.text= readLines(con, n= 250)
 
 if (length(block.text) == 0){ # if there's nothing left, leave the loop
         break

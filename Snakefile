@@ -701,6 +701,29 @@ rule cox_imputed:
 	script:
 		'scripts/cox_imputed.R'
 
+
+rule OMIM_bp_to_cM:
+	'Convert physical to genomic distance, filter recessive and dominant.'
+	input:
+		'/mnt/work/pol/refdata/OMIM/hg19/genemap2_hg19.txt',
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt'
+	output:
+		temp('/mnt/work/pol/ROH/results/OMIM_recessive.txt'),
+		temp('/mnt/work/pol/ROH/results/OMIM_dominant.txt')
+	script:
+		'scripts/OMIM_bp_to_cM.py'
+
+rule OMIM_enrichment:
+	'Enrichment in OMIM genes (recessive and dominant only).'
+	input:
+		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
+		'/mnt/work/pol/ROH/results/NC_{sample}_cox_spont',
+		'/mnt/work/pol/ROH/results/OMIM_{model}.txt'
+	output:
+		'/mnt/work/pol/ROH/results/enrichment_{model}_{sample}.txt'
+	script:
+		'scripts/OMIM_enrichment.py'
+
 rule preliminary_report:
         'Generate report for harvest analysis.'
 	input:
@@ -719,6 +742,7 @@ rule preliminary_report:
                 '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
                 expand('/mnt/work/pol/ROH/results/{conf}_{sample}_cox_spont', sample= smpl_nms, conf= ['HC', 'LC', 'NC']),
 		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}', cohort= cohort_nms, sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/results/enrichment_{model}_{sample}.txt', sample= smpl_nms, model= ['recessive', 'dominant'])
 #		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/cox_spont_{sample}_{CHR}_temp', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
 #		expand('/mnt/work/pol/ROH/{cohort}/genotypes/GT/{sample}_gt{CHR}_HC', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms)
         output:
