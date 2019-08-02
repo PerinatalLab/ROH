@@ -701,6 +701,35 @@ rule cox_imputed:
 	script:
 		'scripts/cox_imputed.R'
 
+rule meta_analysis_imputed:
+	'Meta-analysis of imputed variants using Stouffer z-score weighet by inverse variance.'
+	input:
+		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{{sample}}', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt'
+	run:
+		i= 0
+		df_list= list()
+		for infile in input:
+			d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'n', 'beta','sd', 'pvalue', 'R', 'R_pvalue'])
+			d['w_zscore']= (d.beta / d.sd) * (1/d.sd)
+			d['denominator']= (1/ d.sd)**2
+			d.rename(columns={'w_zscore': 'w_zscore'+str(i), 'denominator': 'denominator'+ str(i)}, inplace=True)
+			d.drop(['n', 'beta', 'sd', 'pvalue', 'R', 'R_pvalue'], inplace= True, axis= 1)
+                        i+= 1
+                        df_list.append(d)
+                
+		df= reduce(lambda x, y: pd.merge(x, y, on = 'variant', how= 'outer'), df_list)
+                cols= [col for col in df.columns if 'w_zscore' in col]
+                df['numerator']= df[cols].sum(axis= 1)
+                cols2= [col for col in df.columns if 'denominator' in col]
+                df['denominator']= df[cols2].sum(axis =1)
+                df['zscore']= df['numerator'] / df['denominator']**(1/2)
+                df['pvalue']= 2*st.norm.cdf(-abs(df['zscore']))
+		df['nonmissing']= df[cols].apply(lambda x: x.count(), axis=1)
+                df= df.loc[df.nonmissing >= 5, :]
+		df.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['variant', 'zscore', 'pvalue'])
+
 
 rule OMIM_bp_to_cM:
 	'Convert physical to genomic distance, filter recessive and dominant.'
@@ -713,16 +742,157 @@ rule OMIM_bp_to_cM:
 	script:
 		'scripts/OMIM_bp_to_cM.py'
 
+rule obtain_random_segments:
+	'Obtain random NC segments with similar size to those with HC.'
+	input:
+                '/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
+                '/mnt/work/pol/ROH/results/NC_{sample}_cox_spont'
+	output:
+                '/mnt/work/pol/ROH/GNOMAD/geno/HC_toextract_{sample}.txt',
+                '/mnt/work/pol/ROH/GNOMAD/geno/NC_toextract_{sample}.txt',
+		'/mnt/work/pol/ROH/results/HC_and_NC_cox_spont_{sample}.txt'
+	run:
+		d= pd.read_csv(input[0], sep= '\t', header= 0)
+		df= pd.read_csv(input[1], sep= '\t', header= 0)
+		d[['chr', 'cM1', 'cM2']]= d['segment'].str.split(':',expand=True)
+		df[['chr', 'cM1', 'cM2']]= df['segment'].str.split(':',expand=True)
+		d[['chr', 'cM1', 'cM2']]= d[['chr', 'cM1', 'cM2']].astype(float)
+		df[['chr', 'cM1', 'cM2']]= df[['chr', 'cM1', 'cM2']].astype(float)
+		df.columns= df.columns + '_NC'
+		d['cM_dif']= d['cM2'] - d['cM1']
+		df['cM_dif_NC']= df['cM2_NC'] - df['cM1_NC']
+		a = df.cM_dif_NC.values
+		bh = d.cM_dif.values + 0.05 * d.cM_dif.values
+		bl = d.cM_dif.values - 0.05 * d.cM_dif.values
+		i, j = np.where((a[:, None] >= bl) & (a[:, None] <= bh))
+		newdf= pd.DataFrame(np.column_stack([df.values[i], d.values[j]]), columns=df.columns.append(d.columns))
+		x= newdf.groupby('segment').apply(lambda x: x.sample(200, replace= True)).reset_index(drop=True)
+		x[['chr_NC', 'cM1_NC', 'cM2_NC', 'chr', 'cM1', 'cM2']]= x[['chr_NC', 'cM1_NC', 'cM2_NC', 'chr', 'cM1', 'cM2']].astype(float)
+		x[['chr', 'pos1', 'pos2', 'chr_NC', 'pos1_NC', 'pos2_NC']]= x[['chr', 'pos1', 'pos2', 'chr_NC', 'pos1_NC', 'pos2_NC']].apply(lambda x: x.astype(int))
+		x.sort_values(by= ['chr', 'pos1'], ascending= True, inplace= True)
+		df= x.drop_duplicates(subset= ['chr', 'pos1'], keep= 'first')
+		df.to_csv(output[0], sep= '\t', columns= ['chr', 'pos1', 'pos2'], header= False, index= False)
+		df= x.drop_duplicates(subset= ['chr_NC', 'pos1_NC'], keep= 'first')
+		df.sort_values(by= ['chr_NC', 'pos1_NC'], ascending= True, inplace= True)
+		df.to_csv(output[1], sep= '\t', columns= ['chr_NC', 'pos1_NC', 'pos2_NC'], header= False, index= False)
+		x.to_csv(output[2], sep='\t', header= True, index= False)
+
 rule OMIM_enrichment:
 	'Enrichment in OMIM genes (recessive and dominant only).'
 	input:
-		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
-		'/mnt/work/pol/ROH/results/NC_{sample}_cox_spont',
+		'/mnt/work/pol/ROH/results/HC_and_NC_cox_spont_{sample}.txt',
 		'/mnt/work/pol/ROH/results/OMIM_{model}.txt'
 	output:
-		'/mnt/work/pol/ROH/results/enrichment_{model}_{sample}.txt'
+		'/mnt/work/pol/ROH/results/enrichment/OMIM_{model}_{sample}.txt'
 	script:
 		'scripts/OMIM_enrichment.py'
+
+rule download_GNOMAD:
+	'Download GNOMAD genomes.'
+	output:
+		temp('/mnt/work/pol/ROH/GNOMAD/geno/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.gz'),
+		temp('/mnt/work/pol/ROH/GNOMAD/geno/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.gz.tbi')
+	params:
+		'https://storage.googleapis.com/gnomad-public/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.bgz',
+		'https://storage.googleapis.com/gnomad-public/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.bgz.tbi'
+	shell:
+		'''
+		wget -O {output[0]} {params[0]}
+		wget -O {output[1]} {params[1]}
+		'''
+
+rule extract_GNOMAD:
+	'Use bcftools to filter GNOMAD'
+	input:
+		'/mnt/work/pol/ROH/GNOMAD/geno/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.gz',
+		'/mnt/work/pol/ROH/GNOMAD/geno/{conf}_toextract_{sample}.txt',
+		'/mnt/work/pol/ROH/GNOMAD/geno/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.gz.tbi'
+	output:
+		temp('/mnt/work/pol/ROH/GNOMAD/geno/gnomad.{CHR}_{conf}_{sample}_temp')
+	shell:
+		"tabix -R {input[1]} {input[0]} > {output[0]}"
+
+rule process_GNOMAD:
+	'Extract missense and loss-of-function variants.'
+	input:
+		'/mnt/work/pol/ROH/GNOMAD/geno/gnomad.{CHR}_{conf}_{sample}_temp'
+	output:
+		temp('/mnt/work/pol/ROH/GNOMAD/annotation/filtered_GNOMAD_{conf}_{sample}_{CHR}.txt')
+
+	shell:
+		"""
+		set +o pipefail;
+		paste <(cut -f1,2 {input[0]}) <(awk -Fvep= '{{ print $NF }}' {input[0]})| grep -e 'stop_lost' -e 'stop_gained' -e 'start_lost' -e 'inframe_insertion' -e 'inframe_deletion' -e 'frameshift' -e 'splice_donor' -e 'splice_acceptor' -e 'missense' -e 'transcript_ablation' -e 'protein_altering' -e 'regulatory_region_ablation' -e 'transcript_amplification' | sed 's/|/\t/g' | cut -f1,2,4 > {output[0]}
+		"""
+
+rule concat_GNOMAD:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/GNOMAD/annotation/filtered_GNOMAD_{{conf}}_{{sample}}_{CHR}.txt', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/GNOMAD/annotation/filtered_GNOMAD_{conf}_{sample}.txt'
+	shell:
+		'cat {input} > {output[0]}'
+
+rule combine_GNOMAD_annotation:
+	'Combine GNOMAD annotation and cox segmental results.'
+	input:
+		'/mnt/work/pol/ROH/GNOMAD/annotation/filtered_GNOMAD_{conf}_{sample}.txt',
+		'/mnt/work/pol/ROH/GNOMAD/geno/{conf}_toextract_{sample}.txt'
+	output:
+		'/mnt/work/pol/ROH/GNOMAD/annotation/GNOMAD_{sample}_{conf}_mod.txt',
+		'/mnt/work/pol/ROH/GNOMAD/annotation/GNOMAD_{sample}_{conf}_high.txt'
+	run:
+		moderate= ['inframe_deletion', 'inframe_insertion', 'missense_variant', 'protein_altering_variant', 'regulatory_region_ablation']
+		df= pd.read_csv(input[0], sep= '\t', header= None, names= ['chr', 'pos', 'VEP'])
+		d= pd.read_csv(input[1], sep= '\t', header= None, names= ['chr', 'pos1', 'pos2'])
+		mod= list()
+		high= list()
+		for CHR in set(df.chr):
+			temp_df= df[df.chr== CHR]
+			temp_d= d[d.chr== CHR]
+			a = temp_df.pos
+			bh = temp_d.pos2.values
+			bl = temp_d.pos1.values
+			i, j = np.where((a[:, None] >= bl) & (a[:, None] <= bh))
+			x= pd.DataFrame(np.column_stack([temp_df.values[i], temp_d.values[j]]), columns=temp_df.columns.append(temp_d.columns))
+			mod= x[x.VEP.str.contains('|'.join(moderate))]
+			high= x[~x.VEP.str.contains('|'.join(moderate))]
+			mod_list.append(mod)
+			high_list.append(high)
+		mod= pd.concat(mod_list)
+		high= pd.concat(high_list)
+		mod.to_csv(output[0], sep= '\t', header= True, index= False)
+		high.to_csv(output[1], sep= '\t', header= True, index= False)
+
+rule GNOMAD_enrichment:
+	''
+	input:
+		'/mnt/work/pol/ROH/results/NC_{sample}_cox_spont',
+		'/mnt/work/pol/ROH/GNOMAD/annotation/GNOMAD_{sample}_NC_{consequence}.txt',
+		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
+                '/mnt/work/pol/ROH/GNOMAD/annotation/GNOMAD_{sample}_HC_{consequence}.txt'
+	output:
+		'/mnt/work/pol/ROH/results/enrichment/GNOMAD_{sample}_{consequence}.txt'
+	run:
+		NC= pd.read_csv(input[0], sep= '\t', header= 0)
+		NCr= pd.read_csv(input[1], sep= '\t', header= 0)
+		HC= pd.read_csv(input[2], sep= '\t', header= 0)
+		HCr= pd.read_csv(input[3], sep= '\t', header= 0)
+		
+		NC[['chr', 'cM1', 'cM2']]= NC['segment'].str.split(':', expand=True)
+                HC[['chr', 'cM1', 'cM2']]= HC['segment'].str.split(':', expand=True)
+		NC[['chr', 'cM1', 'cM2']]= NC[['chr', 'cM1', 'cM2']].astype(float)
+		HC[['chr', 'cM1', 'cM2']]= HC[['chr', 'cM1', 'cM2']].astype(float)
+		d= pd.merge(NC, NCr, on= ['chr', 'pos1', 'pos2'])
+		df= pd.merge(HC, HCr, on= ['chr', 'pos1', 'pos2'])
+		x_NC= d.groupby(['segment', 'chr', 'cM1', 'cM2']).size().to_frame('count').reset_index()
+		x_HC= df.groupby(['segment', 'chr', 'cM1', 'cM2']).size().to_frame('count').reset_index()
+		x_NC['prop']= x_NC.count / (x_NC.cM2 - x_NC.cM1)
+		x_HC['prop']= x_HC.count / (x_HC.cM2 - x_HC.cM1)
+		x_HC['zscore_GNOMAD']= (x_HC['prop']  - x_NC['prop'].mean()) / x_NC['prop'].std()
+		x_HC['pvalue_GNOMAD']= st.norm.cdf(-(x_HC['zscore_GNOMAD']))
+		x_HC.to_csv(output[0], sep= '\t', index= False, header= True, columns= ['segment', 'zscore_GNOMAD', 'pvalue_GNOMAD'])
 
 rule preliminary_report:
         'Generate report for harvest analysis.'
@@ -742,9 +912,10 @@ rule preliminary_report:
                 '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
                 expand('/mnt/work/pol/ROH/results/{conf}_{sample}_cox_spont', sample= smpl_nms, conf= ['HC', 'LC', 'NC']),
 		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}', cohort= cohort_nms, sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/results/enrichment_{model}_{sample}.txt', sample= smpl_nms, model= ['recessive', 'dominant'])
-#		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/cox_spont_{sample}_{CHR}_temp', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
-#		expand('/mnt/work/pol/ROH/{cohort}/genotypes/GT/{sample}_gt{CHR}_HC', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms)
+		expand('/mnt/work/pol/ROH/results/enrichment/OMIM_{model}_{sample}.txt', sample= smpl_nms, model= ['recessive', 'dominant']),
+		expand('/mnt/work/pol/ROH/results/enrichment/GNOMAD_{sample}_{consequence}.txt', consequence= ['mod', 'high'], sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt', sample= smpl_nms),
+		'figures/figure1.eps'
         output:
                 'reports/ROH_{cohort}_analysis.html'
         script:
@@ -776,3 +947,40 @@ rule html_meta_report:
                 'scripts/html_meta_ROH.Rmd'
 
 
+rule figure_X:
+	''
+	input:
+		expand('/mnt/work/pol/{cohort}/pca/{cohort}_pca.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/flag_list.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',cohort= cohort_nms), 
+                expand('/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pca/all_pca_outliers_hapmap.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms, cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms, cohort= cohort_nms)
+	output:
+		'figures/figure2.eps'
+	script:
+		'scripts/figures/parental_relatedness_offspring_ROH.R'
+
+rule figure_1:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt', cohort= cohort_nms)
+	output:
+		'figures/figure1.eps',
+		'figures/S1_figure.eps'
+	script:
+		'scripts/figures/multiple_ROH.R'
+
+rule figure_2:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms)
+	output:
+		''
+	script:
+		'scripts/figures/ROH_comparison_members.R'
