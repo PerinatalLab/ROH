@@ -2,6 +2,9 @@ library(tidyr)
 library(dplyr)
 library(data.table)
 library(ggplot2)
+library(gridExtra)
+library(grid)
+
 
 cohorts= c('harvestm12', 'harvestm24', 'rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay')
 
@@ -97,7 +100,9 @@ lay <- rbind(c(1,1,1,1,1,1,1,1),
              c(NA,3,3,3,3,3,3,NA))
 
 
-f1= grid.arrange(p1, p2, layout_matrix = lay)
+postscript(snakemake@output[[1]])
+grid.arrange(p1, p2, layout_matrix = lay)
+dev.off()
 
 
 #### Supp figure
@@ -128,6 +133,6 @@ cohort= as_labeller(c('harvestm12'='Cohort1', 'harvestm24'='Cohort2', 'rotterdam
           axis.line.y = element_line(color="black", size = 0.2))
 
 
-ggsave(snakemake@output[[1]], plot= f1, device= 'eps', dpi= 'retina', width= 12, height= 8, units= 'cm')
+#ggsave(snakemake@output[[1]], grid.draw(g), device= 'eps', dpi= 'retina', width= 12, height= 8, units= 'cm')
 ggsave(snakemake@output[[2]], plot= s1, device= 'eps', dpi= 'retina', width= 12, height= 10, units= 'cm')
 

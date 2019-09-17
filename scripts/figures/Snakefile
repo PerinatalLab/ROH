@@ -1,0 +1,95 @@
+import pandas as pd
+import numpy as np
+import os
+import gzip
+import functools
+
+cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
+smpl_nms= ['maternal','paternal', 'fetal']
+batch_nms= ['m12', 'm24']
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+
+# Other arguments:
+
+pruning_nms= ['none', 'soft', 'moderate', 'hard']
+
+dens_nms= [5]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_nms= [0.0000001]
+het_nms= [0, 1]
+GAP_nms= [5]
+
+dens_bp= [5000]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_bp= [0.0000001]
+het_bp= [0, 1]
+GAP_bp= [5000]
+
+# Functions
+
+def isfloat(str):
+    try:
+        float(str)
+        return True
+    except ValueError:
+        return False
+
+rule figure_S2:
+        'S2 Figure. Parental genetic relatedness and offspring ROH.'
+        input:
+                expand('/mnt/work/pol/{cohort}/pca/{cohort}_pca.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/flag_list.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pca/all_pca_outliers_hapmap.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms, cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms, cohort= cohort_nms)
+        output:
+                'figures/S2_figure.eps'
+        script:
+                'parental_relatedness_offspring_ROH.R'
+
+
+rule figure_1_S1:
+        ''
+        input:
+                expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt', cohort= cohort_nms)
+        output:
+                'figures/figure1.eps',
+                'figures/S1_figure.eps'
+        script:
+                'multiple_ROH.R'
+
+rule figure_2_S3:
+        'Figure 2 and S3. Runs of homozygosity in family trios.'
+        input:
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/results/het/{sample}_excess_hom.txt', sample= smpl_nms, cohort= cohort_nms)
+        output:
+                'figures/S3_figure.eps',
+		'figures/figure2.eps'
+        script:
+                'ROH_comparison_members.R'
+
+rule table_S1:
+        'FROH and spontaneous delivery risk.'
+        input:
+                expand('/mnt/work/pol/{cohort}/pheno/q1_v9.txt',cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/results/het/{sample}_excess_hom.txt', sample= smpl_nms, cohort= cohort_nms)
+        output:
+                'tables/S1_table.txt'
+        script:
+                'FROH_spont_risk.R'
+
+rule manhattan_plots:
+        ''
+        input:
+                '/mnt/work/pol/ROH/harvestm12/results/cox_spont_maternal',
+                ''
+

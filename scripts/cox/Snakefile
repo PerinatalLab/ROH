@@ -1,0 +1,108 @@
+import pandas as pd
+import numpy as np
+import os
+import gzip
+from functools import reduce
+import scipy.stats as st
+import statsmodels.stats.multitest as multi
+
+cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
+smpl_nms= ['maternal','paternal', 'fetal']
+batch_nms= ['m12', 'm24']
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+
+# Other arguments:
+
+pruning_nms= ['none', 'soft', 'moderate', 'hard']
+
+dens_nms= [5]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_nms= [0.0000001]
+het_nms= [0, 1]
+GAP_nms= [5]
+
+dens_bp= [5000]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_bp= [0.0000001]
+het_bp= [0, 1]
+GAP_bp= [5000]
+
+# Functions
+
+def isfloat(str):
+    try:
+        float(str)
+        return True
+    except ValueError:
+        return False
+
+
+rule cox_ph_analysis:
+        'Cox proportional hazard analyis on bined ROH calls.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz',
+                '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}')
+        script:
+                'scripts/cox/cox_segments.R'
+
+rule concat_cox:
+        'Concat cox results from multiple chromosomes.'
+        input:
+                expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/{{sample}}/cox_spont_{{sample}}_chr{CHR}', CHR= CHR_nms)
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}')
+        shell:
+                'cat {input} > {output[0]}'
+
+rule split_segments:
+        'Split overlapping segments between sub-cohorts for cox results.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}',
+                expand('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{{sample}}/cox_spont_{{sample}}', cohort= cohort_nms)
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}_temp')
+        script:
+                'scripts/cox/overlap_split_segment.py'
+
+rule cox_cM_to_bp:
+        'Convert cM to bp in cox results.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}_temp',
+                expand('/mnt/work/pol/ROH/{cohort}/runs/{{sample}}_input_ROH_geno.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{{sample}}.bim', cohort= cohort_nms, pruning= pruning_nms)
+        output:
+                '/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}'
+        run:
+                d= pd.read_csv(input[0], header= 0, sep= '\t')
+                flist= [infile for infile in input if 'geno.txt' in infile]
+                bim_list= list()
+                for infile in flist:
+                        x= [line.strip() for line in open("".join(infile), 'r')]
+                        bim= [i for i in x if 'bim' in i]
+                        bim= pd.read_csv("".join(bim), delim_whitespace= True, header= None, names= ['chr', 'id', 'pos', 'cM', 'A1', 'A2'])
+                        bim_list.append(bim)
+                bim= pd.concat(bim_list)
+                bim.drop_duplicates(subset= ['chr', 'pos'], keep= 'first', inplace= True)
+                bim.drop_duplicates(subset= ['chr', 'cM'], keep= 'first', inplace= True)
+                bim= bim[['chr', 'pos', 'cM']]
+                d= pd.merge(d, bim, left_on= ['chr', 'cM1'], right_on= ['chr', 'cM'])
+                d.rename(columns= {'pos': 'pos1'}, inplace= True)
+                d= pd.merge(d, bim, left_on= ['chr', 'cM2'], right_on= ['chr', 'cM'])
+                d.rename(columns= {'pos': 'pos2'}, inplace= True)
+                d.drop(['cM_x', 'cM_y'], axis= 1, inplace= True)
+                d.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule cox_imputed:
+        'Cox regression for imputed variants within HC segments.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/GT/{sample}_HC_temp',
+                '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract'
+        output:
+                '/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}'
+        script:
+                'scripts/cox/cox_imputed.R'
+
+

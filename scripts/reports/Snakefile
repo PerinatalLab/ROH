@@ -1,0 +1,92 @@
+import pandas as pd
+import numpy as np
+import os
+import gzip
+from functools import reduce
+import scipy.stats as st
+import statsmodels.stats.multitest as multi
+
+cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
+smpl_nms= ['maternal','paternal', 'fetal']
+batch_nms= ['m12', 'm24']
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+
+# Other arguments:
+
+pruning_nms= ['none', 'soft', 'moderate', 'hard']
+
+dens_nms= [5]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_nms= [0.0000001]
+het_nms= [0, 1]
+GAP_nms= [5]
+
+dens_bp= [5000]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_bp= [0.0000001]
+het_bp= [0, 1]
+GAP_bp= [5000]
+
+# Functions
+
+def isfloat(str):
+    try:
+        float(str)
+        return True
+    except ValueError:
+        return False
+
+rule preliminary_report:
+        'Generate report for harvest analysis.'
+        input:
+                expand('/mnt/work/pol/ROH/{{cohort}}/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
+                '/mnt/work/pol/{cohort}/pheno/q1_v9.txt',
+                '/mnt/work/pol/{cohort}/pheno/flag_list.txt',
+                expand('/mnt/work/pol/ROH/{{cohort}}/runs/{{cohort}}_{sample}.hom', sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{{cohort}}/runs/frequency/ROH_frequency_{sample}', sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{sample}.bim', pruning= pruning_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/cm_pruned{{cohort}}_{sample}.bim', pruning= pruning_nms, sample= smpl_nms),
+                '/mnt/work/pol/ROH/{cohort}/runs/maternal_input_ROH_geno.txt',
+                '/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',
+                '/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt',
+                expand('/mnt/work/pol/ROH/{{cohort}}/results/het/{sample}_excess_hom.txt', sample= smpl_nms),
+                '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
+                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
+                expand('/mnt/work/pol/ROH/results/{conf}_{sample}_cox_spont', sample= smpl_nms, conf= ['HC', 'LC', 'NC']),
+                expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}', cohort= cohort_nms, sample= smpl_nms),
+#               expand('/mnt/work/pol/ROH/results/enrichment/OMIM_{model}_{sample}.txt', sample= smpl_nms, model= ['recessive', 'dominant']),
+#               expand('/mnt/work/pol/ROH/results/enrichment/GNOMAD_{sample}_{consequence}.txt', consequence= ['mod', 'high'], sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt', sample= smpl_nms),
+#               'figures/figure1.eps',
+                expand('/mnt/work/pol/ROH/{cohort}/results/ROH_frequency_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/results/ROH_freq_{sample}.txt', sample= smpl_nms)
+        output:
+                'reports/ROH_{cohort}_analysis.html'
+        script:
+                'scripts/reports/report_ROH.Rmd'
+
+rule html_meta_report:
+        'Generate report for all cohorts together.'
+        input:
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/q1_v9.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}', cohort= cohort_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{sample}.bim', cohort= cohort_nms, pruning= pruning_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/cm_pruned{cohort}_{sample}.bim', cohort= cohort_nms, pruning= pruning_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/results/het/{sample}_excess_hom.txt', cohort= cohort_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pca/{cohort}_pca.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/flag_list.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/results/ROH_frequency_{sample}.txt', cohort= cohort_nms, sample= smpl_nms)
+        output:
+                'reports/html_meta_ROH_analysis.html'
+        script:
+                'scripts/reports/html_meta_ROH.Rmd'
+

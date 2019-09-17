@@ -112,7 +112,7 @@ d$cohort= factor(d$cohort, levels= c('harvestm12', 'harvestm24', 'rotterdam1', '
 
 r_list= c()
 coh_list= c()
-for (coh in cohort){
+for (coh in cohorts){
 r_list= c(r_list, with(d[d$cohort== coh, ], cor(cM, KB, use= 'complete')**2))
 coh_list= c(coh_list, coh)
 }
@@ -127,7 +127,7 @@ x1= ggplot(d, aes(x= cM, y= KB)) +
 geom_point(size= 1, alpha= 0.5) +
 geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
 facet_wrap(vars(cohort), ncol= 3) +
-geom_text(data=lab, aes(x= Inf, y= Inf, label= paste0(expression(R**2': '), R), hjust= -0.1, vjust= -1) +
+geom_text(data=lab, aes(x= Inf, y= -Inf, label= paste0('R**2:  ', sprintf('%0.2f', round(R,2)))), hjust= 1, vjust= -1, parse= T) +
 theme_bw(base_family = "Source Sans Pro") +
 theme(text = element_text(size= 12),
            legend.position= "none",

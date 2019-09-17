@@ -1,0 +1,111 @@
+import pandas as pd
+import numpy as np
+import os
+import gzip
+from functools import reduce
+import scipy.stats as st
+import statsmodels.stats.multitest as multi
+
+cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
+smpl_nms= ['maternal','paternal', 'fetal']
+batch_nms= ['m12', 'm24']
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+
+# Other arguments:
+
+pruning_nms= ['none', 'soft', 'moderate', 'hard']
+
+dens_nms= [5]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_nms= [0.0000001]
+het_nms= [0, 1]
+GAP_nms= [5]
+
+dens_bp= [5000]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_bp= [0.0000001]
+het_bp= [0, 1]
+GAP_bp= [5000]
+
+# Functions
+
+def isfloat(str):
+    try:
+        float(str)
+        return True
+    except ValueError:
+        return False
+
+rule high_conf_segments:
+        'Obtain a set of high confidence intervals with an FDR< 0.05 and <0.1.'
+        input:
+                expand('/mnt/work/pol/ROH/{cohort}/results/cox_spont_{{sample}}', cohort= cohort_nms)
+        output:
+                '/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
+                '/mnt/work/pol/ROH/results/LC_{sample}_cox_spont',
+                '/mnt/work/pol/ROH/results/NC_{sample}_cox_spont'
+        run:
+                i= 0
+                df_list= list()
+                for infile in input:
+                        d= pd.read_csv(infile, sep= '\t', header= 0)
+                        d['w_zscore']= (d.beta / d.sd) * (1/d.sd)
+                        d['denominator']= (1/ d.sd)**2
+                        d['segment']= d.chr.map(str) + ':' + d.cM1.map(str) + ':' + d.cM2.map(str)
+                        d.rename(columns={'w_zscore': 'w_zscore'+str(i), 'denominator': 'denominator'+ str(i), 'pos1': 'pos1'+ str(i), 'pos2': 'pos2'+ str(i)}, inplace=True)
+                        d.drop(['cM1', 'cM2', 'chr', 'n', 'beta', 'sd', 'pvalue', 'R', 'R_pvalue'], inplace= True, axis= 1)
+                        i+= 1
+                        df_list.append(d)
+                df= reduce(lambda x, y: pd.merge(x, y, on = 'segment', how= 'outer'), df_list)
+                cols= [col for col in df.columns if 'w_zscore' in col]
+                df['numerator']= df[cols].sum(axis= 1)
+                cols2= [col for col in df.columns if 'denominator' in col]
+                df['denominator']= df[cols2].sum(axis =1)
+                df['zscore']= df['numerator'] / df['denominator']**(1/2)
+                df['pvalue']= 2*st.norm.cdf(-abs(df['zscore']))
+                df['nonmissing']= df[cols].apply(lambda x: x.count(), axis=1)
+                df= df.loc[df.nonmissing >= 5, :]
+                df['pos1']= np.where(pd.notna(df.pos10), df.pos10, np.where(pd.notna(df.pos11), df.pos11, df.pos12))
+                df['pos2']= np.where(pd.notna(df.pos20), df.pos20, np.where(pd.notna(df.pos21), df.pos21, df.pos22))
+                df['inorout']= multi.multipletests(df.pvalue, alpha= 0.05, method= 'fdr_bh')[0]
+                dfHC= df.loc[df.inorout== True, :]
+                df['inorout']= multi.multipletests(df.pvalue, alpha= 0.1, method= 'fdr_bh')[0]
+                dfLC= df.loc[df.inorout== True,:]
+                dfHC.sort_values(by=['pvalue'], inplace= True, ascending= True)
+                dfLC.sort_values(by=['pvalue'], inplace= True, ascending= True)
+                dfLC= dfLC.iloc[len(dfHC.index):, :]
+                dfNC= df.loc[df.inorout== False, :]
+                dfHC.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'zscore', 'pvalue'])
+                dfLC.to_csv(output[1], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'zscore', 'pvalue'])
+                dfNC.to_csv(output[2], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'zscore', 'pvalue'])
+
+
+rule meta_analysis_imputed:
+        'Meta-analysis of imputed variants using Stouffer z-score weighet by inverse variance.'
+        input:
+                expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{{sample}}', cohort= cohort_nms)
+        output:
+                '/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt'
+        run:
+                i= 0
+                df_list= list()
+                for infile in input:
+                        d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'n', 'beta','sd', 'pvalue', 'R', 'R_pvalue'])
+                        d['w_zscore']= (d.beta / d.sd) * (1/d.sd)
+                        d['denominator']= (1/ d.sd)**2
+                        d.rename(columns={'w_zscore': 'w_zscore'+str(i), 'denominator': 'denominator'+ str(i)}, inplace=True)
+                        d.drop(['n', 'beta', 'sd', 'pvalue', 'R', 'R_pvalue'], inplace= True, axis= 1)
+                        i+= 1
+                        df_list.append(d)
+
+                df= reduce(lambda x, y: pd.merge(x, y, on = 'variant', how= 'outer'), df_list)
+                cols= [col for col in df.columns if 'w_zscore' in col]
+                df['numerator']= df[cols].sum(axis= 1)
+                cols2= [col for col in df.columns if 'denominator' in col]
+                df['denominator']= df[cols2].sum(axis =1)
+                df['zscore']= df['numerator'] / df['denominator']**(1/2)
+                df['pvalue']= 2*st.norm.cdf(-abs(df['zscore']))
+                df['nonmissing']= df[cols].apply(lambda x: x.count(), axis=1)
+                df= df.loc[df.nonmissing >= 5, :]
+                df.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['variant', 'zscore', 'pvalue'])
+
