@@ -1,4 +1,5 @@
 import pandas as pd
+import sys
 import numpy as np
 import os
 import gzip
@@ -36,6 +37,16 @@ def isfloat(str):
     except ValueError:
         return False
 
+def IVW(df):
+	beta_cols= [col for col in df.columns if 'beta' in col]
+	sd_cols= [col for col in df.columns if 'sd' in col]
+	beta_meta= np.divide(df[beta_cols],  df[sd_cols]**2).sum(axis=1) / (1/ df[sd_cols]**2).sum(axis=1)
+	sd_meta= np.sqrt(1/ (1/ df[sd_cols]**2).sum(axis=1))
+	z_meta= beta_meta / sd_meta
+	pvalue_meta= 2*st.norm.cdf(-abs(z_meta))
+	meta_df= pd.DataFrame(np.array(list([beta_meta, sd_meta, z_meta, pvalue_meta])).T)
+	return meta_df
+	
 rule high_conf_segments:
         'Obtain a set of high confidence intervals with an FDR< 0.05 and <0.1.'
         input:
@@ -49,63 +60,59 @@ rule high_conf_segments:
                 df_list= list()
                 for infile in input:
                         d= pd.read_csv(infile, sep= '\t', header= 0)
-                        d['w_zscore']= (d.beta / d.sd) * (1/d.sd)
-                        d['denominator']= (1/ d.sd)**2
                         d['segment']= d.chr.map(str) + ':' + d.cM1.map(str) + ':' + d.cM2.map(str)
-                        d.rename(columns={'w_zscore': 'w_zscore'+str(i), 'denominator': 'denominator'+ str(i), 'pos1': 'pos1'+ str(i), 'pos2': 'pos2'+ str(i)}, inplace=True)
-                        d.drop(['cM1', 'cM2', 'chr', 'n', 'beta', 'sd', 'pvalue', 'R', 'R_pvalue'], inplace= True, axis= 1)
+			d['sd']= np.where(d.beta.isnull(), np.NaN, d.sd)
+			d['n']= np.where(d.beta.isnull(), np.NaN, d.n)
+                        d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'pos1': 'pos1'+ str(i), 'pos2': 'pos2'+ str(i), 'n': 'n_' + str(i)}, inplace=True)
+                        d.drop(['cM1', 'cM2', 'chr', 'pvalue', 'R', 'R_pvalue'], inplace= True, axis= 1)
                         i+= 1
                         df_list.append(d)
                 df= reduce(lambda x, y: pd.merge(x, y, on = 'segment', how= 'outer'), df_list)
-                cols= [col for col in df.columns if 'w_zscore' in col]
-                df['numerator']= df[cols].sum(axis= 1)
-                cols2= [col for col in df.columns if 'denominator' in col]
-                df['denominator']= df[cols2].sum(axis =1)
-                df['zscore']= df['numerator'] / df['denominator']**(1/2)
-                df['pvalue']= 2*st.norm.cdf(-abs(df['zscore']))
-                df['nonmissing']= df[cols].apply(lambda x: x.count(), axis=1)
-                df= df.loc[df.nonmissing >= 5, :]
+		n_cols= [col for col in df.columns if 'n_' in col]
+                meta_df= IVW(df)
+		cols_df= list(df.columns)
+		df= pd.concat([df, meta_df], axis=1, ignore_index= True)
+		df.columns= cols_df + ['beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta']
+		df['n_meta']= df[n_cols].sum(axis=1)
+                df= df.loc[df.n_meta >= 10000, :]
                 df['pos1']= np.where(pd.notna(df.pos10), df.pos10, np.where(pd.notna(df.pos11), df.pos11, df.pos12))
                 df['pos2']= np.where(pd.notna(df.pos20), df.pos20, np.where(pd.notna(df.pos21), df.pos21, df.pos22))
-                df['inorout']= multi.multipletests(df.pvalue, alpha= 0.05, method= 'fdr_bh')[0]
+                df['inorout']= multi.multipletests(df.pvalue_meta, alpha= 0.05, method= 'fdr_bh')[0]
                 dfHC= df.loc[df.inorout== True, :]
-                df['inorout']= multi.multipletests(df.pvalue, alpha= 0.1, method= 'fdr_bh')[0]
+                df['inorout']= multi.multipletests(df.pvalue_meta, alpha= 0.1, method= 'fdr_bh')[0]
                 dfLC= df.loc[df.inorout== True,:]
-                dfHC.sort_values(by=['pvalue'], inplace= True, ascending= True)
-                dfLC.sort_values(by=['pvalue'], inplace= True, ascending= True)
+                dfHC.sort_values(by=['pvalue_meta'], inplace= True, ascending= True)
+                dfLC.sort_values(by=['pvalue_meta'], inplace= True, ascending= True)
                 dfLC= dfLC.iloc[len(dfHC.index):, :]
                 dfNC= df.loc[df.inorout== False, :]
-                dfHC.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'zscore', 'pvalue'])
-                dfLC.to_csv(output[1], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'zscore', 'pvalue'])
-                dfNC.to_csv(output[2], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'zscore', 'pvalue'])
-
+                dfHC.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
+                dfLC.to_csv(output[1], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
+                dfNC.to_csv(output[2], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
 
 rule meta_analysis_imputed:
-        'Meta-analysis of imputed variants using Stouffer z-score weighet by inverse variance.'
-        input:
-                expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{{sample}}', cohort= cohort_nms)
-        output:
-                '/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt'
-        run:
-                i= 0
-                df_list= list()
-                for infile in input:
-                        d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'n', 'beta','sd', 'pvalue', 'R', 'R_pvalue'])
-                        d['w_zscore']= (d.beta / d.sd) * (1/d.sd)
-                        d['denominator']= (1/ d.sd)**2
-                        d.rename(columns={'w_zscore': 'w_zscore'+str(i), 'denominator': 'denominator'+ str(i)}, inplace=True)
-                        d.drop(['n', 'beta', 'sd', 'pvalue', 'R', 'R_pvalue'], inplace= True, axis= 1)
-                        i+= 1
-                        df_list.append(d)
-
-                df= reduce(lambda x, y: pd.merge(x, y, on = 'variant', how= 'outer'), df_list)
-                cols= [col for col in df.columns if 'w_zscore' in col]
-                df['numerator']= df[cols].sum(axis= 1)
-                cols2= [col for col in df.columns if 'denominator' in col]
-                df['denominator']= df[cols2].sum(axis =1)
-                df['zscore']= df['numerator'] / df['denominator']**(1/2)
-                df['pvalue']= 2*st.norm.cdf(-abs(df['zscore']))
-                df['nonmissing']= df[cols].apply(lambda x: x.count(), axis=1)
-                df= df.loc[df.nonmissing >= 5, :]
-                df.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['variant', 'zscore', 'pvalue'])
+	'Meta-analysis of imputed variants using Stouffer z-score weighet by inverse variance.'
+	input:
+		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{{sample}}', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt'
+	run:
+		i= 0
+		df_list= list()
+		for infile in input:
+			d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'n', 'beta','sd', 'pvalue', 'R', 'R_pvalue'])
+			d['n']= np.where(d.beta.isnull(), np.NaN, d.n)
+			d['sd']= np.where(d.beta.isnull(), np.NaN, d.sd)
+			d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'n': 'n_' + str(i)}, inplace=True)
+			d.drop(['pvalue', 'R', 'R_pvalue'], inplace= True, axis= 1)
+			i+= 1
+			df_list.append(d)
+		df= reduce(lambda x, y: pd.merge(x, y, on = 'variant', how= 'outer'), df_list)
+		n_cols= [col for col in df.columns if 'n' in col]
+		meta_df= IVW(df)
+		cols_df= list(df.columns)
+		df= pd.concat([df, meta_df], axis=1, ignore_index= True)
+		df.columns= cols_df + ['beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta']
+		df['n_meta']= df[n_cols].sum(axis=1)
+		df= df.loc[df.n_meta >= 10000, :]
+		df.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['variant', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
 

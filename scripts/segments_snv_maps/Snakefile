@@ -45,6 +45,6 @@ rule mapping_ROH_segments:
         output:
                 temp('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz')
         script:
-                'scripts/segments_snv_maps/segment_map_ROH.py'
+                'segment_map_ROH.py'
 
 

@@ -65,7 +65,7 @@ funk= function(block.text){
 
 	dataChunk= as.data.frame(t(dataChunk))
 	names(dataChunk)[1:length(genvars)]= genvars
-	dataChunk= Filter(function(col) length(unique(col[!is.na(col)])) > 1, dataChunk)
+	dataChunk= dataChunk[,!apply(dataChunk, MARGIN = 2, function(x) max(x, na.rm = TRUE) == min(x, na.rm = TRUE))]
 	if (ncol(dataChunk)== 0) {return(NULL)}
         dataChunk$id= gsub('X', '',rownames(dataChunk)) 
         geno= inner_join(pheno, dataChunk, by= c('SentrixID_1' = 'id'))

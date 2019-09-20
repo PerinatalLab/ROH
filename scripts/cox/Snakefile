@@ -45,7 +45,7 @@ rule cox_ph_analysis:
         output:
                 temp('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}_chr{CHR}')
         script:
-                'scripts/cox/cox_segments.R'
+                'cox_segments.R'
 
 rule concat_cox:
         'Concat cox results from multiple chromosomes.'
@@ -64,7 +64,7 @@ rule split_segments:
         output:
                 temp('/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}_temp')
         script:
-                'scripts/cox/overlap_split_segment.py'
+                'cox/overlap_split_segment.py'
 
 rule cox_cM_to_bp:
         'Convert cM to bp in cox results.'
@@ -103,6 +103,6 @@ rule cox_imputed:
         output:
                 '/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}'
         script:
-                'scripts/cox/cox_imputed.R'
+                'cox_imputed.R'
 
 

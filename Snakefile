@@ -45,6 +45,8 @@ rule all:
                 expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
                 expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
 #		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/results/HC_{sample}_cox_spont', sample= smpl_nms),
                 'figures/figure2.eps',
                 'figures/figure1.eps',
                 'figures/S1_figure.eps',

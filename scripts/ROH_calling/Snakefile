@@ -251,7 +251,7 @@ rule determine_arguments_ROH:
                 '/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',
                 '/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt'
         script:
-                'scripts/ROH_calling/R2_ROH_IBD.R'
+                'R2_ROH_IBD.R'
 
 rule estimate_ROH:
         '''
