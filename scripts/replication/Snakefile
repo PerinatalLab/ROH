@@ -1,0 +1,109 @@
+import pandas as pd
+import numpy as np
+import os
+import gzip
+from functools import reduce
+import scipy.stats as st
+import statsmodels.stats.multitest as multi
+
+cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
+smpl_nms= ['maternal','paternal', 'fetal']
+batch_nms= ['m12', 'm24']
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+rep_nms= ['normentjan', 'normentjun']
+
+# Other arguments:
+
+pruning_nms= ['none', 'soft', 'moderate', 'hard']
+
+dens_nms= [5]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_nms= [0.0000001]
+het_nms= [0, 1]
+GAP_nms= [5]
+
+dens_bp= [5000]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_bp= [0.0000001]
+het_bp= [0, 1]
+GAP_bp= [5000]
+
+# Functions
+
+rule phenofile_rep:
+        'Merge all data necessary to create a phenotype file with ROH.'
+        input:
+                '/mnt/work/pol/{rep}/pheno/{rep}_mfr.csv',
+                '/mnt/work/pol/{rep}/pheno/{rep}_linkage.csv',
+                '/mnt/work/pol/{rep}/pca/{rep}_pca.txt',
+                '/mnt/work/pol/{rep}/relatedness/all_{rep}.kin0',
+                '/mnt/work/pol/{rep}/pheno/flag_list.txt',
+                '/mnt/work/pol/{rep}/pca/all_pca_outliers_hapmap.txt'
+        output:
+                '/mnt/work/pol/ROH/replication/pheno/{rep}_pheno_mfr_mothers.txt'
+        script:
+                'pheno_replication.py'
+
+rule extract_vcf_samples_rep:
+        'Extract samples id included in the VCF file, for each batch.'
+        input:
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jan15/1.vcf.gz',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jun15/1.vcf.gz'
+        output:
+                temp('/mnt/work/pol/ROH/replication/{rep}/genotypes/moms_vcf_ids')
+        run:
+                if 'normentjan' == wildcards.rep: vcf= input[0]
+                if 'normentjun' == wildcards.rep: vcf= input[1]
+                shell("set +o pipefail; zgrep -v '##' {vcf} | head -1 | cut -f10- | sed 's/\\t/\\n/g'  > {output[0]} ")
+
+rule extract_samples_rep:
+	'Samples for filtering VCF files.'
+	input:
+		'/mnt/work/pol/{rep}/pheno/{rep}_linkage.csv',
+		'/mnt/work/pol/ROH/replication/{rep}/genotypes/moms_vcf_ids'
+	output:
+		temp('/mnt/work/pol/ROH/replication/{rep}/genotypes/moms_ids_toextract')
+	run:
+		d= pd.read_csv(input[0], delim_whitespace= True, header= 0)
+		Sentrix= 'SentrixID'
+		d= d.loc[d.Role=='Mother', :]
+		x= [line.strip() for line in open(input[1], 'r')]
+		d= d.loc[d[Sentrix].isin(x)]
+		d.drop_duplicates(subset= [Sentrix], inplace= True)
+		d.to_csv(output[0], header= False, columns= [Sentrix], index= False, sep= '\t')
+
+rule extract_GT_rep:
+        'Extract genotype for HC segments.'
+        input:
+                '/mnt/work/pol/ROH/results/HC_toextract_maternal',
+                '/mnt/work/pol/ROH/replication/{rep}/genotypes/moms_ids_toextract',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jan15/{CHR}.vcf.gz',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jun15/{CHR}.vcf.gz'
+        output:
+                temp('/mnt/work/pol/ROH/replication/{rep}/genotypes/GT/moms_gt{CHR}_HC')
+        run:
+                if 'normentfeb' in wildcards.rep: vcf= input[2]
+                if 'normentmay' in wildcards.rep: vcf= input[3]
+                if os.stat(input[0]).st_size > 0: shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {vcf} -o {output[0]}")
+                if os.stat(input[0]).st_size == 0: open(output[0], 'a').close()
+
+rule concat_GT_rep:
+        'Concat GT form all chromosomes.'
+        input:
+                expand('/mnt/work/pol/ROH/replication/{{rep}}/genotypes/GT/moms_gt{CHR}_HC', CHR= CHR_nms)
+        output:
+                temp('/mnt/work/pol/ROH/replication/GT/{rep}_moms_HC_temp')
+        shell:
+                'cat {input} > {output[0]}'
+
+rule cox_imputed_rep:
+        'Cox regression for imputed variants within HC segments.'
+        input:
+                '/mnt/work/pol/ROH/replication/GT/{rep}_moms_HC_temp',
+                '/mnt/work/pol/ROH/replication/pheno/{rep}_pheno_mfr_mothers.txt',
+                '/mnt/work/pol/ROH/replication/{rep}/genotypes/moms_ids_toextract'
+        output:
+                '/mnt/work/pol/ROH/replication/{rep}/results/imputed/imputed_cox_spont_moms'
+        script:
+                '../cox/cox_imputed.R'
+

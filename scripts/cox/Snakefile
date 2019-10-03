@@ -64,7 +64,7 @@ rule split_segments:
         output:
                 temp('/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}_temp')
         script:
-                'cox/overlap_split_segment.py'
+                'overlap_split_segment.py'
 
 rule cox_cM_to_bp:
         'Convert cM to bp in cox results.'

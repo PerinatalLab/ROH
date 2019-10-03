@@ -286,7 +286,7 @@ fets_res$sample= 'Fetal'
 res_froh_adj= do.call("rbind", list(moms_res, dads_res, fets_res))
 
 res_froh_adj$sample= factor(res_froh_adj$sample, levels= c('Mothers','Fathers', 'Fetal'))
-res_froh_adj$model= 'crude'
+res_froh_adj$model= 'adjusted'
 res_froh_adj$measure= 'FROH'
 
 ################### NSEG

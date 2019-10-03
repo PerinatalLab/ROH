@@ -10,6 +10,8 @@ cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb'
 smpl_nms= ['maternal','paternal', 'fetal']
 batch_nms= ['m12', 'm24']
 CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+rep_nms= ['normentjan', 'normentjun']
+
 
 # Other arguments:
 
@@ -47,12 +49,17 @@ rule all:
 #		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt', sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/results/HC_{sample}_cox_spont', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/replication/{rep}/results/imputed/imputed_cox_spont_moms', rep= rep_nms),
+		'/mnt/work/pol/ROH/results/imputed/replication/cox_moms.txt',
                 'figures/figure2.eps',
                 'figures/figure1.eps',
                 'figures/S1_figure.eps',
                 'figures/S2_figure.eps',
 		'tables/S1_table.txt',
-                'figures/figureX.eps'
+                'figures/figureX.eps',
+                'figures/zscore_mht_moms.eps',
+                'figures/zscore_mht_fets.eps'
+
 
 include: 'scripts/cox/Snakefile'
 include: 'scripts/figures/Snakefile'
@@ -64,6 +71,7 @@ include: 'scripts/reports/Snakefile'
 include: 'scripts/imputed/Snakefile'
 include: 'scripts/phasing/Snakefile'
 include: 'scripts/ROH_calling/Snakefile'
+include: 'scripts/replication/Snakefile'
 
 ## Snakemake code
 

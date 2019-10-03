@@ -38,18 +38,21 @@ def isfloat(str):
 
 
 rule extract_HC:
-        'List of variants for extracting genotype.'
-        input:
-                '/mnt/work/pol/ROH/results/HC_{sample}_cox_spont'
-        output:
-                temp('/mnt/work/pol/ROH/results/HC_toextract_{sample}')
-        run:
-                d= pd.read_csv(input[0], sep= '\t', header= 0)
-                d[['chr', 'cM1', 'cM2']]= d['segment'].str.split(':',expand=True)
-                d['chr']= d.chr.astype(float)
-                d= d[['chr', 'pos1', 'pos2']]
-                d= d.applymap(np.int64)
-                d.to_csv(output[0], sep= '\t', index= False, header= False)
+	'List of variants for extracting genotype.'
+	input:
+		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont'
+	output:
+		temp('/mnt/work/pol/ROH/results/HC_toextract_{sample}')
+	run:
+		d= pd.read_csv(input[0], sep= '\t', header= 0)
+		if d.shape[0]== 0:
+			open(output[0], 'a').close()
+		if d.shape[0]> 0:
+			d[['chr', 'cM1', 'cM2']]= d['segment'].str.split(':',expand=True)
+			d['chr']= d.chr.astype(float)
+			d= d[['chr', 'pos1', 'pos2']]
+			d= d.applymap(np.int64)
+			d.to_csv(output[0], sep= '\t', index= False, header= False)
 
 rule extract_vcf_samples:
         'Extract samples id included in the VCF file, for each batch.'
@@ -116,7 +119,8 @@ rule extract_GT:
                 if 'rotterdam2' in wildcards.cohort: vcf= input[5]
                 if 'normentfeb' in wildcards.cohort: vcf= input[6]
                 if 'normentmay' in wildcards.cohort: vcf= input[7]
-                shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {vcf} -o {output[0]}")
+		if os.stat(input[0]).st_size > 0: shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {vcf} -o {output[0]}")
+		if os.stat(input[0]).st_size == 0: open(output[0], 'a').close()
 
 rule concat_GT:
         'Concat GT form all chromosomes.'

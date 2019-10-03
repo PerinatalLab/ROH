@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 
+df_list= list()
 
 if 'frequency' not in snakemake.input[0]:
 	d= pd.read_csv(snakemake.input[0], sep= '\t', header= None, names= ['segment', 'n', 'beta', 'sd', 'pvalue', 'R', 'R_pvalue'])

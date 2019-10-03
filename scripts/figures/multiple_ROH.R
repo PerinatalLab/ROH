@@ -100,9 +100,11 @@ lay <- rbind(c(1,1,1,1,1,1,1,1),
              c(NA,3,3,3,3,3,3,NA))
 
 
-postscript(snakemake@output[[1]])
-grid.arrange(p1, p2, layout_matrix = lay)
-dev.off()
+gg= arrangeGrob(p1, p2, ncol= 1)
+ggsave(snakemake@output[[1]], gg, dpi= 'retina')
+
+#grid.arrange(p1, p2, layout_matrix = lay)
+
 
 
 #### Supp figure

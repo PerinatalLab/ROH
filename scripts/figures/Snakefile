@@ -90,6 +90,16 @@ rule table_S1:
 rule manhattan_plots:
         ''
         input:
-                '/mnt/work/pol/ROH/harvestm12/results/cox_spont_maternal',
-                ''
+                '/mnt/work/pol/ROH/results/HC_maternal_cox_spont',
+		'/mnt/work/pol/ROH/results/LC_maternal_cox_spont',
+		'/mnt/work/pol/ROH/results/NC_maternal_cox_spont',
+		'/mnt/work/pol/ROH/results/HC_fetal_cox_spont',
+		'/mnt/work/pol/ROH/results/LC_fetal_cox_spont',
+		'/mnt/work/pol/ROH/results/NC_fetal_cox_spont'
+	output:
+		'figures/zscore_mht_moms.eps',
+		'figures/zscore_mht_fets.eps'
+	script:
+		'manhattan_plots.R'
+
 

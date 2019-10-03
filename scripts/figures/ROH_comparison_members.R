@@ -168,5 +168,5 @@ theme_bw(base_size=9, base_family = "Source Sans Pro") +
 
 
 grid.arrange
-ggsave(snakemake@output[[1]], s2)
-ggsave(snakemake@output[[2]], p)
+ggsave(snakemake@output[[1]], s2, dpi= 'retina')
+ggsave(snakemake@output[[2]], p, dpi= 'retina')
