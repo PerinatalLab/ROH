@@ -49,7 +49,7 @@ rule all:
 #		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt', sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/results/HC_{sample}_cox_spont', sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/replication/{rep}/results/imputed/imputed_cox_spont_moms', rep= rep_nms),
+		expand('/mnt/work/pol/ROH/replication/results/imputed_cox_spont_moms_{rep}', rep= rep_nms),
 		'/mnt/work/pol/ROH/results/imputed/replication/cox_moms.txt',
                 'figures/figure2.eps',
                 'figures/figure1.eps',

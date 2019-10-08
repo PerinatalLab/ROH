@@ -42,7 +42,7 @@ rule extract_HC:
 	input:
 		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont'
 	output:
-		temp('/mnt/work/pol/ROH/results/HC_toextract_{sample}')
+		'/mnt/work/pol/ROH/results/misc/HC_toextract_{sample}'
 	run:
 		d= pd.read_csv(input[0], sep= '\t', header= 0)
 		if d.shape[0]== 0:
@@ -102,7 +102,7 @@ rule extract_samples:
 rule extract_GT:
         'Extract genotype for HC segments.'
         input:
-                '/mnt/work/pol/ROH/results/HC_toextract_{sample}',
+                '/mnt/work/pol/ROH/results/misc/HC_toextract_{sample}',
                 '/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract',
                 '/mnt/archive/HARVEST/delivery-fhi/data/imputed/imputed_m12/{CHR}.vcf.gz',
                 '/mnt/archive/HARVEST/delivery-fhi/data/imputed/imputed_m24/{CHR}.vcf.gz',

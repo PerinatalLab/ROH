@@ -50,7 +50,7 @@ rule extract_vcf_samples_rep:
                 '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jan15/1.vcf.gz',
                 '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jun15/1.vcf.gz'
         output:
-                temp('/mnt/work/pol/ROH/replication/{rep}/genotypes/moms_vcf_ids')
+                temp('/mnt/work/pol/ROH/replication/genotypes/vcf_ids_moms{rep}')
         run:
                 if 'normentjan' == wildcards.rep: vcf= input[0]
                 if 'normentjun' == wildcards.rep: vcf= input[1]
@@ -60,9 +60,9 @@ rule extract_samples_rep:
 	'Samples for filtering VCF files.'
 	input:
 		'/mnt/work/pol/{rep}/pheno/{rep}_linkage.csv',
-		'/mnt/work/pol/ROH/replication/{rep}/genotypes/moms_vcf_ids'
+		'/mnt/work/pol/ROH/replication/genotypes/vcf_ids_moms{rep}'
 	output:
-		temp('/mnt/work/pol/ROH/replication/{rep}/genotypes/moms_ids_toextract')
+		temp('/mnt/work/pol/ROH/replication/genotypes/ids_toextract_moms_{rep}')
 	run:
 		d= pd.read_csv(input[0], delim_whitespace= True, header= 0)
 		Sentrix= 'SentrixID'
@@ -75,35 +75,35 @@ rule extract_samples_rep:
 rule extract_GT_rep:
         'Extract genotype for HC segments.'
         input:
-                '/mnt/work/pol/ROH/results/HC_toextract_maternal',
-                '/mnt/work/pol/ROH/replication/{rep}/genotypes/moms_ids_toextract',
+                '/mnt/work/pol/ROH/results/misc/HC_toextract_maternal',
+                '/mnt/work/pol/ROH/replication/genotypes/ids_toextract_moms_{rep}',
                 '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jan15/{CHR}.vcf.gz',
                 '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jun15/{CHR}.vcf.gz'
         output:
-                temp('/mnt/work/pol/ROH/replication/{rep}/genotypes/GT/moms_gt{CHR}_HC')
+                temp('/mnt/work/pol/ROH/replication/genotypes/GT/gt{CHR}_HC_moms_{rep}')
         run:
-                if 'normentfeb' in wildcards.rep: vcf= input[2]
-                if 'normentmay' in wildcards.rep: vcf= input[3]
+                if 'normentjan' in wildcards.rep: vcf= input[2]
+                if 'normentjun' in wildcards.rep: vcf= input[3]
                 if os.stat(input[0]).st_size > 0: shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {vcf} -o {output[0]}")
                 if os.stat(input[0]).st_size == 0: open(output[0], 'a').close()
 
 rule concat_GT_rep:
         'Concat GT form all chromosomes.'
         input:
-                expand('/mnt/work/pol/ROH/replication/{{rep}}/genotypes/GT/moms_gt{CHR}_HC', CHR= CHR_nms)
+                expand('/mnt/work/pol/ROH/replication/genotypes/GT/gt{CHR}_HC_moms_{{rep}}', CHR= CHR_nms)
         output:
-                temp('/mnt/work/pol/ROH/replication/GT/{rep}_moms_HC_temp')
+                temp('/mnt/work/pol/ROH/replication/genotypes/GT/moms_HC_temp_{rep}')
         shell:
                 'cat {input} > {output[0]}'
 
 rule cox_imputed_rep:
         'Cox regression for imputed variants within HC segments.'
         input:
-                '/mnt/work/pol/ROH/replication/GT/{rep}_moms_HC_temp',
+                '/mnt/work/pol/ROH/replication/genotypes/GT/moms_HC_temp_{rep}',
                 '/mnt/work/pol/ROH/replication/pheno/{rep}_pheno_mfr_mothers.txt',
-                '/mnt/work/pol/ROH/replication/{rep}/genotypes/moms_ids_toextract'
+                '/mnt/work/pol/ROH/replication/genotypes/ids_toextract_moms_{rep}'
         output:
-                '/mnt/work/pol/ROH/replication/{rep}/results/imputed/imputed_cox_spont_moms'
+                '/mnt/work/pol/ROH/replication/results/imputed_cox_spont_moms_{rep}'
         script:
                 '../cox/cox_imputed.R'
 
