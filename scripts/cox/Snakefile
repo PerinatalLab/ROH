@@ -102,6 +102,7 @@ rule cox_imputed:
                 '/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract'
         output:
                 '/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}'
+	threads: 32
         script:
                 'cox_imputed.R'
 

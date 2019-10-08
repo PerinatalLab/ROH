@@ -57,10 +57,10 @@ funk= function(block.text){
 	dataChunk= fread(text=block.text, sep="\t", col.names= colnames)
 	if (ncol(dataChunk)==0) return(NULL)
 	df= as.matrix(dataChunk[, 5:ncol(dataChunk)], ncol= length(5:ncol(dataChunk)), nrow= nrow(dataChunk))
-	df[df== '1|0']= 1
-	df[df== '0|1']= 1
-	df[df== '0|0']= 0
-	df[df== '1|1']= 2
+	df[(df== '1|0') | (df== '1/0')]= 1
+	df[(df== '0|1') | (df== '0/1')]= 1
+	df[(df== '0|0') | (df== '0/0')]= 0
+	df[(df== '1|1') | (df== '1/1')]= 2
 
 	df= matrix(as.numeric(df), ncol= length(5:ncol(dataChunk)), nrow= nrow(dataChunk))
 	eaf= rowSums(df) / (rowSums(!is.na(df)) * 2)
