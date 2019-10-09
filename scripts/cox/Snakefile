@@ -101,9 +101,38 @@ rule cox_imputed:
                 '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt',
                 '/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract'
         output:
-                '/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}'
+                temp('/mnt/work/pol/ROH/{cohort}/results/imputed/nofilter_cox_spont_{sample}')
 	threads: 32
         script:
                 'cox_imputed.R'
 
+rule filter_variants:
+	'Select variants with INFO score> 0.6 in all cohorts.'
+	input:
+		expand('/mnt/work/pol/{cohort}/info/INFO.txt.gz', cohort= cohort_nms)
+	output:
+		temp('/mnt/work/pol/ROH/results/variants_info_score.txt')
+	run:
+		d_list= list()
+		for infile in input:
+			df= pd.read_csv(infile, header= None, sep= '/t', names= ['chr', 'pos', 'REF', 'EFF', 'AC', 'AN', 'INFO'])
+			df= df.loc[df.INFO> 0.6, ['chr', 'pos', 'REF', 'EFF']]
+			df["REF"], df["EFF"] = np.where(df['REF'] > df['EFF'], [df["EFF"], df["REF"]], [df["REF"], df["EFF"]])
+			d_list.append(df)
+		d= reduce(lambda df1, df2: pd.merge(df1, df2, on=['chr', 'pos', 'REF', 'EFF']), d_list)
+		d.to_csv(output[0], sep= ':', header= False, index= False)
 
+rule filter_cox:
+	'Select top genetic variants associated with spontaneous delivery risk (filter INFO score >0.6)'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/results/imputed/nofilter_cox_spont_{sample}',
+		'/mnt/work/pol/ROH/results/variants_info_score.txt'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}'
+	run:
+		d= pd.read_csv(input[0], sep= '/t', header= None, columns= ['variant', 'ref', 'eff', 'n', 'beta', 'sd', 'pvalue', 'correlation', 'corr_pvalue'])
+		with open(snakemake.input[1]) as f:
+			variants_filter= f.read().splitlines()
+		d= d.loc[d.variant.isin(variants_filter), :]
+		d.to_csv(output[0], sep= '\t', header= False, index= False)
+	

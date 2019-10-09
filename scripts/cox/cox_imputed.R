@@ -78,19 +78,26 @@ funk= function(block.text){
 	names(dataChunk)[1:length(genvars)]= genvars
 	dataChunk= dataChunk[,!apply(dataChunk, MARGIN = 2, function(x) max(x, na.rm = TRUE) == min(x, na.rm = TRUE))]
 	if (!is.data.frame(dataChunk)) return(NULL)
-        dataChunk$id= gsub('X', '',rownames(dataChunk)) 
+        dataChunk$id= gsub('X', '', rownames(dataChunk)) 
         geno= inner_join(pheno, dataChunk, by= c('SentrixID_1' = 'id'))
-        cox_coef= lapply(names(geno[,-c(1:dim(pheno)[2])]), function(snp){
-        cox_coef= tryCatch(coxph(Surv( geno$SVLEN_UL_DG, geno$spont)~ geno[,snp] + geno$PARITY0 + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6, na.action = na.omit), warning = function(cond) {NA}, error = function(cond) {NA})
+
+        cox_coef= lapply(names(geno[,-c(1:ncol(pheno))]), function(snp){
+	mg= geno[, snp]
+	cox_coef= tryCatch(coxph(Surv(geno$SVLEN_UL_DG, geno$spont)~ mg + geno$PARITY0 + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6, na.action = na.omit), warning = function(cond) {NA}, error = function(cond) {NA})
         if (is.na(cox_coef)) {
-        coef= NA
-        sd= NA
-        n= nrow(df)
-        pvalue= NA
-	correlation= NA
-        corr_pvalue= NA
+        ref= NA
+	eff= NA
+	n= NA
+	coef=NA
+	sd= NA
+	pvalue= NA
+	correlation= NA 
+	corr_pvalue= NA
 } else {
-        coef = summary( cox_coef)$coefficients[1,1]
+	ref= unlist(strsplit(snp, ':'))[[3]]
+	eff= unlist(strsplit(snp, ':'))[[4]]
+	snp= ifelse(unlist(strsplit(snp, ':'))[[3]] > unlist(strsplit(snp, ':'))[[4]], paste(unlist(strsplit(snp, ':'))[[1]], unlist(strsplit(snp, ':'))[[2]], unlist(strsplit(snp, ':'))[[4]], unlist(strsplit(snp, ':'))[[3]], sep=':'), snp)
+        coef= summary( cox_coef)$coefficients[1,1]
         sd= summary(cox_coef)$coefficient[1,3]
         n= summary(cox_coef)$n
         pvalue= summary(cox_coef)$coefficient[1,5]
@@ -98,7 +105,7 @@ funk= function(block.text){
         correlation= zph$table[1, 1]
         corr_pvalue= zph$table[1, 3]
 }
-	txt = sprintf( "%s\t%e\t%e\t%e\t%e\t%e\t%e\n", snp, n, coef, sd, pvalue, correlation, corr_pvalue)
+	txt = sprintf( "%s\t%s\t%s\t%e\t%e\t%e\t%e\t%e\t%e\n", snp, ref, eff, n, coef, sd, pvalue, correlation, corr_pvalue)
 cat(txt, file= outfile, append= T)
 }
 )
