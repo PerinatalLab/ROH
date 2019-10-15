@@ -1,0 +1,381 @@
+import pandas as pd
+import numpy as np
+import os
+import gzip
+from functools import reduce
+import scipy.stats as st
+import statsmodels.stats.multitest as multi
+
+cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
+smpl_nms= ['maternal','paternal', 'fetal']
+batch_nms= ['m12', 'm24']
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+
+# Other arguments:
+
+pruning_nms= ['none', 'soft', 'moderate', 'hard']
+
+dens_nms= [5]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_nms= [0.0000001]
+het_nms= [0, 1]
+GAP_nms= [5]
+
+dens_bp= [5000]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_bp= [0.0000001]
+het_bp= [0, 1]
+GAP_bp= [5000]
+
+rule dl_genetic_map_chrX:
+        'Download the genetic map estimated in 1KG (https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3_chrX.tgz), from IMPUTE2.'
+        output:
+                '/mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/genetic_map_chrX_nonPAR_combined_b37.txt'
+        shell:
+                '''
+                wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3_chrX.tgz -P /mnt/work/pol/ROH/1KG/
+                tar -xvzf /mnt/work/pol/ROH/1KG/1000GP_Phase3_chrX.tgz -C /mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/
+                rm /mnt/work/pol/ROH/1KG/1000GP_Phase3_chrX.tgz /mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/*hap.gz /mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/*.legend.gz /mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/genetic_map_chrX_PAR*
+                '''
+
+rule exclude_non_biallelic_chrX:
+	'Set range file for multi-allelic SNPs.'
+	input:
+		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.bim',
+		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m24/m24-genotyped.bim',
+		'/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped.bim',
+		'/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped.bim',
+		'/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/feb18/genotyped.bim',
+		'/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/may16/genotyped.bim'
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/multiallelic_chrX.txt')
+	run:
+		d= pd.read_csv(input[0], sep= '\t', header= None, names= ['chr', 'SNP', 'X', 'pos', 'A1', 'A2'])
+		d= d.loc[d.chr== 23, :]
+		d= d[d[['chr', 'pos']].duplicated(keep=False)]
+		d= d[['chr', 'pos', 'pos', 'X']]
+		d.to_csv(output[0], sep= '\t', header= False, index= False)
+
+rule split_bed_chrX:
+	'Modify the bed file: keep only CHR23, exclude maf <=0.05 and keep only mothers.'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/pheno/maternal_ids',
+                '/mnt/work/pol/ROH/{cohort}/multiallelic_chrX.txt',
+		expand('/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m24/m24-genotyped.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/feb18/genotyped.{ext}', ext= ['bed','bim','fam']),
+		expand('/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/may16/genotyped.{ext}', ext= ['bed','bim','fam']),
+	output:
+		temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/temp/{{cohort}}_genotyped.{ext}', ext= ['bed', 'bim', 'fam', 'log']))
+	params:
+		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped',
+		'/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m24/m24-genotyped',
+		'/mnt/archive/ROTTERDAM1/delivery-fhi/data/genotyped/genotyped',
+		'/mnt/archive/ROTTERDAM2/delivery-fhi/data/genotyped/genotyped',
+		'/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/feb18/genotyped',
+		'/mnt/archive/NORMENT1/delivery-fhi/data/genotyped/may16/genotyped',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/chrX/temp/{cohort}_genotyped'
+	run:
+		if wildcards.cohort== 'harvestm12': geno= params[0]
+		if wildcards.cohort== 'harvestm24': geno= params[1]
+		if wildcards.cohort== 'rotterdam1': geno= params[2]
+		if wildcards.cohort== 'rotterdam2': geno= params[3]
+		if wildcards.cohort== 'normentfeb': geno= params[4]
+		if wildcards.cohort== 'normentmay': geno= params[5]
+		shell('~/soft/plink --bfile {geno} --exclude range {input[1]} --maf 0.05 --keep {input[0]} --make-bed --chr 23 --make-founders --out {params[6]}')
+
+rule multi_pruning_chrX:
+        'Filter PLINK file according to different pruning parameters.'
+        input:
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/temp/{{cohort}}_genotyped.{ext}', ext= ['bed', 'bim', 'fam', 'log'])
+        output:
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/temp/soft/{{cohort}}_genotyped.{ext}', ext= ['prune.out','prune.in', 'log'])),
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/temp/moderate/{{cohort}}_genotyped.{ext}', ext= ['prune.out','prune.in', 'log'])),
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/temp/hard/{{cohort}}_genotyped.{ext}', ext= ['prune.out','prune.in', 'log']))
+        params:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/temp/{cohort}_genotyped',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/temp/soft/{cohort}_genotyped',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/temp/moderate/{cohort}_genotyped',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/temp/hard/{cohort}_genotyped'
+        shell:
+                """
+                ~/soft/plink --bfile {params[0]} --indep-pairwise 50 5 0.9 --out {params[1]}
+                ~/soft/plink --bfile {params[0]} --indep-pairwise 50 5 0.5 --out {params[2]}
+                ~/soft/plink --bfile {params[0]} --indep-pairwise 50 5 0.1 --out {params[3]}
+                """
+
+rule move_none_pruning_chrX:
+        'Move PLINK files not pruned to wildcard.pruning == none folder.'
+        input:
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/temp/{{cohort}}_genotyped.{ext}', ext= ['bed','bim','fam'])
+        output:
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/none/pruned{{cohort}}.{ext}', ext= ['bed','bim','fam'])
+        params:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/none/'
+        shell:
+                """
+                mkdir -p {params[0]}
+                cp {input[0]} {output[0]}
+                cp {input[1]} {output[1]}
+                cp {input[2]} {output[2]}
+                """
+
+rule plink_bfile_prune_chrX:
+        'Exclude genetic variants in prune.out files (obtained with rule plink_split_bed).'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/temp/hard/{cohort}_genotyped.prune.out',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/temp/soft/{cohort}_genotyped.prune.out',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/temp/moderate/{cohort}_genotyped.prune.out',
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/temp/{{cohort}}_genotyped.{ext}', ext= ['bed', 'bim', 'fam'])
+        output:
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/hard/pruned{{cohort}}.{ext}', ext= ['bed', 'bim', 'fam', 'log']),
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/soft/pruned{{cohort}}.{ext}', ext= ['bed', 'bim', 'fam', 'log']),
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/moderate/pruned{{cohort}}.{ext}', ext= ['bed', 'bim', 'fam', 'log'])
+        params:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/temp/{cohort}_genotyped',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/hard/pruned{cohort}',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/soft/pruned{cohort}',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/moderate/pruned{cohort}'
+        shell:
+                '''
+                ~/soft/plink --bfile {params[0]} --exclude {input[0]} --make-bed --out {params[1]}
+                ~/soft/plink --bfile {params[0]} --exclude {input[1]} --make-bed --out {params[2]}
+                ~/soft/plink --bfile {params[0]} --exclude {input[2]} --make-bed --out {params[3]}
+                '''
+
+rule replace_bp_cm_chrX:
+        'PLINK cannot use cM to estimate ROH length, so we replace bp position to cM in the .bim file.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/{pruning}/pruned{cohort}.bim',
+                '/mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/genetic_map_chrX_nonPAR_combined_b37.txt'
+        output:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/{pruning}/cm_pruned{cohort}.bim'
+        run:
+                d= pd.read_csv(input[0], sep= '\t', header= None)
+                d.columns= ['chr', 'SNP', 'X', 'pos', 'A1', 'A2']
+                g= pd.read_csv(input[1], sep= ' ', header= 0)
+                g= g[['position', 'Genetic_Map(cM)']]
+                g.columns= ['pos', 'Genetic_Map(cM)']
+                df= pd.merge(d, g, on= 'pos', how= 'left')
+                df_miss= df.loc[df['Genetic_Map(cM)'].isna(), :]
+                newdf= pd.DataFrame()
+		df_miss['newX']= np.interp(df_miss['pos'], g['pos'], g['Genetic_Map(cM)'])
+		newdf= newdf.append(df_miss)
+                newdf= newdf[['chr','pos', 'newX']]
+                df= pd.merge(df, newdf, on= ['chr', 'pos'], how= 'left')
+                df['X']= np.where(df['Genetic_Map(cM)'].isna(), df['newX'], df['Genetic_Map(cM)'])
+                df['X']= (df.X*10**4).round() * 100
+                df['X']= df['X'] + df.groupby('X').cumcount()
+                df[['pos', 'X']]= df[['X','pos']]
+                df= df[['chr', 'SNP', 'X', 'pos', 'A1', 'A2']]
+                df.to_csv(output[0], sep= '\t', header= False, index= False)
+
+rule estimate_ROH_chrX:
+        '''
+        Obtain ROH estimates using PLINK 1.9.
+        Configuration according to file "/mnt/work/pol/ROH/arguments/max_R2.txt"
+        '''
+        input:
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/{pruning}/pruned{{cohort}}.{ext}', pruning= pruning_nms, ext= ['bed', 'bim', 'fam']),
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/{pruning}/cm_pruned{{cohort}}.bim', pruning= pruning_nms),
+                '/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt'
+        output:
+                '/mnt/work/pol/ROH/{cohort}/runs/chrX_{cohort}.hom.indiv',
+                '/mnt/work/pol/ROH/{cohort}/runs/chrX_{cohort}.hom',
+                '/mnt/work/pol/ROH/{cohort}/runs/chrX_input_ROH_geno.txt',
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/runs/chrX_{{cohort}}.{ext}', ext= ['log', 'hom.summary']))
+        params:
+                '/mnt/work/pol/ROH/{cohort}/runs/chrX_{cohort}'
+        run:
+                maxim= [df for df in input if 'max_R2' in df]
+                parlist= [line.strip() for line in open("".join(maxim), 'r')]
+                parlist= [float(x) for x in parlist]
+                if parlist[0]== 0:
+                        prun= 'none'
+                if parlist[0]== 1:
+                        prun= 'soft'
+                if parlist[0]== 2:
+                        prun= 'moderate'
+                if parlist[0]== 3:
+                        prun= 'hard'
+                bed= [bed for bed in input if prun in bed and 'bed' in bed]
+                fam= [fam for fam in input if prun in fam and 'fam' in fam]
+                GAP= round(parlist[5] * 1000)
+                SNPwm= round(parlist[3] * 0.05)
+                dens= round(parlist[1] * 1000)
+                if parlist[1] < 100:
+                        bim= [bim for bim in input if prun in bim and 'bim' in bim and 'cm' in bim]
+                        shell("/home/pol.sole.navais/soft/plink --bed {bed} --bim {bim} --fam {fam} --homozyg-window-snp {parlist[2]} --homozyg-snp {parlist[2]} --homozyg-kb {parlist[3]} --homozyg-gap {GAP} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[4]} --homozyg-density {dens} --out {params}")
+                if parlist[1] > 100:
+                        bim= [bim for bim in input if prun in bim and 'bim' in bim and 'cm' not in bim]
+                        shell("/home/pol.sole.navais/soft/plink --bed {bed} --bim {bim} --fam {fam} --homozyg-window-snp {parlist[2]} --homozyg-snp {parlist[2]} --homozyg-kb {parlist[3]} --homozyg-gap {parlist[5]} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {parlist[4]} --homozyg-density {parlist[1]} --out {params}")
+                l= list(["".join(bed), "".join(bim), "".join(fam)])
+                with open(output[2], 'w') as f:
+                        f.writelines( "%s\n" % item for item in l)
+
+rule mapping_ROH_segments_chrX:
+	'Obtain matrix (rows= segment, columns = subject), with all minimum segmental ROHs per subject (1= homozygous part of ROH).'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/runs/chrX_{cohort}.hom',
+		'/mnt/work/pol/ROH/{cohort}/runs/chrX_input_ROH_geno.txt',
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/{pruning}/pruned{{cohort}}.fam', pruning= pruning_nms)
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/genotypes/chrX/maps/segments_maps_chrX.txt.gz')
+	script:
+		'segment_map_ROH.py'
+
+rule cox_ph_analysis_chrX:
+        'Cox proportional hazard analyis on bined ROH calls.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/maps/segments_maps_chrX.txt.gz',
+                '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_maternal.txt'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/results/chrX/maps_cox/maternal/chrX_cox_spont_temp')
+        script:
+                '../cox/cox_segments.R'
+
+rule split_segments_chrX:
+        'Split overlapping segments between sub-cohorts for cox results for chr X.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/results/chrX/maps_cox/maternal/chrX_cox_spont_temp',
+                expand('/mnt/work/pol/ROH/{cohort}/results/chrX/maps_cox/maternal/chrX_cox_spont_temp', cohort= cohort_nms)
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/results/chrX/maps_cox/maternal/chrX_cox_spont_maternal_segmented')
+        script:
+                '../cox/overlap_split_segment.py'
+
+rule cox_cM_to_bp_chrX:
+        'Convert cM to bp in cox results.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/results/chrX/maps_cox/maternal/chrX_cox_spont_maternal_segmented',
+                expand('/mnt/work/pol/ROH/{cohort}/runs/chrX_input_ROH_geno.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/{pruning}/pruned{{cohort}}.bim', cohort= cohort_nms, pruning= pruning_nms)
+        output:
+                '/mnt/work/pol/ROH/{cohort}/results/chrX/chrX_cox_spont'
+        run:
+                d= pd.read_csv(input[0], header= 0, sep= '\t')
+                flist= [infile for infile in input if 'geno.txt' in infile]
+                bim_list= list()
+                for infile in flist:
+                        x= [line.strip() for line in open("".join(infile), 'r')]
+                        bim= [i for i in x if 'bim' in i]
+                        bim= pd.read_csv("".join(bim), delim_whitespace= True, header= None, names= ['chr', 'id', 'pos', 'cM', 'A1', 'A2'])
+                        bim_list.append(bim)
+                bim= pd.concat(bim_list)
+                bim.drop_duplicates(subset= ['chr', 'pos'], keep= 'first', inplace= True)
+                bim.drop_duplicates(subset= ['chr', 'cM'], keep= 'first', inplace= True)
+                bim= bim[['chr', 'pos', 'cM']]
+                d= pd.merge(d, bim, left_on= ['chr', 'cM1'], right_on= ['chr', 'cM'])
+                d.rename(columns= {'pos': 'pos1'}, inplace= True)
+                d= pd.merge(d, bim, left_on= ['chr', 'cM2'], right_on= ['chr', 'cM'])
+                d.rename(columns= {'pos': 'pos2'}, inplace= True)
+                d.drop(['cM_x', 'cM_y'], axis= 1, inplace= True)
+                d.to_csv(output[0], sep= '\t', header= False, index= False)
+
+rule extract_GT_chrX:
+        'Extract genotype for HC segments.'
+        input:
+                '/mnt/work/pol/ROH/results/misc/HC_toextract_maternal',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/maternal_ids_toextract',
+                '/mnt/archive/HARVEST/delivery-fhi/data/imputed/imputed_m12/X.vcf.gz',
+                '/mnt/archive/HARVEST/delivery-fhi/data/imputed/imputed_m24/X.vcf.gz',
+                '/mnt/archive/ROTTERDAM1/delivery-fhi/data/imputed/X.vcf.gz',
+                '/mnt/archive/ROTTERDAM2/delivery-fhi/data/imputed/X.vcf.gz',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/feb18/X.vcf.gz',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/may16/X.vcf.gz'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/genotypes/chrX/GT/gtX_HC')
+        run:
+                if 'harvestm12' in wildcards.cohort: vcf= input[2]
+                if 'harvestm24' in wildcards.cohort: vcf= input[3]
+                if 'rotterdam1' in wildcards.cohort: vcf= input[4]
+                if 'rotterdam2' in wildcards.cohort: vcf= input[5]
+                if 'normentfeb' in wildcards.cohort: vcf= input[6]
+                if 'normentmay' in wildcards.cohort: vcf= input[7]
+                if os.stat(input[0]).st_size > 0: shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {vcf} -o {output[0]}")
+                if os.stat(input[0]).st_size == 0: open(output[0], 'a').close()
+
+
+rule cox_imputed_chrX:
+	'Cox regression for imputed variants within HC segments.'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/chrX/GT/gtX_HC',
+		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_maternal.txt',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/maternal_ids_toextract'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/results/chrX/imputed/nofilter_cox_spont_chrX'
+	threads: 10
+	script:
+		'../cox/cox_imputed.R'
+
+rule filter_variants_chrX:
+	'Select variants with INFO score> 0.6 in all cohorts.'
+	input:
+		expand('/mnt/work/pol/{cohort}/info/INFO_chrX.txt.gz', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/results/variants_info_score_chrX.txt'
+	run:
+		d_list= list()
+		for infile in input:
+			df= pd.read_csv(infile, header= None, sep= '\t', names= ['chr', 'pos', 'REF', 'EFF', 'AC', 'AN', 'INFO'])
+			df= df.loc[df.INFO> 0.6, ['chr', 'pos', 'REF', 'EFF']]
+			df['chr']= 23
+			df["REF"], df["EFF"] = np.where(df['REF'] > df['EFF'], [df["EFF"], df["REF"]], [df["REF"], df["EFF"]])
+			d_list.append(df)
+		d= reduce(lambda df1, df2: pd.merge(df1, df2, on=['chr', 'pos', 'REF', 'EFF']), d_list)
+                d.to_csv(output[0], sep= ':', header= False, index= False)
+
+
+rule filter_cox_chrX:
+	'Select top genetic variants associated with spontaneous delivery risk (filter INFO score >0.6)'
+	input:
+		'/mnt/work/pol/ROH/{cohort}/results/chrX/imputed/nofilter_cox_spont_chrX',
+		'/mnt/work/pol/ROH/results/variants_info_score_chrX.txt'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/results/chrX/imputed/chrX_imputed_cox_spont'
+	run:
+		d= pd.read_csv(input[0], sep= '\t', header= None, names= ['variant', 'ref', 'eff', 'n', 'beta', 'sd', 'pvalue', 'correlation', 'corr_pvalue'])
+		with open(input[1]) as f:
+			variants_filter= f.read().splitlines()
+		d= d.loc[d.variant.isin(variants_filter), :]
+		d.to_csv(output[0], sep= '\t', header= False, index= False)
+
+rule extract_GT_rep_chrX:
+        'Extract genotype for HC segments.'
+        input:
+                '/mnt/work/pol/ROH/results/misc/HC_toextract_maternal',
+                '/mnt/work/pol/ROH/replication/genotypes/ids_toextract_moms_{rep}',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jan15/X.vcf.gz',
+                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jun15/X.vcf.gz'
+        output:
+                temp('/mnt/work/pol/ROH/replication/genotypes/chrX/GT/gtX_HC_moms_{rep}')
+        run:
+                if 'normentjan' in wildcards.rep: vcf= input[2]
+                if 'normentjun' in wildcards.rep: vcf= input[3]
+                if os.stat(input[0]).st_size > 0: shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {vcf} -o {output[0]}")
+                if os.stat(input[0]).st_size == 0: open(output[0], 'a').close()
+
+rule cox_imputed_rep_chrX:
+        'Cox regression for imputed variants within HC segments.'
+        input:
+                '/mnt/work/pol/ROH/replication/genotypes/chrX/GT/gtX_HC_moms_{rep}',
+                '/mnt/work/pol/ROH/replication/pheno/{rep}_pheno_mfr_mothers.txt',
+                '/mnt/work/pol/ROH/replication/genotypes/ids_toextract_moms_{rep}'
+        output:
+                temp('/mnt/work/pol/ROH/replication/results/imputed_cox_spont_moms_chrX_{rep}_temp')
+        script:
+                '../cox/cox_imputed.R'
+
+rule pheno_chrX:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_maternal.hom',
+		'/mnt/work/pol/ROH/{cohort}/runs/chrX_{cohort}.hom',
+		'/mnt/work/pol/ROH/{cohort}/runs/maternal_input_ROH_geno.txt',
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.bim', pruning= pruning_nms)
+	output:
+		'/mnt/work/pol/ROH/{cohort}/pheno/chrX_runs_mfr_maternal.txt'
+	script:
+		'scripts/pheno_chrX.py'

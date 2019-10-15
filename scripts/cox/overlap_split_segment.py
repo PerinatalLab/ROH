@@ -36,12 +36,12 @@ if 'frequency' not in snakemake.input[0]:
 if 'frequency' in snakemake.input[0]:
 	d= pd.read_csv(snakemake.input[0], sep= '\t', header= None, names= ['chr', 'segment', 'freq'])
 	d[['cM1', 'cM2']]= d['segment'].str.split(':',expand=True)
-	d[['chr', 'cM1', 'cM2']]= d[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
+	d[['cM1', 'cM2']]= d[['cM1', 'cM2']].apply(lambda x: x.astype('float'))
 	df_list= list()
 	for infile in snakemake.input[1:]:
                 df= pd.read_csv(infile, sep= '\t', header= None, names= ['chr', 'segment', 'freq'])
                 df[['cM1', 'cM2']]= df['segment'].str.split(':', expand= True)
-                df[['chr', 'cM1', 'cM2']]= df[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
+                df[['cM1', 'cM2']]= df[['cM1', 'cM2']].apply(lambda x: x.astype('float'))
                 df= df[['chr', 'cM1', 'cM2']]
                 df_list.append(df)
 	df= pd.concat(df_list)

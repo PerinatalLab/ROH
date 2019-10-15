@@ -97,13 +97,22 @@ rule concat_GT_rep:
                 'cat {input} > {output[0]}'
 
 rule cox_imputed_rep:
-        'Cox regression for imputed variants within HC segments.'
-        input:
-                '/mnt/work/pol/ROH/replication/genotypes/GT/moms_HC_temp_{rep}',
-                '/mnt/work/pol/ROH/replication/pheno/{rep}_pheno_mfr_mothers.txt',
-                '/mnt/work/pol/ROH/replication/genotypes/ids_toextract_moms_{rep}'
-        output:
-                '/mnt/work/pol/ROH/replication/results/imputed_cox_spont_moms_{rep}'
-        script:
-                '../cox/cox_imputed.R'
+	'Cox regression for imputed variants within HC segments.'
+	input:
+		'/mnt/work/pol/ROH/replication/genotypes/GT/moms_HC_temp_{rep}',
+		'/mnt/work/pol/ROH/replication/pheno/{rep}_pheno_mfr_mothers.txt',
+		'/mnt/work/pol/ROH/replication/genotypes/ids_toextract_moms_{rep}'
+	output:
+		temp('/mnt/work/pol/ROH/replication/results/imputed_cox_spont_moms_{rep}_temp')
+	script:
+		'../cox/cox_imputed.R'
 
+rule concat_cox_imputed_rep:
+	''
+	input:
+		'/mnt/work/pol/ROH/replication/results/imputed_cox_spont_moms_{rep}_temp',
+		'/mnt/work/pol/ROH/replication/results/imputed_cox_spont_moms_chrX_{rep}_temp'
+	output:
+		'/mnt/work/pol/ROH/replication/results/imputed_cox_spont_moms_{rep}'
+	shell:
+		'cat {input} > {output[0]}'

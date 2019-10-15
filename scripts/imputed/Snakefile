@@ -55,6 +55,8 @@ rule extract_HC:
 			d['chr']= d.chr.astype(float)
 			d= d[['chr', 'pos1', 'pos2']]
 			d= d.applymap(np.int64)
+			d['chr']= d.chr.astype(str)
+			d['chr']= np.where(d.chr== '23', 'X', d.chr)
 			d.to_csv(output[0], sep= '\t', index= False, header= False)
 
 rule extract_vcf_samples:

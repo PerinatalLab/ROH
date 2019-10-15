@@ -48,13 +48,13 @@ rule cox_ph_analysis:
                 'cox_segments.R'
 
 rule concat_cox:
-        'Concat cox results from multiple chromosomes.'
-        input:
-                expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/{{sample}}/cox_spont_{{sample}}_chr{CHR}', CHR= CHR_nms)
-        output:
-                temp('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}')
-        shell:
-                'cat {input} > {output[0]}'
+	'Concat cox results from multiple chromosomes.'
+	input:
+		expand('/mnt/work/pol/ROH/{{cohort}}/results/maps_cox/{{sample}}/cox_spont_{{sample}}_chr{CHR}', CHR= CHR_nms)
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/results/maps_cox/{sample}/cox_spont_{sample}')
+	shell:
+		'cat {input} > {output[0]}'
 
 rule split_segments:
         'Split overlapping segments between sub-cohorts for cox results.'
@@ -73,7 +73,7 @@ rule cox_cM_to_bp:
                 expand('/mnt/work/pol/ROH/{cohort}/runs/{{sample}}_input_ROH_geno.txt', cohort= cohort_nms),
                 expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{{sample}}.bim', cohort= cohort_nms, pruning= pruning_nms)
         output:
-                '/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}'
+                '/mnt/work/pol/ROH/{cohort}/results/autoz_cox_spont_{sample}'
         run:
                 d= pd.read_csv(input[0], header= 0, sep= '\t')
                 flist= [infile for infile in input if 'geno.txt' in infile]
@@ -94,6 +94,18 @@ rule cox_cM_to_bp:
                 d.drop(['cM_x', 'cM_y'], axis= 1, inplace= True)
                 d.to_csv(output[0], sep= '\t', header= True, index= False)
 
+rule concat_segmental_cox_autozygous_chrX:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/results/autoz_cox_spont_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/results/chrX/chrX_cox_spont'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}'
+	run:
+		infiles= input[0]
+		if wildcards.sample== 'maternal': shell('cat {input} > {output[0]}')
+		if wildcards.sample!= 'maternal': shell('cat {infiles} > {output[0]}')
+
 rule cox_imputed:
         'Cox regression for imputed variants within HC segments.'
         input:
@@ -101,8 +113,8 @@ rule cox_imputed:
                 '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt',
                 '/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract'
         output:
-                temp('/mnt/work/pol/ROH/{cohort}/results/imputed/nofilter_cox_spont_{sample}')
-	threads: 32
+                '/mnt/work/pol/ROH/{cohort}/results/imputed/nofilter_cox_spont_{sample}'
+	threads: 8
         script:
                 'cox_imputed.R'
 
@@ -115,7 +127,7 @@ rule filter_variants:
 	run:
 		d_list= list()
 		for infile in input:
-			df= pd.read_csv(infile, header= None, sep= '/t', names= ['chr', 'pos', 'REF', 'EFF', 'AC', 'AN', 'INFO'])
+			df= pd.read_csv(infile, header= None, sep= '\t', names= ['chr', 'pos', 'REF', 'EFF', 'AC', 'AN', 'INFO'])
 			df= df.loc[df.INFO> 0.6, ['chr', 'pos', 'REF', 'EFF']]
 			df["REF"], df["EFF"] = np.where(df['REF'] > df['EFF'], [df["EFF"], df["REF"]], [df["REF"], df["EFF"]])
 			d_list.append(df)
@@ -128,11 +140,23 @@ rule filter_cox:
 		'/mnt/work/pol/ROH/{cohort}/results/imputed/nofilter_cox_spont_{sample}',
 		'/mnt/work/pol/ROH/results/variants_info_score.txt'
 	output:
-		'/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}'
+		'/mnt/work/pol/ROH/{cohort}/results/imputed/filtered_cox_spont_{sample}'
 	run:
-		d= pd.read_csv(input[0], sep= '/t', header= None, columns= ['variant', 'ref', 'eff', 'n', 'beta', 'sd', 'pvalue', 'correlation', 'corr_pvalue'])
-		with open(snakemake.input[1]) as f:
+		d= pd.read_csv(input[0], sep= '\t', header= None, names= ['variant', 'ref', 'eff', 'n', 'beta', 'sd', 'pvalue', 'correlation', 'corr_pvalue'])
+		with open(input[1]) as f:
 			variants_filter= f.read().splitlines()
 		d= d.loc[d.variant.isin(variants_filter), :]
 		d.to_csv(output[0], sep= '\t', header= False, index= False)
-	
+
+rule concat_imputed_cox_chrX:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/results/chrX/imputed/chrX_imputed_cox_spont',
+		'/mnt/work/pol/ROH/{cohort}/results/imputed/filtered_cox_spont_{sample}'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}'
+	run:
+		if wildcards.sample== 'maternal': shell('cat {input} > {output[0]}')
+		if wildcards.sample!= 'maternal': shell('mv {input[1]} {output[0]}')
+
+

@@ -72,6 +72,7 @@ include: 'scripts/imputed/Snakefile'
 include: 'scripts/phasing/Snakefile'
 include: 'scripts/ROH_calling/Snakefile'
 include: 'scripts/replication/Snakefile'
+include: 'scripts/chrX/Snakefile'
 
 ## Snakemake code
 

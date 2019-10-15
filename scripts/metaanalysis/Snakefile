@@ -74,6 +74,7 @@ rule high_conf_segments:
 		n_cols= [col for col in df.columns if 'n_' in col]
 		R_cols= [col for col in df.columns if 'R' in col and 'pvalue' not in col]
 		Rpval_cols= [col for col in df.columns if 'R_pvalue' in col]
+		print(df.dtypes)
                 meta_df= IVW(df)
 		cols_df= list(df.columns)
 		df= pd.concat([df, meta_df], axis=1, ignore_index= True)
@@ -107,10 +108,10 @@ rule meta_analysis_imputed:
 		i= 0
 		df_list= list()
 		for infile in input:
-			d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'n', 'beta','sd', 'pvalue', 'R', 'R_pvalue'])
+			d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'eff', 'ref', 'n', 'beta','sd', 'pvalue', 'R', 'R_pvalue'])
 			d['n']= np.where(d.beta.isnull(), np.NaN, d.n)
 			d['sd']= np.where(d.beta.isnull(), np.NaN, d.sd)
-			d['beta']= np.where([x.strip()[-1] for x in d[0]] == d[2], d[4], -1*d[4])
+			d['beta']= np.where([x.strip()[-1] for x in d['variant']] == d['eff'], d['beta'], -1*d['beta'])
 			d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'n': 'n_' + str(i), 'R': 'R_' + str(i), 'R_pvalue': 'R_pvalue' + str(i)}, inplace=True)
 			d.drop(['pvalue'], inplace= True, axis= 1)
 			i+= 1
@@ -139,10 +140,10 @@ rule meta_analysis_replication:
 		i= 0
                 df_list= list()
                 for infile in input:
-                        d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'n', 'beta','sd', 'pvalue', 'R', 'R_pvalue'])
+                        d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'ref', 'eff', 'n', 'beta','sd', 'pvalue', 'R', 'R_pvalue'])
                         d['n']= np.where(d.beta.isnull(), np.NaN, d.n)
                         d['sd']= np.where(d.beta.isnull(), np.NaN, d.sd)
-			d['beta']= np.where([x.strip()[-1] for x in d[0]] == d[2], d[4], -1*d[4])
+			d['beta']= np.where([x.strip()[-1] for x in d['variant']] == d['eff'], d['beta'], -1*d['beta'])
                         d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'n': 'n_' + str(i), 'R_pvalue': 'R_pvalue' + str(i)}, inplace=True)
                         d.drop(['pvalue'], inplace= True, axis= 1)
                         i+= 1
