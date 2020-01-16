@@ -51,52 +51,53 @@ def IVW(df):
 	return meta_df
 	
 rule high_conf_segments:
-        'Obtain a set of high confidence intervals with an FDR< 0.05 and <0.1.'
-        input:
-                expand('/mnt/work/pol/ROH/{cohort}/results/cox_spont_{{sample}}', cohort= cohort_nms)
-        output:
-                '/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
-                '/mnt/work/pol/ROH/results/LC_{sample}_cox_spont',
-                '/mnt/work/pol/ROH/results/NC_{sample}_cox_spont'
-        run:
-                i= 0
-                df_list= list()
-                for infile in input:
-                        d= pd.read_csv(infile, sep= '\t', header= 0)
-                        d['segment']= d.chr.map(str) + ':' + d.cM1.map(str) + ':' + d.cM2.map(str)
+	'Obtain a set of high confidence intervals with an FDR< 0.05 and <0.1.'
+	input:
+		'/mnt/work/pol/ROH/results/eff_num_{sample}.txt',
+		expand('/mnt/work/pol/ROH/{cohort}/results/cox_spont_{{sample}}', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
+		'/mnt/work/pol/ROH/results/LC_{sample}_cox_spont',
+		'/mnt/work/pol/ROH/results/NC_{sample}_cox_spont',
+		'/mnt/work/pol/ROH/results/meta_{sample}_cox_spont'
+	run:
+		bon= pd.read_csv(input[0], sep= '\t', header= 0)
+		if wildcards.sample != 'maternal': bon= bon.loc[bon.chr != 23, :]
+		bon= bon.groupby('chr')['eff_num'].max().sum()
+		i= 0
+		df_list= list()
+		for infile in input[1:]:
+			d= pd.read_csv(infile, sep= '\t', header= 0)
+			d['segment']= d.chr.map(str) + ':' + d.cM1.map(str) + ':' + d.cM2.map(str)
 			d['sd']= np.where(d.beta.isnull(), np.NaN, d.sd)
 			d['n']= np.where(d.beta.isnull(), np.NaN, d.n)
-                        d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'pos1': 'pos1'+ str(i), 'pos2': 'pos2'+ str(i), 'n': 'n_' + str(i), 'R': 'R_' + str(i), 'R_pvalue': 'R_pvalue' + str(i)}, inplace=True)
-                        d.drop(['cM1', 'cM2', 'chr', 'pvalue'], inplace= True, axis= 1)
-                        i+= 1
-                        df_list.append(d)
-                df= reduce(lambda x, y: pd.merge(x, y, on = 'segment', how= 'outer'), df_list)
+			d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'pos1': 'pos1'+ str(i), 'pos2': 'pos2'+ str(i), 'n': 'n_' + str(i)}, inplace=True)
+			d.drop(['cM1', 'cM2', 'chr', 'pvalue'], inplace= True, axis= 1)
+			i+= 1
+			df_list.append(d)
+		df= reduce(lambda x, y: pd.merge(x, y, on = 'segment', how= 'outer'), df_list)
 		n_cols= [col for col in df.columns if 'n_' in col]
 		R_cols= [col for col in df.columns if 'R' in col and 'pvalue' not in col]
-		Rpval_cols= [col for col in df.columns if 'R_pvalue' in col]
-		print(df.dtypes)
-                meta_df= IVW(df)
+		Rpval_cols= [col for col in df.columns if 'Rpvalue' in col]
+		meta_df= IVW(df)
 		cols_df= list(df.columns)
 		df= pd.concat([df, meta_df], axis=1, ignore_index= True)
 		df.columns= cols_df + ['beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta']
 		df['n_meta']= df[n_cols].sum(axis=1)
-		df['R_meta']= df[R_cols].mean(axis= 1)
-		df['Rpvalue_meta']= st.distributions.chi2.sf(-2 * ((np.log(df[Rpval_cols])).sum(axis= 1)), 2*((df[R_cols]/df[R_cols]).sum(axis=1)))
-#                df= df.loc[df.n_meta >= 10000, :]
-                df['pos1']= np.where(pd.notna(df.pos10), df.pos10, np.where(pd.notna(df.pos11), df.pos11, df.pos12))
-                df['pos2']= np.where(pd.notna(df.pos20), df.pos20, np.where(pd.notna(df.pos21), df.pos21, df.pos22))
-                df['inorout']= multi.multipletests(df.pvalue_meta, alpha= 0.01, method= 'fdr_bh')[0]
-                dfHC= df.loc[df.inorout== True, :]
-                df['inorout']= multi.multipletests(df.pvalue_meta, alpha= 0.05, method= 'fdr_bh')[0]
-                dfLC= df.loc[df.inorout== True,:]
-                dfHC.sort_values(by=['pvalue_meta'], inplace= True, ascending= True)
-                dfLC.sort_values(by=['pvalue_meta'], inplace= True, ascending= True)
-                dfLC= dfLC.iloc[len(dfHC.index):, :]
-                dfNC= df.loc[df.inorout== False, :]
-                dfHC.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta', 'R_meta', 'Rpvalue_meta'])
-                dfLC.to_csv(output[1], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta', 'R_meta', 'Rpvalue_meta'])
-                dfNC.to_csv(output[2], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta', 'R_meta', 'Rpvalue_meta'])
-
+		df= df.loc[df.n_meta>= 10000, :]
+		df['pos1']= np.where(pd.notna(df.pos10), df.pos10, np.where(pd.notna(df.pos11), df.pos11, np.where(pd.notna(df.pos12), df.pos12, np.where(pd.notna(df.pos13), df.pos13, np.where(pd.notna(df.pos14), df.pos14,  df.pos15)))))
+		df['pos2']= np.where(pd.notna(df.pos20), df.pos20, np.where(pd.notna(df.pos21), df.pos21, np.where(pd.notna(df.pos22), df.pos22, np.where(pd.notna(df.pos23), df.pos23, np.where(pd.notna(df.pos24), df.pos24,  df.pos25)))))
+		df.dropna(subset= ['pvalue_meta'], inplace= True)
+		dfHC= df.loc[df.pvalue_meta< 0.05/ df.shape[0], :]
+		dfLC= df.loc[df.pvalue_meta< 0.1/ df.shape[0], :]
+		dfHC.sort_values(by=['pvalue_meta'], inplace= True, ascending= True)
+		dfLC.sort_values(by=['pvalue_meta'], inplace= True, ascending= True)
+		dfLC= dfLC.iloc[len(dfHC.index):, :]
+		dfNC= df.loc[df.pvalue_meta>= 0.1/ df.shape[0], :]
+                dfHC.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
+                dfLC.to_csv(output[1], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
+                dfNC.to_csv(output[2], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
+		df.to_csv(output[3], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
 
 rule meta_analysis_imputed:
 	'Meta-analysis of imputed variants using inverse variance weighted meta-analysis.'
@@ -108,27 +109,25 @@ rule meta_analysis_imputed:
 		i= 0
 		df_list= list()
 		for infile in input:
-			d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'eff', 'ref', 'n', 'beta','sd', 'pvalue', 'R', 'R_pvalue'])
+			d= pd.read_csv(infile, delim_whitespace= True , header= None, names= ['variant', 'ref', 'eff', 'n', 'beta','sd', 'pvalue'])
 			d['n']= np.where(d.beta.isnull(), np.NaN, d.n)
 			d['sd']= np.where(d.beta.isnull(), np.NaN, d.sd)
 			d['beta']= np.where([x.strip()[-1] for x in d['variant']] == d['eff'], d['beta'], -1*d['beta'])
-			d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'n': 'n_' + str(i), 'R': 'R_' + str(i), 'R_pvalue': 'R_pvalue' + str(i)}, inplace=True)
+			d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'n': 'n_' + str(i)}, inplace=True)
 			d.drop(['pvalue'], inplace= True, axis= 1)
 			i+= 1
 			df_list.append(d)
 		df= reduce(lambda x, y: pd.merge(x, y, on = 'variant', how= 'outer'), df_list)
 		n_cols= [col for col in df.columns if 'n' in col]
-		R_cols= [col for col in df.columns if 'R' in col and 'pvalue' not in col]
-                Rpval_cols= [col for col in df.columns if 'R_pvalue' in col]
 		meta_df= IVW(df)
 		cols_df= list(df.columns)
+		beta_cols= [col for col in df.columns if 'beta' in col]
 		df= pd.concat([df, meta_df], axis=1, ignore_index= True)
 		df.columns= cols_df + ['beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta']
 		df['n_meta']= df[n_cols].sum(axis=1)
-		df['R_meta']= df[R_cols].mean(axis= 1)
-                df['Rpvalue_meta']= st.distributions.chi2.sf(-2 * ((np.log(df[Rpval_cols])).sum(axis= 1)), 2*((df[R_cols]/df[R_cols]).sum(axis=1)))
-#		df= df.loc[df.n_meta >= 10000, :]
-		df.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['variant', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta', 'R_meta', 'Rpvalue_meta'])
+		df['missing']= df[n_cols].count(axis=1)
+		df= df.loc[df.missing> 2, :]
+		df.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['variant', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
 
 rule meta_analysis_replication:
 	'IVW of imputed variants.'
@@ -140,25 +139,53 @@ rule meta_analysis_replication:
 		i= 0
                 df_list= list()
                 for infile in input:
-                        d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'ref', 'eff', 'n', 'beta','sd', 'pvalue', 'R', 'R_pvalue'])
+                        d= pd.read_csv(infile, sep= '\t', header= None, names= ['variant', 'ref', 'eff', 'n', 'beta','sd', 'pvalue'])
                         d['n']= np.where(d.beta.isnull(), np.NaN, d.n)
                         d['sd']= np.where(d.beta.isnull(), np.NaN, d.sd)
 			d['beta']= np.where([x.strip()[-1] for x in d['variant']] == d['eff'], d['beta'], -1*d['beta'])
-                        d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'n': 'n_' + str(i), 'R_pvalue': 'R_pvalue' + str(i)}, inplace=True)
+                        d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'n': 'n_' + str(i)}, inplace=True)
                         d.drop(['pvalue'], inplace= True, axis= 1)
                         i+= 1
                         df_list.append(d)
 		df= reduce(lambda x, y: pd.merge(x, y, on = 'variant', how= 'outer'), df_list)
                 n_cols= [col for col in df.columns if 'n' in col]
-		R_cols= [col for col in df.columns if 'R' in col and 'pvalue' not in col]
-                Rpval_cols= [col for col in df.columns if 'R_pvalue' in col]
                 meta_df= IVW(df)
                 cols_df= list(df.columns)
                 df= pd.concat([df, meta_df], axis=1, ignore_index= True)
                 df.columns= cols_df + ['beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta']
                 df['n_meta']= df[n_cols].sum(axis=1)
-		df['R_meta']= df[R_cols].mean(axis= 1)
-                df['Rpvalue_meta']= st.distributions.chi2.sf(-2 * ((np.log(df[Rpval_cols])).sum(axis= 1)), 2*((df[R_cols]/df[R_cols]).sum(axis=1)))
-                df.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['variant', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta', 'R_meta', 'Rpvalue_meta'])
+                df.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['variant', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
 
-
+rule meta_obgyn:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/{cohort}/results/obgyn/obgyn_{{sample}}.txt', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/results/obgyn/obgyn_{sample}.txt'
+	run:
+		i= 0
+                df_list= list()
+                for infile in input:
+                        d= pd.read_csv(infile, sep= '\t', header= None, names= ['Birth_pos', 'forceps', 'prom', 'vacuum','episiotomi', 'assisted', 'segment'])
+                        d.rename(columns={'Birth_pos': 'Birth_pos_'+str(i), 'forceps': 'forceps_'+ str(i), 'prom': 'prom_' + str(i), 'vacuum': 'vacuum_' + str(i), 'episiotomi': 'episiotomi_' + str(i), 'assisted': 'assisted_' + str(i)}, inplace=True)
+                        i+= 1
+                        df_list.append(d)
+		df= reduce(lambda x, y: pd.merge(x, y, on = 'segment', how= 'outer'), df_list)
+		if df.shape[0] == 0:
+			open(output[0], 'a').close()
+		else:
+			pos_cols= [col for col in df.columns if 'Birth_' in col]
+			forc_cols= [col for col in df.columns if 'forceps_' in col]
+			prom_cols= [col for col in df.columns if 'prom_' in col]
+			vac_cols= [col for col in df.columns if 'vacuum_' in col]
+			epi_cols= [col for col in df.columns if 'episiotomi_' in col]
+			ass_cols= [col for col in df.columns if 'assisted_' in col]
+			df['meta_Birth_pos']= [x[1] for x in df[pos_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
+		        df['meta_forceps']= [x[1] for x in df[forc_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
+			df['meta_prom']= [x[1] for x in df[prom_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
+	                df['meta_vacuum']= [x[1] for x in df[vac_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
+		        df['meta_episiotomi']= [x[1] for x in df[epi_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
+			df['meta_assisted']= [x[1] for x in df[ass_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
+			df= df[['segment', 'meta_Birth_pos', 'meta_forceps', 'meta_prom', 'meta_vacuum', 'meta_episiotomi', 'meta_assisted']]
+			df.to_csv(output[0], sep= '\t', header= True, index= False)
+	
