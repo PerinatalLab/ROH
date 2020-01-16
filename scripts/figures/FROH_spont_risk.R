@@ -69,19 +69,19 @@ fet= mutate(fet, spont= as.numeric(FSTART==1 & (is.na(KSNITT) | KSNITT>1) &
 }
 
 if (coh!= 'harvestm12' & coh!= 'harvestm24'){
-mom= mutate(mom, spont= as.numeric(FSTART=='Spontan' & ((KSNITT=='') | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
+mom= mutate(mom, spont= as.numeric((FSTART=='Spontan' | FSTART== '') & ((KSNITT=='') | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
                 INDUKSJON_PROSTAGLANDIN=='Nei' &
                 INDUKSJON_ANNET=='Nei' &
                 INDUKSJON_OXYTOCIN=='Nei' &
                 INDUKSJON_AMNIOTOMI=='Nei'),
                 PARITY0= as.numeric(PARITET_5=='0 (førstegangsfødende)'))
-dad= mutate(dad, spont= as.numeric(FSTART=='Spontan' & ((KSNITT=='') | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
+dad= mutate(dad, spont= as.numeric((FSTART=='Spontan' | FSTART== '') & ((KSNITT=='') | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
                 INDUKSJON_PROSTAGLANDIN=='Nei' &
                 INDUKSJON_ANNET=='Nei' &
                 INDUKSJON_OXYTOCIN=='Nei' &
                 INDUKSJON_AMNIOTOMI=='Nei'),
                 PARITY0= as.numeric(PARITET_5=='0 (førstegangsfødende)'))
-fet= mutate(fet, spont= as.numeric(FSTART=='Spontan' & ((KSNITT=='') | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
+fet= mutate(fet, spont= as.numeric((FSTART=='Spontan' | FSTART== '') & ((KSNITT=='') | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
                 INDUKSJON_PROSTAGLANDIN=='Nei' &
                 INDUKSJON_ANNET=='Nei' &
                 INDUKSJON_OXYTOCIN=='Nei' &
@@ -129,9 +129,17 @@ mom$FKB= mom$FKB * 100
 dad$FKB= dad$FKB * 100
 fet$FKB= fet$FKB * 100
 
-mom$KBAVG= mom$KBAVG / (10**4 * 100)
-dad$KBAVG= dad$KBAVG / (10**4 * 100)
-fet$KBAVG= fet$KBAVG / (10**4 * 100)
+mom$KBAVG= mom$KBAVG / 10**6 * 1000
+dad$KBAVG= dad$KBAVG / 10**6 * 1000
+fet$KBAVG= fet$KBAVG / 10**6 * 1000
+
+mom$tmrca= 100 / (2 * mom$KBAVG)
+dad$tmrca= 100 / (2 * dad$KBAVG)
+fet$tmrca= 100 / (2 * fet$KBAVG)
+
+mom$tmrca= ifelse(mom$tmrca== Inf, NA, mom$tmrca)
+dad$tmrca= ifelse(dad$tmrca== Inf, NA, dad$tmrca)
+fet$tmrca= ifelse(fet$tmrca== Inf, NA, fet$tmrca)
 
 mom$cohort= coh
 dad$cohort= coh
@@ -148,11 +156,11 @@ dad= do.call('rbind', dad_list)
 fet= do.call('rbind', fet_list)
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ FKB, mom %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ FKB, mom %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 moms_res= as.data.frame(do.call('rbind', df_l))
 moms_res$cohort= rownames(moms_res)
-names(moms_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
 moms_res$lowerci = (-1.96* moms_res$se) + moms_res$beta
 moms_res$upperci = (1.96* moms_res$se) + moms_res$beta
 
@@ -162,6 +170,7 @@ meta.res= data.frame(cohort= 'Summary effect', beta= random$beta[1], se= random$
 moms_res= bind_rows(moms_res, meta.res)
 moms_res$HR= exp(moms_res$beta)
 
+print(moms_res)
 moms_res$cohort= factor(moms_res$cohort, levels= c('Summary effect', 'normentmay', 'normentfeb', 'rotterdam2', 'rotterdam1', 'harvestm24', 'harvestm12'))
 
 moms_res$sample= 'Mothers'
@@ -170,11 +179,11 @@ moms_res$lowerci = exp((-1.96* moms_res$se)+ moms_res$beta)
 moms_res$upperci = exp((1.96* moms_res$se)+ moms_res$beta)
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~  FKB, dad %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~  FKB, dad %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 dads_res= as.data.frame(do.call('rbind', df_l))
 dads_res$cohort= rownames(dads_res)
-names(dads_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(dads_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 dads_res$lowerci = (-1.96* dads_res$se)+ dads_res$beta
 dads_res$upperci = (1.96* dads_res$se)+ dads_res$beta
 
@@ -192,11 +201,11 @@ dads_res$upperci = exp((1.96* dads_res$se)+ dads_res$beta)
 dads_res$sample= 'Fathers'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ FKB, fet %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ FKB, fet %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 fets_res= as.data.frame(do.call('rbind', df_l))
 fets_res$cohort= rownames(fets_res)
-names(fets_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(fets_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 fets_res$lowerci = (-1.96* fets_res$se)+ fets_res$beta
 fets_res$upperci = (1.96* fets_res$se)+ fets_res$beta
 
@@ -220,11 +229,11 @@ res_froh$model= 'crude'
 res_froh$measure= 'FROH'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, mom %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, mom %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n=length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 moms_res= as.data.frame(do.call('rbind', df_l))
 moms_res$cohort= rownames(moms_res)
-names(moms_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 moms_res$lowerci = (-1.96* moms_res$se) + moms_res$beta
 moms_res$upperci = (1.96* moms_res$se) + moms_res$beta
 
@@ -242,11 +251,11 @@ moms_res$lowerci = exp((-1.96* moms_res$se)+ moms_res$beta)
 moms_res$upperci = exp((1.96* moms_res$se)+ moms_res$beta)
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~  FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, dad %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~  FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, dad %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 dads_res= as.data.frame(do.call('rbind', df_l))
 dads_res$cohort= rownames(dads_res)
-names(dads_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(dads_res)= c('beta','se', 'z', 'pvalue', 'n',  'event', 'cohort')
 dads_res$lowerci = (-1.96* dads_res$se)+ dads_res$beta
 dads_res$upperci = (1.96* dads_res$se)+ dads_res$beta
 
@@ -263,11 +272,11 @@ dads_res$upperci = exp((1.96* dads_res$se)+ dads_res$beta)
 dads_res$sample= 'Fathers'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, fet %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, fet %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 fets_res= as.data.frame(do.call('rbind', df_l))
 fets_res$cohort= rownames(fets_res)
-names(fets_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(fets_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 fets_res$lowerci = (-1.96* fets_res$se)+ fets_res$beta
 fets_res$upperci = (1.96* fets_res$se)+ fets_res$beta
 
@@ -292,11 +301,11 @@ res_froh_adj$measure= 'FROH'
 ################### NSEG
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ NSEG, mom %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ NSEG, mom %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 moms_res= as.data.frame(do.call('rbind', df_l))
 moms_res$cohort= rownames(moms_res)
-names(moms_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 moms_res$lowerci = (-1.96* moms_res$se) + moms_res$beta
 moms_res$upperci = (1.96* moms_res$se) + moms_res$beta
 
@@ -314,11 +323,11 @@ moms_res$lowerci = exp((-1.96* moms_res$se)+ moms_res$beta)
 moms_res$upperci = exp((1.96* moms_res$se)+ moms_res$beta)
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~  NSEG, dad %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~  NSEG, dad %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 dads_res= as.data.frame(do.call('rbind', df_l))
 dads_res$cohort= rownames(dads_res)
-names(dads_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(dads_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 dads_res$lowerci = (-1.96* dads_res$se)+ dads_res$beta
 dads_res$upperci = (1.96* dads_res$se)+ dads_res$beta
 
@@ -336,11 +345,11 @@ dads_res$upperci = exp((1.96* dads_res$se)+ dads_res$beta)
 dads_res$sample= 'Fathers'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ NSEG, fet %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ NSEG, fet %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 fets_res= as.data.frame(do.call('rbind', df_l))
 fets_res$cohort= rownames(fets_res)
-names(fets_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(fets_res)= c('beta', 'se', 'z', 'pvalue', 'n', 'event','cohort')
 fets_res$lowerci = (-1.96* fets_res$se)+ fets_res$beta
 fets_res$upperci = (1.96* fets_res$se)+ fets_res$beta
 
@@ -364,11 +373,11 @@ res_nseg$model= 'crude'
 res_nseg$measure= 'NSEG'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ NSEG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, mom %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ NSEG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, mom %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 moms_res= as.data.frame(do.call('rbind', df_l))
 moms_res$cohort= rownames(moms_res)
-names(moms_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 moms_res$lowerci = (-1.96* moms_res$se) + moms_res$beta
 moms_res$upperci = (1.96* moms_res$se) + moms_res$beta
 
@@ -387,11 +396,11 @@ moms_res$lowerci = exp((-1.96* moms_res$se)+ moms_res$beta)
 moms_res$upperci = exp((1.96* moms_res$se)+ moms_res$beta)
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~  NSEG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, dad %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~  NSEG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, dad %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 dads_res= as.data.frame(do.call('rbind', df_l))
 dads_res$cohort= rownames(dads_res)
-names(dads_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(dads_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 dads_res$lowerci = (-1.96* dads_res$se)+ dads_res$beta
 dads_res$upperci = (1.96* dads_res$se)+ dads_res$beta
 
@@ -408,11 +417,11 @@ dads_res$upperci = exp((1.96* dads_res$se)+ dads_res$beta)
 dads_res$sample= 'Fathers'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ NSEG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, fet %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ NSEG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, fet %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 fets_res= as.data.frame(do.call('rbind', df_l))
 fets_res$cohort= rownames(fets_res)
-names(fets_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(fets_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 fets_res$lowerci = (-1.96* fets_res$se)+ fets_res$beta
 fets_res$upperci = (1.96* fets_res$se)+ fets_res$beta
 
@@ -437,11 +446,11 @@ res_nseg_adj$measure= 'NSEG'
 ######################## KBAVG
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ KBAVG, mom %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ KBAVG, mom %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 moms_res= as.data.frame(do.call('rbind', df_l))
 moms_res$cohort= rownames(moms_res)
-names(moms_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n',   'event','cohort')
 moms_res$lowerci = (-1.96* moms_res$se) + moms_res$beta
 moms_res$upperci = (1.96* moms_res$se) + moms_res$beta
 
@@ -459,11 +468,11 @@ moms_res$lowerci = exp((-1.96* moms_res$se)+ moms_res$beta)
 moms_res$upperci = exp((1.96* moms_res$se)+ moms_res$beta)
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~  KBAVG, dad %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~  KBAVG, dad %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 dads_res= as.data.frame(do.call('rbind', df_l))
 dads_res$cohort= rownames(dads_res)
-names(dads_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(dads_res)= c('beta',  'se', 'z', 'pvalue', 'n',  'event','cohort')
 dads_res$lowerci = (-1.96* dads_res$se)+ dads_res$beta
 dads_res$upperci = (1.96* dads_res$se)+ dads_res$beta
 
@@ -481,11 +490,11 @@ dads_res$upperci = exp((1.96* dads_res$se)+ dads_res$beta)
 dads_res$sample= 'Fathers'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ KBAVG, fet %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ KBAVG, fet %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 fets_res= as.data.frame(do.call('rbind', df_l))
 fets_res$cohort= rownames(fets_res)
-names(fets_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(fets_res)= c('beta','se', 'z', 'pvalue', 'n',  'event','cohort')
 fets_res$lowerci = (-1.96* fets_res$se)+ fets_res$beta
 fets_res$upperci = (1.96* fets_res$se)+ fets_res$beta
 
@@ -509,11 +518,11 @@ res_kbavg$model= 'crude'
 res_kbavg$measure= 'KBAVG'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ KBAVG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, mom %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ KBAVG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, mom %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n=length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 moms_res= as.data.frame(do.call('rbind', df_l))
 moms_res$cohort= rownames(moms_res)
-names(moms_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 moms_res$lowerci = (-1.96* moms_res$se) + moms_res$beta
 moms_res$upperci = (1.96* moms_res$se) + moms_res$beta
 
@@ -532,11 +541,11 @@ moms_res$lowerci = exp((-1.96* moms_res$se)+ moms_res$beta)
 moms_res$upperci = exp((1.96* moms_res$se)+ moms_res$beta)
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~  KBAVG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, dad %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~  KBAVG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, dad %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 dads_res= as.data.frame(do.call('rbind', df_l))
 dads_res$cohort= rownames(dads_res)
-names(dads_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(dads_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 dads_res$lowerci = (-1.96* dads_res$se)+ dads_res$beta
 dads_res$upperci = (1.96* dads_res$se)+ dads_res$beta
 
@@ -553,11 +562,11 @@ dads_res$upperci = exp((1.96* dads_res$se)+ dads_res$beta)
 dads_res$sample= 'Fathers'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ KBAVG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, fet %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ KBAVG + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, fet %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 fets_res= as.data.frame(do.call('rbind', df_l))
 fets_res$cohort= rownames(fets_res)
-names(fets_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(fets_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 fets_res$lowerci = (-1.96* fets_res$se)+ fets_res$beta
 fets_res$upperci = (1.96* fets_res$se)+ fets_res$beta
 
@@ -582,11 +591,11 @@ res_kbavg_adj$measure= 'KBAVG'
 ######### FHOM
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ FHOM, mom %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ FHOM, mom %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 moms_res= as.data.frame(do.call('rbind', df_l))
 moms_res$cohort= rownames(moms_res)
-names(moms_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(moms_res)= c('beta',  'se', 'z', 'pvalue', 'n',  'event','cohort')
 moms_res$lowerci = (-1.96* moms_res$se) + moms_res$beta
 moms_res$upperci = (1.96* moms_res$se) + moms_res$beta
 
@@ -604,11 +613,11 @@ moms_res$lowerci = exp((-1.96* moms_res$se)+ moms_res$beta)
 moms_res$upperci = exp((1.96* moms_res$se)+ moms_res$beta)
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~  FHOM, dad %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~  FHOM, dad %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 dads_res= as.data.frame(do.call('rbind', df_l))
 dads_res$cohort= rownames(dads_res)
-names(dads_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(dads_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 dads_res$lowerci = (-1.96* dads_res$se)+ dads_res$beta
 dads_res$upperci = (1.96* dads_res$se)+ dads_res$beta
 
@@ -626,11 +635,11 @@ dads_res$upperci = exp((1.96* dads_res$se)+ dads_res$beta)
 dads_res$sample= 'Fathers'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ FHOM, fet %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ FHOM, fet %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 fets_res= as.data.frame(do.call('rbind', df_l))
 fets_res$cohort= rownames(fets_res)
-names(fets_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(fets_res)= c('beta', 'se', 'z', 'pvalue', 'n',   'event','cohort')
 fets_res$lowerci = (-1.96* fets_res$se)+ fets_res$beta
 fets_res$upperci = (1.96* fets_res$se)+ fets_res$beta
 
@@ -654,11 +663,11 @@ res_fhom$model= 'crude'
 res_fhom$measure= 'FHOM'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ FHOM + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, mom %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ FHOM + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, mom %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 moms_res= as.data.frame(do.call('rbind', df_l))
 moms_res$cohort= rownames(moms_res)
-names(moms_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event', 'cohort')
 moms_res$lowerci = (-1.96* moms_res$se) + moms_res$beta
 moms_res$upperci = (1.96* moms_res$se) + moms_res$beta
 
@@ -677,11 +686,11 @@ moms_res$lowerci = exp((-1.96* moms_res$se)+ moms_res$beta)
 moms_res$upperci = exp((1.96* moms_res$se)+ moms_res$beta)
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~  FHOM + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, dad %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~  FHOM + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, dad %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 dads_res= as.data.frame(do.call('rbind', df_l))
 dads_res$cohort= rownames(dads_res)
-names(dads_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(dads_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
 dads_res$lowerci = (-1.96* dads_res$se)+ dads_res$beta
 dads_res$upperci = (1.96* dads_res$se)+ dads_res$beta
 
@@ -698,11 +707,11 @@ dads_res$upperci = exp((1.96* dads_res$se)+ dads_res$beta)
 dads_res$sample= 'Fathers'
 
 df_l= lapply(setNames(cohorts, cohorts), function(coh){
-x= coxph(Surv(SVLEN_UL_DG, spont)~ FHOM + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, fet %>% filter(cohort== coh), na.action= na.omit)
-return(c(summary(x)$coefficients[1,], n= x$n, event= x$nevent))})
+x= survreg(Surv(SVLEN_UL_DG, spont)~ FHOM + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, fet %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
 fets_res= as.data.frame(do.call('rbind', df_l))
 fets_res$cohort= rownames(fets_res)
-names(fets_res)= c('beta', 'HR', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+names(fets_res)= c('beta',  'se', 'z', 'pvalue', 'n',  'event','cohort')
 fets_res$lowerci = (-1.96* fets_res$se)+ fets_res$beta
 fets_res$upperci = (1.96* fets_res$se)+ fets_res$beta
 
@@ -724,7 +733,155 @@ res_fhom_adj$sample= factor(res_fhom_adj$sample, levels= c('Mothers','Fathers', 
 res_fhom_adj$model= 'adjusted'
 res_fhom_adj$measure= 'FHOM'
 
+####### TMRCA
 
-all_res= do.call('bind_rows', list(res_froh,  res_froh_adj, res_nseg,  res_nseg_adj, res_kbavg, res_kbavg_adj, res_fhom,  res_fhom_adj))
+df_l= lapply(setNames(cohorts, cohorts), function(coh){
+x= survreg(Surv(SVLEN_UL_DG, spont)~ tmrca, mom %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
+moms_res= as.data.frame(do.call('rbind', df_l))
+moms_res$cohort= rownames(moms_res)
+names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n', 'event', 'cohort')
+moms_res$lowerci = (-1.96* moms_res$se) + moms_res$beta
+moms_res$upperci = (1.96* moms_res$se) + moms_res$beta
+
+random= rma(moms_res$beta, sei= moms_res$se)
+meta.res= data.frame(cohort= 'Summary effect', beta= random$beta[1], se= random$se[1], pvalue= random$pval[1], lowerci= random$ci.lb, upperci= random$ci.ub, n= sum(moms_res$n), event= sum(moms_res$event))
+
+moms_res= bind_rows(moms_res, meta.res)
+moms_res$HR= exp(moms_res$beta)
+
+print(moms_res)
+moms_res$cohort= factor(moms_res$cohort, levels= c('Summary effect', 'normentmay', 'normentfeb', 'rotterdam2', 'rotterdam1', 'harvestm24', 'harvestm12'))
+
+moms_res$sample= 'Mothers'
+
+moms_res$lowerci = exp((-1.96* moms_res$se)+ moms_res$beta)
+moms_res$upperci = exp((1.96* moms_res$se)+ moms_res$beta)
+
+
+df_l= lapply(setNames(cohorts, cohorts), function(coh){
+x= survreg(Surv(SVLEN_UL_DG, spont)~  tmrca, dad %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
+dads_res= as.data.frame(do.call('rbind', df_l))
+dads_res$cohort= rownames(dads_res)
+names(dads_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
+dads_res$lowerci = (-1.96* dads_res$se)+ dads_res$beta
+dads_res$upperci = (1.96* dads_res$se)+ dads_res$beta
+
+random= rma(dads_res$beta, sei= dads_res$se)
+meta.res= data.frame(cohort= 'Summary effect', beta= random$beta[1], se= random$se[1], pvalue= random$pval[1], lowerci= random$ci.lb, upperci= random$ci.ub, n= sum(dads_res$n), event= sum(dads_res$event))
+
+dads_res= bind_rows(dads_res, meta.res)
+dads_res$HR= exp(dads_res$beta)
+dads_res$cohort= factor(dads_res$cohort, levels= c('Summary effect', 'normentmay', 'normentfeb', 'rotterdam2', 'rotterdam1', 'harvestm24', 'harvestm12'))
+
+
+dads_res$lowerci = exp((-1.96* dads_res$se)+ dads_res$beta)
+dads_res$upperci = exp((1.96* dads_res$se)+ dads_res$beta)
+
+dads_res$sample= 'Fathers'
+
+df_l= lapply(setNames(cohorts, cohorts), function(coh){
+x= survreg(Surv(SVLEN_UL_DG, spont)~ tmrca, fet %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
+fets_res= as.data.frame(do.call('rbind', df_l))
+fets_res$cohort= rownames(fets_res)
+names(fets_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
+fets_res$lowerci = (-1.96* fets_res$se)+ fets_res$beta
+fets_res$upperci = (1.96* fets_res$se)+ fets_res$beta
+
+random= rma(fets_res$beta, sei= fets_res$se)
+meta.res= data.frame(cohort= 'Summary effect', beta= random$beta[1], se= random$se[1], pvalue= random$pval[1], lowerci= random$ci.lb, upperci= random$ci.ub, n= sum(fets_res$n), event= sum(fets_res$event))
+
+fets_res= bind_rows(fets_res, meta.res)
+fets_res$HR= exp(fets_res$beta)
+fets_res$cohort= factor(fets_res$cohort, levels= c('Summary effect', 'normentmay', 'normentfeb', 'rotterdam2', 'rotterdam1', 'harvestm24', 'harvestm12'))
+
+fets_res$lowerci = exp((-1.96* fets_res$se)+ fets_res$beta)
+fets_res$upperci = exp((1.96* fets_res$se)+ fets_res$beta)
+
+fets_res$sample= 'Fetal'
+
+res_tmrca= do.call("rbind", list(moms_res, dads_res, fets_res))
+
+res_tmrca$sample= factor(res_tmrca$sample, levels= c('Mothers','Fathers', 'Fetal'))
+
+res_tmrca$model= 'crude'
+res_tmrca$measure= 'TMRCA'
+
+df_l= lapply(setNames(cohorts, cohorts), function(coh){
+x= survreg(Surv(SVLEN_UL_DG, spont)~ tmrca + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, mom %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n=length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
+moms_res= as.data.frame(do.call('rbind', df_l))
+moms_res$cohort= rownames(moms_res)
+names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
+moms_res$lowerci = (-1.96* moms_res$se) + moms_res$beta
+moms_res$upperci = (1.96* moms_res$se) + moms_res$beta
+
+random= rma(moms_res$beta, sei= moms_res$se)
+meta.res= data.frame(cohort= 'Summary effect', beta= random$beta[1], se= random$se[1], pvalue= random$pval[1], lowerci= random$ci.lb, upperci= random$ci.ub, n= sum(moms_res$n), event= sum(moms_res$event))
+
+moms_res= bind_rows(moms_res, meta.res)
+moms_res$HR= exp(moms_res$beta)
+
+moms_res$cohort= factor(moms_res$cohort, levels= c('Summary effect', 'normentmay', 'normentfeb', 'rotterdam2', 'rotterdam1', 'harvestm24', 'harvestm12'))
+
+moms_res$sample= 'Mothers'
+
+moms_res$lowerci = exp((-1.96* moms_res$se)+ moms_res$beta)
+moms_res$upperci = exp((1.96* moms_res$se)+ moms_res$beta)
+
+df_l= lapply(setNames(cohorts, cohorts), function(coh){
+x= survreg(Surv(SVLEN_UL_DG, spont)~  tmrca + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, dad %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
+dads_res= as.data.frame(do.call('rbind', df_l))
+dads_res$cohort= rownames(dads_res)
+names(dads_res)= c('beta','se', 'z', 'pvalue', 'n',  'event', 'cohort')
+dads_res$lowerci = (-1.96* dads_res$se)+ dads_res$beta
+dads_res$upperci = (1.96* dads_res$se)+ dads_res$beta
+
+random= rma(dads_res$beta, sei= dads_res$se)
+meta.res= data.frame(cohort= 'Summary effect', beta= random$beta[1], se= random$se[1], pvalue= random$pval[1], lowerci= random$ci.lb, upperci= random$ci.ub, n= sum(dads_res$n), event= sum(dads_res$event))
+
+dads_res= bind_rows(dads_res, meta.res)
+dads_res$HR= exp(dads_res$beta)
+dads_res$cohort= factor(dads_res$cohort, levels= c('Summary effect', 'normentmay', 'normentfeb', 'rotterdam2', 'rotterdam1', 'harvestm24', 'harvestm12'))
+
+dads_res$lowerci = exp((-1.96* dads_res$se)+ dads_res$beta)
+dads_res$upperci = exp((1.96* dads_res$se)+ dads_res$beta)
+
+dads_res$sample= 'Fathers'
+
+df_l= lapply(setNames(cohorts, cohorts), function(coh){
+x= survreg(Surv(SVLEN_UL_DG, spont)~ tmrca + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PARITY0 + edu + income, fet %>% filter(cohort== coh), na.action= na.omit, dist= 'weibull')
+return(c(summary(x)$table[2,], n= length(x$linear.predictors), event=sum(!grepl("+", x$y, fixed= T))))})
+fets_res= as.data.frame(do.call('rbind', df_l))
+fets_res$cohort= rownames(fets_res)
+names(fets_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','cohort')
+fets_res$lowerci = (-1.96* fets_res$se)+ fets_res$beta
+fets_res$upperci = (1.96* fets_res$se)+ fets_res$beta
+
+random= rma(fets_res$beta, sei= fets_res$se)
+meta.res= data.frame(cohort= 'Summary effect', beta= random$beta[1], se= random$se[1], pvalue= random$pval[1], lowerci= random$ci.lb, upperci= random$ci.ub, n= sum(fets_res$n), event= sum(fets_res$event))
+
+fets_res= bind_rows(fets_res, meta.res)
+fets_res$HR= exp(fets_res$beta)
+fets_res$cohort= factor(fets_res$cohort, levels= c('Summary effect', 'normentmay', 'normentfeb', 'rotterdam2', 'rotterdam1', 'harvestm24', 'harvestm12'))
+
+fets_res$lowerci = exp((-1.96* fets_res$se)+ fets_res$beta)
+fets_res$upperci = exp((1.96* fets_res$se)+ fets_res$beta)
+
+fets_res$sample= 'Fetal'
+
+res_tmrca_adj= do.call("rbind", list(moms_res, dads_res, fets_res))
+
+res_tmrca_adj$sample= factor(res_tmrca_adj$sample, levels= c('Mothers','Fathers', 'Fetal'))
+res_tmrca_adj$model= 'adjusted'
+res_tmrca_adj$measure= 'TMRCA'
+
+
+
+
+all_res= do.call('bind_rows', list(res_froh,  res_froh_adj, res_nseg,  res_nseg_adj, res_kbavg, res_kbavg_adj, res_fhom,  res_fhom_adj, res_tmrca, res_tmrca_adj))
 
 write.table(all_res, snakemake@output[[1]], sep= '\t', row.names=F, col.names= T, quote=F)

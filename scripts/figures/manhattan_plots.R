@@ -4,9 +4,7 @@ library(ggplot2)
 library(dplyr)
 library(gridExtra)
 library(grid)
-library(extrafont)
-
-loadfonts()
+library(cowplot)
 
 d= fread(snakemake@input[[1]])
 d$cf= 'HC'
@@ -24,6 +22,9 @@ df= d
 
 df$mcM= (df$cM1 + df$cM2) / 2
 
+#colors_3= c('#FFBD01', '#00B25D', '#9C02A7')
+colors_3= c('#9C02A7', '#FFBD01', '#00B25D')
+
 df= df %>% filter(!is.na(chr))
   don <- df %>%
     group_by(chr)      %>%
@@ -37,24 +38,23 @@ df= df %>% filter(!is.na(chr))
   axisdf = don %>% group_by(chr) %>% summarize(center=( max(BPcum) + min(BPcum) ) / 2 )
   names(axisdf)= c('chr', 'center')
 
-moms=  ggplot(don) +
-    geom_point(aes(x=BPcum, y= z_meta, colour= as.factor(cf)), size=0.1) +   # Show all points
-scale_colour_viridis_d(option='D', direction = 1) +
-    scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
-    #scale_y_continuous(expand = c(0, 0)) +     # remove space between plot area and x axis
-#theme_bw() +
-theme_bw() + # Custom the theme
-    theme( text = element_text(size= 14),
-           legend.position="none",
-           panel.border = element_blank(),
-           panel.grid.major = element_blank(),
-           panel.grid.minor = element_blank()) +
-	 xlab('Chromosome') +
-    ylab('Z-score') +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))  +
-geom_hline(yintercept= 0, size= 0.5, linetype= 2)
+HC= max(don[don$cf== 'HC', 'z_meta'])
 
+moms= ggplot(don) +
+    geom_point(aes(x=BPcum, y= z_meta, colour= -log10(pvalue_meta), fill= -log10(pvalue_meta)), size=0.3, shape= 21) +   # Show all points
+theme_cowplot(12, font_size= 12) + #theme_minimal_hgrid(12, rel_small = -1) + 
+#scale_colour_viridis_c(option='D', direction = -1) +
+scale_colour_gradientn(colors= colors_3) +
+scale_fill_gradientn(colours= colors_3) +
+#scale_fill_viridis_c(option='D', direction = -1) +
+    scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
+    theme( legend.position="none") +
+         xlab('Chromosome') +
+    ylab('Z-score') +
+	ylim(c(-5, 5)) +
+geom_hline(yintercept= 0, size= 0.5, colour= 'black') + 
+geom_hline(yintercept= HC, size= 0.5, linetype= 2, colour= '#878787') +
+annotate(geom="text", x= Inf, y= HC - 0.5, label= 'bold("High confidence")', color="black", vjust= 1, hjust= 1, parse= TRUE, size= 4)
 
 d= fread(snakemake@input[[4]])
 d$cf= 'HC'
@@ -72,6 +72,7 @@ df = d
 
 df$mcM= (df$cM1 + df$cM2) / 2
 
+
 df= df %>% filter(!is.na(chr))
   don <- df %>%
     group_by(chr)      %>%
@@ -85,27 +86,27 @@ df= df %>% filter(!is.na(chr))
   axisdf = don %>% group_by(chr) %>% summarize(center=( max(BPcum) + min(BPcum) ) / 2 )
   names(axisdf)= c('chr', 'center')
 
-fets=   ggplot(don) +
-    geom_point(aes(x=BPcum, y= z_meta, colour= as.factor(cf)), size=0.1) +   # Show all points
-scale_colour_viridis_d(option='D', direction = 1) +
+HC= max(don[don$cf== 'HC', 'z_meta'])
+
+fets= ggplot(don) +
+    geom_point(aes(x=BPcum, y= z_meta, colour= -log10(pvalue_meta), fill= -log10(pvalue_meta)), size=0.3, shape= 21) +   # Show all points
+theme_cowplot(12, font_size= 12) + #theme_minimal_hgrid(12, rel_small = -1) + 
+#scale_colour_viridis_c(option='D', direction = -1) +
+#scale_fill_viridis_c(option='D', direction = -1) +
+scale_colour_gradientn(colors= colors_3) +
+scale_fill_gradientn(colors= colors_3) +
     scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
-    #scale_y_continuous(expand = c(0, 0)) +     # remove space between plot area and x axis
-#theme_bw() +
-theme_bw() + # Custom the theme
-    theme( text = element_text(size= 14),
-           legend.position="none",
-           panel.border = element_blank(),
-           panel.grid.major = element_blank(),
-           panel.grid.minor = element_blank()) +
-	 xlab('Chromosome') +
+    theme( legend.position="none") +
+         xlab('Chromosome') +
     ylab('Z-score') +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))  +
-geom_hline(yintercept= 0, size= 0.5, linetype= 2)
+	ylim(c(-5, 5)) +
+geom_hline(yintercept= 0, size= 0.5, colour= 'black') + 
+geom_hline(yintercept= HC, size= 0.5, linetype= 2, colour= '#878787') +
+annotate(geom="text", x= Inf, y= HC - 0.5, label= 'bold("High confidence")', color="black", vjust= 1, hjust= 1, parse= TRUE, size= 4)
 
 
 
 #gg= arrangeGrob(moms,fets, ncol= 1)
 
-ggsave(file= snakemake@output[[1]], plot= moms, dpi= 'retina', width= 18, height= 7, units= 'cm')
-ggsave(file= snakemake@output[[2]], plot= fets, dpi= 'retina', width= 18, height= 7, units= 'cm')
+save_plot(file= snakemake@output[[1]], plot= moms, base_width=297, base_height=210, units="mm")
+save_plot(file= snakemake@output[[2]], plot= fets, base_width=297, base_height=210, units="mm")

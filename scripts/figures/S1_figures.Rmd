@@ -1,0 +1,38 @@
+---
+output:
+    pdf_document:
+        dev: cairo_pdf
+        latex_engine: xelatex
+        fig_caption: yes
+header-includes:
+- \usepackage{titling}
+- \setlength{\droptitle}{10em}
+- \renewcommand{\caption}{}
+---
+
+```{r dependencies, include=FALSE}
+library("ggplot2")
+library(cowplot)
+library("dplyr")
+library("survival")
+library("knitr")
+library("gridExtra")
+library("tidyr")
+library("kableExtra")
+library("data.table")
+options(warn=-1)
+opts_chunk$set(dpi=300)
+```
+
+```{r fig.align="center", fig.cap=" S2A Figure: R² between offspring ROH and total parental genetic relatedness according to the minimum number of genetic variants included in ROH (no heterozygous genotypes allowed). Results for all sub-cohorts are presented using only genetic distance (cM) for ROH calling. Genetic data was pruned before ROH calling using different values (no pruning, 0.9, 0.5 and 0.1), presented with different line types and colours.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[1]])
+
+```
+
+```{r fig.align="center", fig.cap=" S2B Figure: R² between offspring ROH and total parental genetic relatedness according to the minimum number of genetic variants included in ROH (one heterozygous genotype allowed). Results for all sub-cohorts are presented using only genetic distance (cM) for ROH calling. Genetic data was pruned before ROH calling using different values (no pruning, 0.9, 0.5 and 0.1), presented with different line types and colours.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[2]])
+
+```
+

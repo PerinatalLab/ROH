@@ -1,0 +1,32 @@
+---
+output:
+    pdf_document:
+        dev: cairo_pdf
+        latex_engine: xelatex
+        fig_caption: yes
+header-includes:
+- \usepackage{titling}
+- \setlength{\droptitle}{10em}
+- \renewcommand{\caption}{}
+---
+
+```{r dependencies, include=FALSE}
+library("ggplot2")
+library(cowplot)
+library("dplyr")
+library("survival")
+library("knitr")
+library("gridExtra")
+library("tidyr")
+library("kableExtra")
+library("data.table")
+options(warn=-1)
+opts_chunk$set(dpi=300)
+```
+
+```{r fig.align="center", fig.cap=" S4 Figure: Frequency of autozygous segments in mothers, fathers and fetuses in all sub-cohorts. For each family member, segments were split into overlapping segments in all sub-cohorts. Segments shared across sub-cohorts or unique to each sub-cohort are shown.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[1]])
+
+```
+

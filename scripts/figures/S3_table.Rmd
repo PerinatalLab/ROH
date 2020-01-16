@@ -1,0 +1,169 @@
+---
+output:
+    pdf_document:
+        dev: cairo_pdf
+        latex_engine: xelatex
+        fig_caption: yes
+header-includes:
+- \usepackage{titling}
+- \setlength{\droptitle}{10em}
+- \renewcommand{\caption}{}
+- \usepackage[labelfont=bf]{caption}
+---
+
+```{r dependencies, include=FALSE}
+library("ggplot2")
+library(cowplot)
+library("dplyr")
+library("survival")
+library("knitr")
+library("gridExtra")
+library("tidyr")
+library("kableExtra")
+library("data.table")
+options(warn=-1)
+opts_chunk$set(dpi=300)
+```
+
+```{r echo= F}
+d= fread(snakemake@input[[1]], h= T)
+d= as.data.frame(d)
+d$fam= factor(d$fam, labels= c('Fetal', 'Maternal', 'Paternal'))
+
+rownames(d)= c('Fetal', 'Maternal', 'Paternal')
+
+d$FKB_m= round(d$FKB_m * 100, 1)
+d$FKB_25= round(d$FKB_25 * 100, 1)
+d$FKB_75= round(d$FKB_75 * 100, 1)
+
+d$FHOM_m= round(d$FHOM_m, 3)
+d$FHOM_25= round(d$FHOM_25, 3)
+d$FHOM_75= round(d$FHOM_75, 3)
+
+d$KBAVG_m= round(d$KBAVG_m, 3)
+d$KBAVG_25= round(d$KBAVG_25, 3)
+d$KBAVG_75= round(d$KBAVG_75, 3)
+
+d$tmrca_m= round(d$tmrca_m, 1)
+d$tmrca_25= round(d$tmrca_25, 1)
+d$tmrca_75= round(d$tmrca_75, 1)
+
+d$FKB= with(d, paste0(FKB_m, ' (', FKB_25, ', ', FKB_75 , ')'))
+d$FHOM= with(d, paste0(FHOM_m, ' (', FHOM_25, ', ', FHOM_75 , ')'))
+d$NSEG= with(d, paste0(NSEG_m, ' (', NSEG_25, ', ', NSEG_75 , ')'))
+d$KBAVG= with(d, paste0(KBAVG_m, ' (', KBAVG_25, ', ', KBAVG_75 , ')'))
+d$tmrca= with(d, paste0(tmrca_m, ' (', tmrca_25, ', ', tmrca_75 , ')'))
+
+d= select(d, FKB, KBAVG, NSEG, FHOM, tmrca)
+
+colnames(d)= c('FROH', 'Avg. seg. length', 'N seg.', 'FHOM', 'TMRCA')
+
+kable(d, align=  rep('c', 5), row.names= T, caption = "S3A Table: Description of autozygosity measures in Norwegian parent-offspring trios in all sub-cohorts.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Avg, average; FHOM, excess homozygosity; FROH, fraction of genome covered by autozygous segments; seg, segment; tmrca, time to most recent common ancestor.', 'Median (percentile 25, percentile 75) are shown for different autozygosity measures. Autozygosity was estimated using different parameters, according to the optimized parameteres, which are sub-cohort specific. See S3B, S3C and S4C Tables for additional information on cohort-specific values.'), threeparttable= T)
+
+```
+
+\pagebreak
+
+
+```{r echo= F}
+d= fread(snakemake@input[[2]], h= T)
+d= as.data.frame(d)
+
+row.names(d)= c('Cohort1', 'Cohort2', 'Cohort3', 'Cohort4', 'Cohort5', 'Cohort6')
+
+d$FKB_m= round(d$FKB_m * 100, 1)
+d$FKB_25= round(d$FKB_25 * 100, 1)
+d$FKB_75= round(d$FKB_75 * 100, 1)
+
+d$FHOM_m= round(d$FHOM_m, 3)
+d$FHOM_25= round(d$FHOM_25, 3)
+d$FHOM_75= round(d$FHOM_75, 3)
+
+d$KBAVG_m= round(d$KBAVG_m, 3)
+d$KBAVG_25= round(d$KBAVG_25, 3)
+d$KBAVG_75= round(d$KBAVG_75, 3)
+
+d$tmrca_m= round(d$tmrca_m, 1)
+d$tmrca_25= round(d$tmrca_25, 1)
+d$tmrca_75= round(d$tmrca_75, 1)
+
+d$FKB= with(d, paste0(FKB_m, ' (', FKB_25, ', ', FKB_75 , ')'))
+d$FHOM= with(d, paste0(FHOM_m, ' (', FHOM_25, ', ', FHOM_75 , ')'))
+d$NSEG= with(d, paste0(NSEG_m, ' (', NSEG_25, ', ', NSEG_75 , ')'))
+d$KBAVG= with(d, paste0(KBAVG_m, ' (', KBAVG_25, ', ', KBAVG_75 , ')'))
+d$tmrca= with(d, paste0(tmrca_m, ' (', tmrca_25, ', ', tmrca_75 , ')'))
+
+
+d= select(d, FKB, KBAVG, NSEG, FHOM, tmrca)
+colnames(d)= c('FROH', 'Avg. seg. length', 'N seg.', 'FHOM', 'TMRCA')
+
+kable(d, align= rep('c', 5), row.names= T, caption = "S3B Table: Description of autozygosity measures in Norwegian mothers in each sub-cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Avg, average; seg, segment; TMRCA, time to most recent common ancestor.','Median (percentile 25, percentile 75) are shown for different autozygosity measures. Autozygosity was estimated using different parameters, according to the optimized parameteres, which are sub-cohort specific.'), threeparttable= T)
+```
+
+```{r echo= F}
+d= fread(snakemake@input[[3]], h= T)
+d= as.data.frame(d)
+
+row.names(d)= c('Cohort1', 'Cohort2', 'Cohort3', 'Cohort4', 'Cohort5', 'Cohort6')
+d$FKB_m= round(d$FKB_m * 100, 1)
+d$FKB_25= round(d$FKB_25 * 100, 1)
+d$FKB_75= round(d$FKB_75 * 100, 1)
+
+d$FHOM_m= round(d$FHOM_m, 3)
+d$FHOM_25= round(d$FHOM_25, 3)
+d$FHOM_75= round(d$FHOM_75, 3)
+
+d$KBAVG_m= round(d$KBAVG_m, 3)
+d$KBAVG_25= round(d$KBAVG_25, 3)
+d$KBAVG_75= round(d$KBAVG_75, 3)
+
+d$tmrca_m= round(d$tmrca_m, 1)
+d$tmrca_25= round(d$tmrca_25, 1)
+d$tmrca_75= round(d$tmrca_75, 1)
+
+d$FKB= with(d, paste0(FKB_m, ' (', FKB_25, ', ', FKB_75 , ')'))
+d$FHOM= with(d, paste0(FHOM_m, ' (', FHOM_25, ', ', FHOM_75 , ')'))
+d$NSEG= with(d, paste0(NSEG_m, ' (', NSEG_25, ', ', NSEG_75 , ')'))
+d$KBAVG= with(d, paste0(KBAVG_m, ' (', KBAVG_25, ', ', KBAVG_75 , ')'))
+d$tmrca= with(d, paste0(tmrca_m, ' (', tmrca_25, ', ', tmrca_75 , ')'))
+
+
+d= select(d, FKB, KBAVG, NSEG, FHOM, tmrca)
+colnames(d)= c('FROH', 'Avg. seg. length', 'N seg.', 'FHOM', 'TMRCA')
+
+kable(d,align= rep('c', 5), row.names= T, caption = "S3C Table: Description of autozygosity measures in Norwegian fathers in each sub-cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Avg, average; FHOM, excess homozygosity; FROH, fraction of genome covered by autozygous segments; seg, segment; TMRCA, time to most recent common ancestor.', 'Median (percentile 25, percentile 75) are shown for different autozygosity measures. Autozygosity was estimated using different parameters, according to the optimized parameteres, which are sub-cohort specific.'), threeparttable= T)
+```
+
+```{r echo= F}
+d= fread(snakemake@input[[4]], h= T)
+d= as.data.frame(d)
+
+row.names(d)= c('Cohort1', 'Cohort2', 'Cohort3', 'Cohort4', 'Cohort5', 'Cohort6')
+d$FKB_m= round(d$FKB_m * 100, 1)
+d$FKB_25= round(d$FKB_25 * 100, 1)
+d$FKB_75= round(d$FKB_75 * 100, 1)
+
+d$FHOM_m= round(d$FHOM_m, 3)
+d$FHOM_25= round(d$FHOM_25, 3)
+d$FHOM_75= round(d$FHOM_75, 3)
+
+d$KBAVG_m= round(d$KBAVG_m, 3)
+d$KBAVG_25= round(d$KBAVG_25, 3)
+d$KBAVG_75= round(d$KBAVG_75, 3)
+
+d$tmrca_m= round(d$tmrca_m, 1)
+d$tmrca_25= round(d$tmrca_25, 1)
+d$tmrca_75= round(d$tmrca_75, 1)
+
+d$FKB= with(d, paste0(FKB_m, ' (', FKB_25, ', ', FKB_75 , ')'))
+d$FHOM= with(d, paste0(FHOM_m, ' (', FHOM_25, ', ', FHOM_75 , ')'))
+d$NSEG= with(d, paste0(NSEG_m, ' (', NSEG_25, ', ', NSEG_75 , ')'))
+d$KBAVG= with(d, paste0(KBAVG_m, ' (', KBAVG_25, ', ', KBAVG_75 , ')'))
+d$tmrca= with(d, paste0(tmrca_m, ' (', tmrca_25, ', ', tmrca_75 , ')'))
+
+
+d= select(d, FKB, KBAVG, NSEG, FHOM)
+colnames(d)= c('FROH', 'Avg. seg. length', 'N seg.', 'FHOM')
+
+kable(d,align= rep('c', 5), row.names= T, caption = "S3D Table: Description of autozygosity measures in Norwegian fetuses in each sub-cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Avg, average; FHOM, excess homozygosity; FROH, fraction of genome covered by autozygous segments; seg, segment; TMRCA, time to most recent common ancestor.', 'Median (percentile 25, percentile 75) are shown for different autozygosity measures. Autozygosity was estimated using different parameters, according to the optimized parameteres, which are sub-cohort specific.'), threeparttable= T)
+```

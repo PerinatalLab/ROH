@@ -1,6 +1,10 @@
 library(data.table)
 library(dplyr)
 library(ggplot2)
+library(cowplot)
+library(Cairo)
+
+colors_3= c('#FFBD01', '#00B25D', '#9C02A7')
 
 SelectRelated= function(kin, sample_list){
  kin= kin %>% filter(KINSHIP>0.0884)
@@ -10,8 +14,8 @@ if (nrow(kin) > 0){
   kin_temp= kin
   colnames(kin_temp)= c("ID2", "ID1", "KINSHIP")
   kin_temp= rbind(kin_temp, kin)
-  kin_temp= kin_temp %>% add_count(ID1)
-  kin_temp= kin_temp %>% add_count(ID2)
+  kin_temp= kin_temp %>% add_count(ID1, name= 'n')
+  kin_temp= kin_temp %>% add_count(ID2, name= 'nn')
   kin_temp= arrange(kin_temp, n, nn)
   to_keep= list()
 
@@ -121,27 +125,26 @@ coh_list= c(coh_list, coh)
 
 lab= data.frame(R= r_list, cohort= coh_list)
 
+print(group_by(d, cohort) %>% summarize(n= sum(!is.na(cM) & !is.na(KB))))
 
+print(cor(d$cM, d$KB, use= 'complete'))
 
 x1= ggplot(d, aes(x= cM, y= KB)) +
-geom_point(size= 1, alpha= 0.5) +
-geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+geom_point(aes( colour= cohort, shape= cohort), size = 1.5) + 
+theme_cowplot(12, font_size= 12) +
+scale_colour_manual(name = "Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= rep(colors_3, 2)) +
+scale_shape_manual(name="Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= rep(15:16, 3)) +
+geom_smooth(method = "lm", se=FALSE, colour= "black", formula = y ~ x, size= 0.6, linetype = 'dashed') +
 facet_wrap(vars(cohort), ncol= 3) +
 geom_text(data=lab, aes(x= Inf, y= -Inf, label= paste0('R**2:  ', sprintf('%0.2f', round(R,2)))), hjust= 1, vjust= -1, parse= T) +
-theme_bw(base_family = "Source Sans Pro") +
-theme(text = element_text(size= 12),
-           legend.position= "none",
-           panel.border= element_blank(),
-           panel.grid.major= element_blank(),
-           panel.grid.minor= element_blank()) +
-xlab('Parental genetic relatedness, total cM') +
-    ylab('Offspring ROH length, cM') +
 theme(strip.text = element_blank(),
           strip.background = element_blank()) +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))
+xlab('Parental genetic relatedness, total cM') +
+    ylab('Offspring ROH length, cM')
 
-ggsave(snakemake@output[[1]], plot= x1, device= 'eps', dpi= 'retina', width= 12, height= 8, units= 'cm')
+save_plot(snakemake@output[[1]], plot= x1, base_width=297, base_height=210, units="mm")
+
+
 
 
 

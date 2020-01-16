@@ -2,25 +2,17 @@ library(tidyr)
 library(dplyr)
 library(data.table)
 library(ggplot2)
-library(circlize)
 library(viridis)
 library(gridExtra)
+library(cowplot)
 
 cohorts= c('harvestm12', 'harvestm24', 'rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay')
 
 df_list= list()
 
-
+colors_3= c('#FFBD01', '#00B25D', '#9C02A7')
+colors_g= c('#FEFBE9','#FCF7D5','#F5F3C1','#EAF0B5','#DDECBF','#D0E7CA','#C2E3D2','#B5DDD8','#A8D8DC','#9BD2E1','#8DCBE4','#81C4E7','#7BBCE7','#7EB2E4','#88A5DD','#9398D2','#9B8AC4','#9D7DB2','#9A709E','#906388','#805770','#684957','#46353A')
 input= unlist(snakemake@input)
-
-
-
-
-
-
-
-
-
 
 for (coh in cohorts){
 input_coh= input[grep(coh, input)]
@@ -95,32 +87,18 @@ matcor$cohort= factor(matcor$cohort, levels= cohorts)
 matcor$member= ifelse(grepl('mom', matcor$Var1), 'Mother', ifelse(grepl('dad', matcor$Var1), 'Father', 'Offspring'))
 
 s2= ggplot(matcor, aes(frisk, Var2, fill=value))+
-  geom_tile(color= "white", size=0.1) + 
+  geom_tile(color= "white", size=0.1) +
 facet_grid(cohort ~ member, labeller= labeller(cohort= as_labeller(c('harvestm12'='Cohort1', 'harvestm24'='Cohort2', 'rotterdam1'='Cohort3', 'rotterdam2'='Cohort4', 'normentfeb'='Cohort5', 'normentmay'='Cohort6')))) +
-scale_fill_viridis(name = "R coefficient", option ="D") +
+scale_fill_gradientn(name = "R coefficient", colours= colors_g) +
 scale_x_discrete(labels= level_order) +
 scale_y_discrete(labels= level_order) +
-theme_bw(base_size=9, base_family = "Source Sans Pro") +
- theme(panel.border = element_blank(),
- panel.grid.major = element_blank(),
- panel.grid.minor = element_blank()) +
- theme(legend.position = "bottom") +
-  theme(plot.title=element_text(size = 14)) +
-  theme(axis.text.y=element_text(size=9)) +
+theme_cowplot(12, font_size= 12) +
   theme(strip.background = element_rect(colour="white", fill="white")) +
-  theme(plot.title=element_text(hjust=0)) +
-  theme(axis.text=element_text(size=9)) +
-#  theme(axis.text.x= element_text(angle = 45, hjust = 1)) +
-  theme(legend.title=element_text(size=9)) +
-  theme(legend.text=element_text(size=9)) +
-  theme(legend.key.width = unit(1,"cm")) +
-  theme(strip.text= element_text(size = 9)) +
-  theme(axis.title.x=element_blank()) +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))+
+ theme(legend.key.width = unit(1,"cm")) +
   theme(panel.spacing.x = unit(0, "lines")) +
-theme(panel.spacing.x=unit(0.1, "lines"), panel.spacing.y=unit(0.1, "lines"))
-
+theme(panel.spacing.x=unit(0.1, "lines"), panel.spacing.y=unit(0.1, "lines")) +
+theme(axis.text.x= element_text(angle = 45, hjust = 1),
+	axis.title= element_blank())
 
 
 
@@ -132,7 +110,8 @@ KBAVG= d %>% gather(member, value, c('KBAVG_mom', 'KBAVG_dad', 'KBAVG_fet')) %>%
 NSEG= d %>% gather(member, value, c('NSEG_mom', 'NSEG_dad', 'NSEG_fet')) %>% select(member, value, id)
 
 FKB$value= FKB$value * 100
-KBAVG$value= KBAVG$value / (10**4 * 100)
+KBAVG$value= KBAVG$value / 10**6 *1000
+
 
 x= do.call('bind_rows', list(FKB, FHOM, KBAVG, NSEG))
 
@@ -143,30 +122,44 @@ x$member <- factor(x$member, levels = c('Mother', 'Offspring', 'Father'))
 
 x$frisk= factor(x$frisk, levels= c('Autozygosity', 'NSEG', 'ROH average', 'FHOM'))
 
-p= ggplot(x, aes(sample = value, colour = factor(member))) +
-  stat_qq(size= 1) +
-  stat_qq_line() +
+print(group_by(x, member) %>% summarize(s= sum(FKB>0, na.rm=T), m= mean(FKB>0, na.rm=T)))
+
+x$value= ifelse(x$value== 0, NA, x$value)
+
+p1= ggplot(filter(x, frisk== 'Autozygosity'), aes(x= member, y= value, colour = factor(member))) +
+geom_dotplot(binaxis='y', stackdir='center', dotsize= 0.2, binwidth= 0.1) +
+scale_colour_manual(name = "Family member", labels = c("Mother", "Offspring", "Father"), values= colors_3) +
+#facet_wrap(vars(frisk), nrow= 2, ncol= 2, scales= 'free', labeller= labeller(frisk= as_labeller(c('Autozygosity'= 'FROH', 'FHOM'='FHOM', 'NSEG'='NSEG', 'ROH average'='Average segment length')))) +
+theme_cowplot(12, font_size= 12) +
+ theme(strip.background = element_rect(colour="white", fill="white")) +
+xlab('') +
+  ylab('FROH')
+
+p2= ggplot(filter(x, frisk== 'NSEG'), aes(x= member, y= value, colour = factor(member))) +
+geom_dotplot(binaxis='y', stackdir='center', dotsize= 0.2, binwidth= 0.1) +
 scale_colour_viridis_d(name = "Family member", labels = c("Mother", "Offspring", "Father")) +
-facet_wrap(vars(frisk), nrow= 2, ncol= 2, scales= 'free', labeller= labeller(frisk= as_labeller(c('Autozygosity'= 'Autozygosity', 'FHOM'='FHOM', 'NSEG'='Number of segments', 'ROH average'='Average segment length')))) +
-theme_bw(base_size=9, base_family = "Source Sans Pro") +
- theme(panel.border = element_blank(), 
- panel.grid.major = element_blank(), 
- panel.grid.minor = element_blank()) +
- theme(legend.position = "bottom") +
-  theme(plot.title=element_text(size = 14)) +
-  theme(axis.text=element_blank()) +
-  theme(strip.background = element_rect(colour="white", fill="white")) +
-  theme(plot.title=element_text(hjust=0)) +
-  theme(axis.text=element_text(size=9)) +
-  xlab('Theoretical quantiles') +
-  ylab('Observed') +
-  theme(legend.title=element_text(size=9)) +
-  theme(legend.text=element_text(size=9)) +
-  theme(strip.text= element_text(size = 9)) +
-    theme(axis.line.x = element_line(color="black", size = 0.2),
-          axis.line.y = element_line(color="black", size = 0.2))
+theme_cowplot(12, font_size= 12) +
+ theme(strip.background = element_rect(colour="white", fill="white")) +
+xlab('') +
+  ylab('NSEG')
 
+p3= ggplot(filter(x, frisk== 'ROH average'), aes(x= member, y= value, colour = factor(member))) +
+geom_dotplot(binaxis='y', stackdir='center', dotsize= 0.2, binwidth= 0.8) +
+scale_colour_viridis_d(name = "Family member", labels = c("Mother", "Offspring", "Father")) +
+theme_cowplot(12, font_size= 12) +
+ theme(strip.background = element_rect(colour="white", fill="white")) +
+xlab('') +
+  ylab('Average ROH length')
 
-grid.arrange
-ggsave(snakemake@output[[1]], s2, dpi= 'retina')
-ggsave(snakemake@output[[2]], p, dpi= 'retina')
+p4= ggplot(filter(x, frisk== 'FHOM'), aes(x= member, y= value, colour = factor(member))) +
+geom_dotplot(binaxis='y', stackdir='center', dotsize= 0.2, binwidth= 0.01) +
+scale_colour_viridis_d(name = "Family member", labels = c("Mother", "Offspring", "Father")) +
+theme_cowplot(12, font_size= 12) +
+ theme(strip.background = element_rect(colour="white", fill="white")) +
+xlab('') +
+  ylab('FHOM')
+
+p= plot_grid(p1, p2, p3, p4, ncol= 2, nrow= 2)
+
+save_plot(snakemake@output[[1]], s2, base_width=297, base_height=210, units="mm")
+
