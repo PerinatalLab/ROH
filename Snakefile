@@ -83,7 +83,7 @@ rule all:
 		'/mnt/work/pol/ROH/tables/S5_Table.pdf'
 
 
-include: 'scripts/surv/Snakefile'
+include: 'scripts/survival/Snakefile'
 include: 'scripts/figures/Snakefile'
 include: 'scripts/metaanalysis/Snakefile'
 include: 'scripts/segments_snv_maps/Snakefile'
@@ -95,8 +95,6 @@ include: 'scripts/phasing/Snakefile'
 include: 'scripts/ROH_calling/Snakefile'
 include: 'scripts/replication/Snakefile'
 include: 'scripts/chrX/Snakefile'
-include: 'scripts/conditional/Snakefile'
-include: 'scripts/other/Snakefile'
 
 ## Snakemake code
 
