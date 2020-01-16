@@ -29,6 +29,7 @@ length_bp= [0.0000001]
 het_bp= [0, 1]
 GAP_bp= [5000]
 
+
 # Functions
 
 def isfloat(str):
@@ -46,26 +47,47 @@ rule all:
                 expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
                 expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',cohort= cohort_nms),
                 expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms),
-#		expand('reports/ROH_{cohort}_analysis.html', cohort= cohort_nms),
-		expand('/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt', sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/results/HC_{sample}_cox_spont', sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/replication/results/imputed_cox_spont_moms_{rep}', rep= rep_nms),
-		'/mnt/work/pol/ROH/results/imputed/replication/cox_moms.txt',
-                'figures/figure2.eps',
-                'figures/figure1.eps',
-                'figures/S1_figure.eps',
-                'figures/S2_figure.eps',
-		'tables/S1_table.txt',
-                'figures/figureX.eps',
-                'figures/zscore_mht_moms.eps',
-                'figures/zscore_mht_fets.eps'
+		expand('/mnt/work/pol/ROH/results/imputed/surv_imputed_{sample}.txt', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/results/HC_{sample}_surv_spont', sample= smpl_nms),
+		'/mnt/work/pol/ROH/results/imputed/replication/surv_moms.txt',
+		'/mnt/work/pol/ROH/reports/meta_beamer_ROH.pdf',
+		expand('/mnt/work/pol/ROH/results/ROH_freq_{sample}.txt', sample= smpl_nms),
+#		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/top_segments_maps_{sample}_chr{CHR}.txt.gz', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
+#		expand('/mnt/work/pol/ROH/{cohort}/genotypes/top/{sample}_gt{CHR}_HC', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
+#		expand('/mnt/work/pol/ROH/results/conditional/surv_conditional_{sample}.txt', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/annotation/genes_imputed_{sample}.txt', sample= smpl_nms),
+		expand('/mnt/work/pol/results/obgyn/obgyn_{sample}.txt', sample= smpl_nms),
+		'/mnt/work/pol/ROH/reports/Figures.pdf',
+		expand('/mnt/work/pol/ROH/annotation/GNOMAD/HC_{sample}_VEP.txt', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/annotation/GTEx/HC_{sample}_GTEx.txt', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/annotation/GTEx/HC_gene_eQTLs_{sample}.txt', sample= smpl_nms),
+		'/mnt/work/pol/ROH/figures/parent_offspring_assoc_optim.eps',
+		'/mnt/work/pol/ROH/figures/SNP_R2_optim.eps',
+		'/mnt/work/pol/ROH/figures/zscore_mht_moms.eps',
+		'/mnt/work/pol/ROH/figures/hazard_allcoh.eps',
+		'/mnt/work/pol/ROH/figures/ROH_frequency.eps',
+		'/mnt/work/pol/ROH/figures/tmrca.eps',
+		'/mnt/work/pol/ROH/tables/AFT_FROH.txt',
+		'/mnt/work/pol/ROH/tables/descr_cohorts.txt',
+		'/mnt/work/pol/ROH/tables/autoz_all.txt',
+		'/mnt/work/pol/ROH/tables/HC_indep_annotated.txt',
+		'/mnt/work/pol/ROH/tables/HC_annotated.txt',
+		'/mnt/work/pol/ROH/figures/S1_Figures.pdf',
+		'/mnt/work/pol/ROH/figures/S2_Figure.pdf',
+		'/mnt/work/pol/ROH/figures/S3_Figure.pdf',
+		'/mnt/work/pol/ROH/tables/S1_Table.pdf',
+		'/mnt/work/pol/ROH/tables/S3_Tables.pdf',
+		'/mnt/work/pol/ROH/tables/S4_Table.pdf',
+		'/mnt/work/pol/ROH/tables/S2_Table.pdf',
+		'/mnt/work/pol/ROH/tables/S5_Table.pdf'
 
 
-include: 'scripts/cox/Snakefile'
+include: 'scripts/surv/Snakefile'
 include: 'scripts/figures/Snakefile'
 include: 'scripts/metaanalysis/Snakefile'
 include: 'scripts/segments_snv_maps/Snakefile'
-include: 'scripts/enrichment/Snakefile'
+include: 'scripts/annotation/Snakefile'
 include: 'scripts/frequency/Snakefile'
 include: 'scripts/reports/Snakefile'
 include: 'scripts/imputed/Snakefile'
@@ -73,6 +95,8 @@ include: 'scripts/phasing/Snakefile'
 include: 'scripts/ROH_calling/Snakefile'
 include: 'scripts/replication/Snakefile'
 include: 'scripts/chrX/Snakefile'
+include: 'scripts/conditional/Snakefile'
+include: 'scripts/other/Snakefile'
 
 ## Snakemake code
 
