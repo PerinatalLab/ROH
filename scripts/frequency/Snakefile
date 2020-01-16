@@ -58,7 +58,7 @@ rule split_segments_frequency:
         output:
                 '/mnt/work/pol/ROH/{cohort}/results/ROH_frequency_{sample}.txt'
         script:
-                'overlap_split_segment.py'
+                '../cox/overlap_split_segment.py'
 
 
 rule extract_count:
