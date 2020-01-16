@@ -40,14 +40,11 @@ def isfloat(str):
 rule extract_HC:
 	'List of variants for extracting genotype.'
 	input:
-		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
-		'/mnt/work/pol/ROH/results/LC_{sample}_cox_spont'
+		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont'
 	output:
 		'/mnt/work/pol/ROH/results/misc/HC_toextract_{sample}'
 	run:
 		d= pd.read_csv(input[0], sep= '\t', header= 0)
-		df= pd.read_csv(input[1], sep= '\t', header= 0)
-		d= pd.concat([d,df])
 		if d.shape[0]== 0:
 			open(output[0], 'a').close()
 		if d.shape[0]> 0:
@@ -57,6 +54,7 @@ rule extract_HC:
 			d= d.applymap(np.int64)
 			d['chr']= d.chr.astype(str)
 			d['chr']= np.where(d.chr== '23', 'X', d.chr)
+			d.sort_values(['chr', 'pos1'], inplace= True)
 			d.to_csv(output[0], sep= '\t', index= False, header= False)
 
 rule extract_vcf_samples:
@@ -85,7 +83,7 @@ rule extract_samples:
                 '/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv',
                 '/mnt/work/pol/ROH/{cohort}/genotypes/vcf_ids'
         output:
-                temp('/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract')
+                '/mnt/work/pol/ROH/{cohort}/genotypes/{sample}_ids_toextract'
         run:
                 if 'harvest' in wildcards.cohort:
                         d= pd.read_csv(input[0], delim_whitespace= True, header= 0)
