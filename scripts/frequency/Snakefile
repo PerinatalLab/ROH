@@ -58,13 +58,13 @@ rule split_segments_frequency:
         output:
                 '/mnt/work/pol/ROH/{cohort}/results/ROH_frequency_{sample}.txt'
         script:
-                '../cox/overlap_split_segment.py'
+                '../surv/overlap_split_segment.py'
 
 
 rule extract_count:
         'Extract number of subjects per segment for each cohort.'
         input:
-                '/mnt/work/pol/ROH/{cohort}/results/cox_spont_{sample}',
+                '/mnt/work/pol/ROH/{cohort}/results/surv_spont_{sample}',
                 '/mnt/work/pol/ROH/{cohort}/results/ROH_frequency_{sample}.txt'
         output:
                 temp('/mnt/work/ROH/{cohort}/results/count_{sample}.txt')
