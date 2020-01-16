@@ -40,7 +40,7 @@ def isfloat(str):
 rule extract_HC:
 	'List of variants for extracting genotype.'
 	input:
-		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont'
+		'/mnt/work/pol/ROH/results/HC_{sample}_surv_spont'
 	output:
 		'/mnt/work/pol/ROH/results/misc/HC_toextract_{sample}'
 	run:
