@@ -54,12 +54,12 @@ rule high_conf_segments:
 	'Obtain a set of high confidence intervals with an FDR< 0.05 and <0.1.'
 	input:
 		'/mnt/work/pol/ROH/results/eff_num_{sample}.txt',
-		expand('/mnt/work/pol/ROH/{cohort}/results/cox_spont_{{sample}}', cohort= cohort_nms)
+		expand('/mnt/work/pol/ROH/{cohort}/results/surv_spont_{{sample}}', cohort= cohort_nms)
 	output:
-		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
-		'/mnt/work/pol/ROH/results/LC_{sample}_cox_spont',
-		'/mnt/work/pol/ROH/results/NC_{sample}_cox_spont',
-		'/mnt/work/pol/ROH/results/meta_{sample}_cox_spont'
+		'/mnt/work/pol/ROH/results/HC_{sample}_surv_spont',
+		'/mnt/work/pol/ROH/results/LC_{sample}_surv_spont',
+		'/mnt/work/pol/ROH/results/NC_{sample}_surv_spont',
+		'/mnt/work/pol/ROH/results/meta_{sample}_surv_spont'
 	run:
 		bon= pd.read_csv(input[0], sep= '\t', header= 0)
 		if wildcards.sample != 'maternal': bon= bon.loc[bon.chr != 23, :]
@@ -102,9 +102,9 @@ rule high_conf_segments:
 rule meta_analysis_imputed:
 	'Meta-analysis of imputed variants using inverse variance weighted meta-analysis.'
 	input:
-		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{{sample}}', cohort= cohort_nms)
+		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_surv_spont_{{sample}}', cohort= cohort_nms)
 	output:
-		'/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt'
+		'/mnt/work/pol/ROH/results/imputed/surv_imputed_{sample}.txt'
 	run:
 		i= 0
 		df_list= list()
@@ -132,9 +132,9 @@ rule meta_analysis_imputed:
 rule meta_analysis_replication:
 	'IVW of imputed variants.'
 	input:
-		expand('/mnt/work/pol/ROH/replication/results/imputed_cox_spont_moms_{rep}', rep= rep_nms)
+		expand('/mnt/work/pol/ROH/replication/results/imputed_surv_spont_moms_{rep}', rep= rep_nms)
 	output:
-		'/mnt/work/pol/ROH/results/imputed/replication/cox_moms.txt'
+		'/mnt/work/pol/ROH/results/imputed/replication/surv_moms.txt'
 	run:
 		i= 0
                 df_list= list()
