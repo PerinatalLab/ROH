@@ -1,0 +1,67 @@
+---
+title: "Autozygosity mapping and the timing of delivery in Norwegian family trios: Figures"
+output:
+    pdf_document:
+        dev: cairo_pdf
+        latex_engine: xelatex
+        fig_caption: yes
+header-includes:
+- \usepackage{titling}
+- \setlength{\droptitle}{10em}
+- \renewcommand{\caption}{Figure}
+---
+
+```{r dependencies, include=FALSE}
+library("ggplot2")
+library(cowplot)
+library("dplyr")
+library("survival")
+library("knitr")
+library("gridExtra")
+library("tidyr")
+library("kableExtra")
+library("data.table")
+options(warn=-1)
+opts_chunk$set(dpi=300)
+```
+
+\newpage
+
+
+```{r fig.align="center", fig.cap=" 1A: Minimum number of homozygous genetic variants included in a ROH segment and coefficient of determination between parental genetic relatedness and offspring ROH. The coefficient of determination was averaged accross all sub-cohorts for visualization purposes. Upper and bottom rows show the coefficient of determination when no or one heterozygous call was allowed, respectively. Left and right columns show the coefficient of determination when using physical and genetic distance, respectively.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[1]])
+
+```
+
+\newpage
+
+```{r fig.align="center", fig.cap=" 1B: Coefficient of determination between parental genetic relatedness and offspring ROH using physical vs genetic distance. The coefficient of determination was averaged accross all sub-cohorts for visualization purposes. A total of 144 ROH calls were performed in offsprings using different combinations of pruning, physical vs genetic distance, number of homozygous genetic variants and allowing one or no heterozygous calls within ROHs.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[2]])
+
+```
+
+\newpage
+
+```{r fig.align="center", fig.cap=" 2: Autozygosity in mothers, father and offspring.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[3]])
+
+```
+
+\newpage
+
+```{r fig.align="center", fig.cap=" 3: Associations between maternal autozygous segments and time to spontaneous delivery.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[4]])
+
+```
+
+\newpage
+
+```{r fig.align="center", fig.cap=" 4: Associations between fetal autozygous segments and time to spontaneous delivery.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[5]])
+
+```

@@ -145,10 +145,10 @@ freqf= unlist(input[grep('runs/frequency/ROH_frequency_fetal', input)])
 freqf= read.table(freqf, h=F, sep= '\t')
 names(freqf)= c('chr','pos','freqf')
 
-res_m= unlist(input[grep('results/maps_cox/maternal/', input)])
+res_m= unlist(input[grep('results/maps_lm/maternal/', input)])
 res_m= fread(res_m)
 
-res_f= unlist(input[grep('results/maps_cox/fetal/', input)])
+res_f= unlist(input[grep('results/maps_lm/fetal/', input)])
 res_f= fread(res_f)
 
 freq= inner_join(freqm, freqf, by= c('chr','pos'))
@@ -260,10 +260,10 @@ names(freqf)= c('chr','pos','freqf')
 
 freq= inner_join(freqm, freqf, by= c('chr','pos'))
 
-res_m= unlist(input[grep('/results/maps_cox/maternal/', input)])
+res_m= unlist(input[grep('/results/maps_lm/maternal/', input)])
 res_m= fread(res_m)
 
-res_f= unlist(input[grep('/results/maps_cox/fetal/', input)])
+res_f= unlist(input[grep('/results/maps_lm/fetal/', input)])
 res_f= fread(res_f)
 
 }
@@ -751,39 +751,39 @@ ggtitle("Mothers") +
 
 ```{r echo=F, dpi= 300}
 
-crudecoxm= coxph(Surv(SVLEN_UL_DG, spont)~ FKB, moms)
-crudecoxd= coxph(Surv(SVLEN_UL_DG, spont)~ FKB, dads)
-crudecoxf= coxph(Surv(SVLEN_UL_DG, spont)~ FKB, fets)
+crudelmm= lmph(Surv(SVLEN_UL_DG, spont)~ FKB, moms)
+crudelmd= lmph(Surv(SVLEN_UL_DG, spont)~ FKB, dads)
+crudelmf= lmph(Surv(SVLEN_UL_DG, spont)~ FKB, fets)
 
-minadjcoxm= coxph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
-minadjcoxd= coxph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
-minadjcoxf= coxph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
+minadjlmm= lmph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
+minadjlmd= lmph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
+minadjlmf= lmph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
 
-fullcoxm= coxph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
-fullcoxd= coxph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
-fullcoxf= coxph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
+fulllmm= lmph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
+fulllmd= lmph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
+fulllmf= lmph(Surv(SVLEN_UL_DG, spont)~ FKB + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
 
-x= summary(crudecoxm)$conf.int[1, c(1,3,4)]
-x1= summary(minadjcoxm)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxm)$conf.int[1, c(1,3,4)]
+x= summary(crudelmm)$conf.int[1, c(1,3,4)]
+x1= summary(minadjlmm)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmm)$conf.int[1, c(1,3,4)]
 
 d= do.call("rbind", list(x, x1, x2))
 d= data.frame(d)
 d$role= c('Mother', 'Mother', 'Mother')
 d$model= c('Crude', 'Model 1', 'Model 2')
 
-x= summary(crudecoxd)$conf.int[1, c(1,3,4)]
-x1= summary(minadjcoxd)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxd)$conf.int[1, c(1,3,4)]
+x= summary(crudelmd)$conf.int[1, c(1,3,4)]
+x1= summary(minadjlmd)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmd)$conf.int[1, c(1,3,4)]
 
 d1= do.call("rbind", list(x, x1, x2))
 d1= data.frame(d1)
 d1$role= c('Father', 'Father', 'Father')
 d1$model= c('Crude', 'Model 1', 'Model 2')
 
-x= summary(crudecoxf)$conf.int[1, c(1,3,4)]
-x1= summary(minadjcoxf)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxf)$conf.int[1, c(1,3,4)]
+x= summary(crudelmf)$conf.int[1, c(1,3,4)]
+x1= summary(minadjlmf)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmf)$conf.int[1, c(1,3,4)]
 
 d2= do.call("rbind", list(x, x1, x2))
 d2= data.frame(d2)
@@ -826,10 +826,10 @@ geom_hline(aes(yintercept= 1), colour= 'grey', linetype= 'dashed') +
 
 
 moms= moms %>% mutate(QKB= ifelse(FKB==0,0,1))
-coxm= survfit(Surv(SVLEN_UL_DG, spont)~ QKB, moms)
+lmm= survfit(Surv(SVLEN_UL_DG, spont)~ QKB, moms)
 
 p= ggsurvplot(
-  coxm,                     # survfit object with calculated statistics.
+  lmm,                     # survfit object with calculated statistics.
   data = moms,  # data used to fit survival curves. 
   risk.table = TRUE,
   palette =
@@ -868,13 +868,13 @@ p
 ---
 
 ```{r echo=F, eval=F, dpi= 300}
-fullcoxml= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
-fullcoxdl= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
-fullcoxfl= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
+fulllmml= lmph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
+fulllmdl= lmph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
+fulllmfl= lmph(Surv(SVLEN_UL_DG, spont)~ scale(KB_long) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
 
-x= summary(fullcoxml)$conf.int[1, c(1,3,4)]
-x1= summary(fullcoxdl)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxfl)$conf.int[1, c(1,3,4)]
+x= summary(fulllmml)$conf.int[1, c(1,3,4)]
+x1= summary(fulllmdl)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmfl)$conf.int[1, c(1,3,4)]
 
 d= do.call("rbind", list(x, x1, x2))
 d= data.frame(d)
@@ -882,13 +882,13 @@ d$role= c('Mother', 'Father', 'Child')
 d$bp= 'Long ROH'
 
 
-fullcoxms= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_short) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
-fullcoxds= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_short) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
-fullcoxfs= coxph(Surv(SVLEN_UL_DG, spont)~ scale(KB_short) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
+fulllmms= lmph(Surv(SVLEN_UL_DG, spont)~ scale(KB_short) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
+fulllmds= lmph(Surv(SVLEN_UL_DG, spont)~ scale(KB_short) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
+fulllmfs= lmph(Surv(SVLEN_UL_DG, spont)~ scale(KB_short) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
 
-x= summary(fullcoxms)$conf.int[1, c(1,3,4)]
-x1= summary(fullcoxds)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxfs)$conf.int[1, c(1,3,4)]
+x= summary(fulllmms)$conf.int[1, c(1,3,4)]
+x1= summary(fulllmds)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmfs)$conf.int[1, c(1,3,4)]
 
 ds= do.call("rbind", list(x, x1, x2))
 ds= data.frame(ds)
@@ -1438,39 +1438,39 @@ grid.arrange(x, x1, x2, x3, nrow= 2, top= 'Fathers')
 
 ```{r echo=F, dpi= 300}
 
-crudecoxm= coxph(Surv(SVLEN_UL_DG, spont)~ none_F, moms)
-crudecoxd= coxph(Surv(SVLEN_UL_DG, spont)~ none_F, dads)
-crudecoxf= coxph(Surv(SVLEN_UL_DG, spont)~ none_F, fets)
+crudelmm= lmph(Surv(SVLEN_UL_DG, spont)~ none_F, moms)
+crudelmd= lmph(Surv(SVLEN_UL_DG, spont)~ none_F, dads)
+crudelmf= lmph(Surv(SVLEN_UL_DG, spont)~ none_F, fets)
 
-minadjcoxm= coxph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
-minadjcoxd= coxph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
-minadjcoxf= coxph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
+minadjlmm= lmph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, moms)
+minadjlmd= lmph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, dads)
+minadjlmf= lmph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0, fets)
 
-fullcoxm= coxph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
-fullcoxd= coxph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
-fullcoxf= coxph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
+fulllmm= lmph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
+fulllmd= lmph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
+fulllmf= lmph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
 
-x= summary(crudecoxm)$conf.int[1, c(1,3,4)]
-x1= summary(minadjcoxm)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxm)$conf.int[1, c(1,3,4)]
+x= summary(crudelmm)$conf.int[1, c(1,3,4)]
+x1= summary(minadjlmm)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmm)$conf.int[1, c(1,3,4)]
 
 d= do.call("rbind", list(x, x1, x2))
 d= data.frame(d)
 d$role= c('Mother', 'Mother', 'Mother')
 d$model= c('Crude', 'Model 1', 'Model 2')
 
-x= summary(crudecoxd)$conf.int[1, c(1,3,4)]
-x1= summary(minadjcoxd)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxd)$conf.int[1, c(1,3,4)]
+x= summary(crudelmd)$conf.int[1, c(1,3,4)]
+x1= summary(minadjlmd)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmd)$conf.int[1, c(1,3,4)]
 
 d1= do.call("rbind", list(x, x1, x2))
 d1= data.frame(d1)
 d1$role= c('Father', 'Father', 'Father')
 d1$model= c('Crude', 'Model 1', 'Model 2')
 
-x= summary(crudecoxf)$conf.int[1, c(1,3,4)]
-x1= summary(minadjcoxf)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxf)$conf.int[1, c(1,3,4)]
+x= summary(crudelmf)$conf.int[1, c(1,3,4)]
+x1= summary(minadjlmf)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmf)$conf.int[1, c(1,3,4)]
 
 d2= do.call("rbind", list(x, x1, x2))
 d2= data.frame(d2)
@@ -1484,15 +1484,15 @@ d= d %>% select(role, model, exp.coef., lower..95, upper..95)
 kable(d, caption= 'Fhom (no pruning) and risk of spontaneous delivery', col.names = c('Role', 'Model', 'Hazard Ratio', 'Lower 95%CI', 'Upper 95%CI'), digits= 3) %>% kable_styling(bootstrap_options = c("striped", "hover"), full_width = F, position = "center", font_size = 12) %>%   column_spec(1, bold = T, border_right = T)  %>%   footnote(general = 'Adjusted by: crude: none; model 1: PC1-10 and parity; model 2: model 1 + maternal educational attainment and household income.')
 
 
-fullcoxm= coxph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
-fullcoxm1= coxph(Surv(SVLEN_UL_DG, spont)~ soft_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
-fullcoxm2= coxph(Surv(SVLEN_UL_DG, spont)~ moderate_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
-fullcoxm3= coxph(Surv(SVLEN_UL_DG, spont)~ hard_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
+fulllmm= lmph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
+fulllmm1= lmph(Surv(SVLEN_UL_DG, spont)~ soft_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
+fulllmm2= lmph(Surv(SVLEN_UL_DG, spont)~ moderate_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
+fulllmm3= lmph(Surv(SVLEN_UL_DG, spont)~ hard_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, moms_c)
 
-x= summary(fullcoxm)$conf.int[1, c(1,3,4)]
-x1= summary(fullcoxm1)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxm2)$conf.int[1, c(1,3,4)]
-x3= summary(fullcoxm3)$conf.int[1, c(1,3,4)]
+x= summary(fulllmm)$conf.int[1, c(1,3,4)]
+x1= summary(fulllmm1)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmm2)$conf.int[1, c(1,3,4)]
+x3= summary(fulllmm3)$conf.int[1, c(1,3,4)]
 
 d= do.call("rbind", list(x, x1, x2, x3))
 d= data.frame(d)
@@ -1515,15 +1515,15 @@ geom_hline(aes(yintercept= 1), colour= 'grey', linetype= 'dashed') +
     theme(axis.line.x = element_line(color="black", size = 0.2),
           axis.line.y = element_line(color="black", size = 0.2))
 
-fullcoxd= coxph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
-fullcoxd1= coxph(Surv(SVLEN_UL_DG, spont)~ soft_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
-fullcoxd2= coxph(Surv(SVLEN_UL_DG, spont)~ moderate_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
-fullcoxd3= coxph(Surv(SVLEN_UL_DG, spont)~ hard_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
+fulllmd= lmph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
+fulllmd1= lmph(Surv(SVLEN_UL_DG, spont)~ soft_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
+fulllmd2= lmph(Surv(SVLEN_UL_DG, spont)~ moderate_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
+fulllmd3= lmph(Surv(SVLEN_UL_DG, spont)~ hard_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, dads_c)
 
-x= summary(fullcoxd)$conf.int[1, c(1,3,4)]
-x1= summary(fullcoxd1)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxd2)$conf.int[1, c(1,3,4)]
-x3= summary(fullcoxd3)$conf.int[1, c(1,3,4)]
+x= summary(fulllmd)$conf.int[1, c(1,3,4)]
+x1= summary(fulllmd1)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmd2)$conf.int[1, c(1,3,4)]
+x3= summary(fulllmd3)$conf.int[1, c(1,3,4)]
 
 d= do.call("rbind", list(x, x1, x2, x3))
 d= data.frame(d)
@@ -1546,15 +1546,15 @@ geom_hline(aes(yintercept= 1), colour= 'grey', linetype= 'dashed') +
     theme(axis.line.x = element_line(color="black", size = 0.2),
           axis.line.y = element_line(color="black", size = 0.2))
 
-fullcoxf= coxph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
-fullcoxf1= coxph(Surv(SVLEN_UL_DG, spont)~ soft_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
-fullcoxf2= coxph(Surv(SVLEN_UL_DG, spont)~ moderate_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
-fullcoxf3= coxph(Surv(SVLEN_UL_DG, spont)~ hard_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
+fulllmf= lmph(Surv(SVLEN_UL_DG, spont)~ none_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
+fulllmf1= lmph(Surv(SVLEN_UL_DG, spont)~ soft_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
+fulllmf2= lmph(Surv(SVLEN_UL_DG, spont)~ moderate_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
+fulllmf3= lmph(Surv(SVLEN_UL_DG, spont)~ hard_F + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + PC7 + PC8 + PC9 + PC10 + PARITY0 + edu, fets_c)
 
-x= summary(fullcoxf)$conf.int[1, c(1,3,4)]
-x1= summary(fullcoxf1)$conf.int[1, c(1,3,4)]
-x2= summary(fullcoxf2)$conf.int[1, c(1,3,4)]
-x3= summary(fullcoxf3)$conf.int[1, c(1,3,4)]
+x= summary(fulllmf)$conf.int[1, c(1,3,4)]
+x1= summary(fulllmf1)$conf.int[1, c(1,3,4)]
+x2= summary(fulllmf2)$conf.int[1, c(1,3,4)]
+x3= summary(fulllmf3)$conf.int[1, c(1,3,4)]
 
 d= do.call("rbind", list(x, x1, x2, x3))
 d= data.frame(d)

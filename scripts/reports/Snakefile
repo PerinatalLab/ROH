@@ -52,11 +52,11 @@ rule preliminary_report:
                 expand('/mnt/work/pol/ROH/{{cohort}}/results/het/{sample}_excess_hom.txt', sample= smpl_nms),
                 '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
                 '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
-                expand('/mnt/work/pol/ROH/results/{conf}_{sample}_cox_spont', sample= smpl_nms, conf= ['HC', 'LC', 'NC']),
-                expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_cox_spont_{sample}', cohort= cohort_nms, sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/results/{conf}_{sample}_lm_spont', sample= smpl_nms, conf= ['HC', 'LC', 'NC']),
+                expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_lm_spont_{sample}', cohort= cohort_nms, sample= smpl_nms),
 #               expand('/mnt/work/pol/ROH/results/enrichment/OMIM_{model}_{sample}.txt', sample= smpl_nms, model= ['recessive', 'dominant']),
 #               expand('/mnt/work/pol/ROH/results/enrichment/GNOMAD_{sample}_{consequence}.txt', consequence= ['mod', 'high'], sample= smpl_nms),
-                expand('/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt', sample= smpl_nms),
+                expand('/mnt/work/pol/ROH/results/imputed/lm_imputed_{sample}.txt', sample= smpl_nms),
 #               'figures/figure1.eps',
                 expand('/mnt/work/pol/ROH/{cohort}/results/ROH_frequency_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
                 expand('/mnt/work/pol/ROH/results/ROH_freq_{sample}.txt', sample= smpl_nms)
@@ -90,3 +90,68 @@ rule html_meta_report:
         script:
                 'scripts/reports/html_meta_ROH.Rmd'
 
+rule beamer_meta_report:
+	''
+	input:
+		'/mnt/cargo/pol/Carlos_segundo80.png',
+		'/mnt/cargo/pol/ROH_parental_genetic.pdf',
+		'/mnt/work/pol/ROH/tables/table_descr_cohorts.txt',
+		'/mnt/work/pol/ROH/tables/pvalues_descr_cohorts.txt',
+		'/mnt/work/pol/ROH/figures/hazard_multi_cohort.eps',
+		'/mnt/work/pol/ROH/figures/figure1A.eps',
+		'/mnt/work/pol/ROH/figures/figure1B.eps',
+		'/mnt/work/pol/ROH/figures/S2_figure.eps',
+		'/mnt/work/pol/ROH/tables/S1_table.txt',
+		'/mnt/work/pol/ROH/figures/S3_figure.eps',
+		'/mnt/work/pol/ROH/figures/figure2.eps',
+		'/mnt/work/pol/ROH/figures/ROH_frequency.eps',
+		'/mnt/work/pol/ROH/figures/zscore_mht_moms.eps',
+		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_maternal.txt',
+		'/mnt/work/pol/ROH/results/ROH_freq_maternal.txt',
+		'/mnt/work/pol/ROH/figures/zscore_mht_fets.eps',
+		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_fetal.txt',
+		'/mnt/work/pol/ROH/results/ROH_freq_fetal.txt',
+		'/mnt/cargo/pol/F1.large.jpg',
+		'/mnt/cargo/pol/ROH_parental_genetic1.pdf',
+		'/mnt/cargo/pol/ROH_parental_genetic2.pdf',
+		'/mnt/work/pol/ROH/annotation/genes_imputed_maternal.txt',
+		'/mnt/work/pol/ROH/annotation/genes_imputed_fetal.txt'
+	output:
+		'/mnt/work/pol/ROH/reports/meta_beamer_ROH.pdf'
+	script:
+		'meta_beamer.Rmd'
+
+
+rule figures_pdf:
+        ''
+        input:
+                '/mnt/work/pol/ROH/figures/figure1A.eps',
+                '/mnt/work/pol/ROH/figures/figure1B.eps',
+                '/mnt/work/pol/ROH/figures/figure2.eps',
+                '/mnt/work/pol/ROH/figures/zscore_mht_moms.eps',
+                '/mnt/work/pol/ROH/figures/zscore_mht_fets.eps'
+        output:
+                '/mnt/work/pol/ROH/reports/Figures.pdf'
+        script:
+                'figures_and_tables.Rmd'
+
+rule supplementary_material_pdf:
+        ''
+        input:
+                '/mnt/work/pol/ROH/tables/table_descr_cohorts.txt',
+                '/mnt/work/pol/ROH/tables/pvalues_descr_cohorts.txt',
+                '/mnt/work/pol/ROH/figures/hazard_multi_cohort.eps',
+                '/mnt/work/pol/ROH/figures/S2_figure.eps',
+                '/mnt/work/pol/ROH/tables/S1_table.txt',
+                '/mnt/work/pol/ROH/figures/S3_figure.eps',
+                '/mnt/work/pol/ROH/figures/ROH_frequency.eps',
+                '/mnt/work/pol/ROH/annotation/independent_OMIM_HC_maternal.txt',
+                '/mnt/work/pol/ROH/results/ROH_freq_maternal.txt',
+                '/mnt/work/pol/ROH/annotation/independent_OMIM_HC_fetal.txt',
+                '/mnt/work/pol/ROH/results/ROH_freq_fetal.txt',
+                '/mnt/work/pol/ROH/annotation/genes_imputed_maternal.txt',
+                '/mnt/work/pol/ROH/annotation/genes_imputed_fetal.txt'
+	output:
+		''
+	script:
+		''

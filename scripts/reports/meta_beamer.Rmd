@@ -1,0 +1,415 @@
+---
+title: "**Autozygosity mapping and the timing of delivery in Norwegian family trios.**"
+author:
+        - "Pol Sole-Navais"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+institute: Göteborgs Universitet
+output:
+    beamer_presentation:
+        theme: "default"
+        colortheme: "dove"
+        slide_level: 2
+        dev: cairo_pdf
+        latex_engine: xelatex
+        fonttheme: "structuresmallcapsserif"
+#mainfont: Open Sans
+header-includes:
+- \usepackage{fontspec}
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+
+---
+
+
+```{r dependencies, include=FALSE}
+library("ggplot2")
+library(cowplot)
+library("dplyr")
+library("survival")
+library("knitr")
+library("gridExtra")
+library("tidyr")
+library("kableExtra")
+library("data.table")
+options(warn=-1)
+opts_chunk$set(dpi=300)
+```
+
+# Autozygosity definition
+
+---
+
+Homozygous alleles co-inherited from a common ancestor.
+
+
+---
+
+```{r echo=FALSE, out.width='100%'}
+
+include_graphics(snakemake@input[[1]])
+
+```
+
+---
+
+”Did not contain a single drop of blood; his heart was the size of a peppercorn; his lungs corroded; his intestines rotten and gangrenous; he had a single testicle, black as coal, and his head was full of water.”  
+
+## Why?
+
+- Long segments enriched in low frequency and rare deleterious homozygous variants.  
+- Detrimental consequences on the survival and fertility of offspring.  
+- Observable in a wide range of organisms, including plants and animals.  
+
+
+## Autozygosity mapping  
+
+Provides insights into recessive effects in particular regions of the genome.  
+
+```{r echo=FALSE}
+include_graphics(snakemake@input[[19]])
+
+```
+
+## Estimating autozygosity
+
+
+- Pedigrees (inaccurate)  
+- Runs of homozygosity (parameters: size of ROH, min. number of SNPs, heterozygous allowed?)  
+  
+## Genetic relatedness and offspring autozygosity  
+
+```{r echo=FALSE, out.width='100%'}
+include_graphics(snakemake@input[[20]])
+```
+
+## Genetic relatedness and offspring autozygosity  
+
+```{r echo=FALSE, out.width='100%'}
+include_graphics(snakemake@input[[21]])
+```
+
+## Genetic relatedness and offspring autozygosity  
+
+```{r echo=FALSE, out.width='100%'}
+include_graphics(snakemake@input[[2]])
+```
+
+
+# Aims  
+
+
+---
+
+1. To use family-trio data to systematically call ROH in each family member,
+2. to describe ROH patterns in family-trios,
+3. to estimate the effect of maternal, paternal and fetal autozygosity and
+3. specific ROH segments on spontaneous delivery risk.
+
+# Methods  
+
+## Genotype  
+
+- All data included in MoBaGenetics (~25000 trios)  
+
+- Genotyping: different Illumina micro-array chips in each of the 6 different sub-cohorts.  
+
+- Samples with major ethnicity other than CEU or cryptic relatedness to other samples were excluded.  
+
+- QC similar for all sub-cohorts, only autosomal SNPs with MAF>0.05 considered.  
+
+## ROH calling  
+
+```{r echo=F}
+include_graphics(snakemake@input[[2]])
+```
+
+## ROH calling: steps
+
+1. Estimate paternal genetic relatedness (Germline)  
+2. Call ROH in the offspring (PLINK) using 144 different combinations of:  
+  - Number of SNPs,  
+  - Heterozygous allowed or not,  
+  - Using physical vs genetic distance,  
+  - Different prunning (none, 0.1, 0.5, 0.9)  
+
+3. Obtain parameters that maximize correlation between parental genetic relatedness and offspring ROH.  
+4. Call ROH in all family members, wiht optimized parameters.  
+
+---
+
+We excluded pregnancies with:  
+
+- a duration <154 or ≥308 days,  
+
+- missing gestational duration (estimated by ultrasound),   
+
+- conceived by in-vitro fertilization, 
+
+- or affected by any of the following: abruptio placentae, placenta previa, polyhydramnios, oligohydramnios, suspected amniotic fluid infection (by colour and odor) or congenital malformations.  
+
+
+---
+
+**Exposures**  
+- FROH (Total ROH length / total mappable distance),  
+- Number of ROHs,  
+- FHOM (excess homozygostiy)  
+
+
+**Autozygosity mapping**  
+- ROHs into a matrix of binary calls (0 or 1) for each segment  
+- False Discovery Rate 1% (High Confidence segments)  
+
+
+**Imputed variants under recessive model**  
+- Analysis of all imputed variants within High Confidence segments using a recessive model (INFO score >0.7)  
+
+## Analysis  
+
+
+- Accelerated failure time (AFT) models on time-to-spontaneous delivery.  
+
+- Why use survival analysis?  
+    - Gestational age is a time-to-event variable, and accomodates right censoring  
+
+- Why AFT and not Cox proportional hazards?  
+    - Time-varying effects are highly likely, breaking core assumption of Cox models  
+    - Straightforward interpretation: expand (positive) or contract (negative) survival time at any point (units are % per unit increase)
+
+\begin{center}
+$S_F(t)= S_R(\frac{t}{\lambda })$
+\end{center}
+
+# Results  
+
+## Description of cohorts  
+
+```{r echo= F}
+
+d= fread(snakemake@input[[3]], h=T)
+d$spont= with(d, paste0(spont_n, ' (', spont_frac, ')'))
+d$ga= with(d, paste0(ga_mean, ' (', ga_sd, ')'))
+d$parity= with(d, paste0(parity_n, ' (', parity_frac, ')'))
+d$bw= with(d, paste0(bw_mean, ' (', bw_sd, ')'))
+d$age= with(d, paste0(age_mean, ' (', age_sd, ')'))
+d$inc1= with(d, paste0(inc1_n, ' (', inc1_frac, ')'))
+d$inc2= with(d, paste0(inc2_n, ' (', inc2_frac, ')'))
+d$inc3= with(d, paste0(inc3_n, ' (', inc3_frac, ')'))
+d$edu1= with(d, paste0(edu1_n, ' (', edu1_frac, ')'))
+d$edu2= with(d, paste0(edu2_n, ' (', edu2_frac, ')'))
+d$edu3= with(d, paste0(edu3_n, ' (', edu3_frac, ')'))
+
+pval= fread(snakemake@input[[4]], h=T)
+
+
+d= select(d, cohort, total_n, spont, ga, parity, bw, age, inc1, inc2, inc3, edu1, edu2, edu3)
+df= as.data.frame(t(d[,-1]))
+colnames(df)= d$cohort
+
+pval= formatC(pval$pvalue, format = "e", digits = 2)
+
+df= cbind(df, c('', pval[1], pval[2], pval[3], pval[4], pval[5], '', pval[6], '', '', pval[7], ''))
+
+colnames(df)= c('harvestm12',	'harvestm24',	'rotterdam1',	'rotterdam2',	'normentfeb',	'normentmay', 'pvalue')
+
+rownames(df)= row.names = c('Total n', 'Spontaneous delivery, n', 'GA at delivery, days', 'Parity, n', 'Birth weight, g', 'Maternal age, years',  'Neither parents >300.000 kr', 'One parent >300.000 kr', 'Both parents > 300.000 kr', 'Edu ≤12 years', 'Edu 13 to 16 years', 'Edu ≥17 years')
+
+kable(df, row.names= T) %>% kable_styling(latex_options= c('striped', 'scale_down'), stripe_index= c(4:6, 8, 11)) %>% column_spec(1, bold = T, color = "black", background = "white")
+```
+
+## Spontaneous delivery hazard function
+  
+```{r echo= F}
+include_graphics(snakemake@input[[5]])
+```
+
+## ROH parameters optimization  
+
+```{r echo= F}
+
+include_graphics(snakemake@input[[6]], 200)
+```
+
+## Physical vs genetic distance  
+
+```{r echo= F}
+
+include_graphics(snakemake@input[[7]], dpi= 200)
+```
+
+## Parental genetic relatedness and offspring ROH  
+
+```{r echo= F, fig.width=14, fig.height=12}
+
+include_graphics(snakemake@input[[8]])
+```
+
+## FROH and spontaneous delivery risk  
+
+```{r echo= F}
+d= fread(snakemake@input[[9]])
+d$sample= ifelse(d$sample== 'Fetal', 'Offsprings', d$sample)
+d= filter(d, model== 'adjusted')
+d$cohort= factor(d$cohort, levels= c('Summary effect', 'normentmay', 'normentfeb', 'rotterdam2', 'rotterdam1', 'harvestm24', 'harvestm12'))
+d$sample= factor(d$sample, levels= c('Mothers', 'Fathers', 'Offsprings'))
+
+
+ggplot(filter(d, measure== 'FROH'), aes(x=cohort, y=exp(beta), ymin=lowerci, ymax=upperci, color= cohort))+
+ geom_pointrange(shape= 18, size= 1)+
+ geom_hline(yintercept = 1, linetype=2) +
+scale_color_viridis_d(option= 'D') +
+facet_grid(cols= vars(sample)) +
+ coord_flip() +
+theme_cowplot(12) +
+theme(legend.position="none",
+        strip.background = element_blank()) +
+    ylab('Estimate [95% CI]') +
+geom_vline(xintercept= 1.5, linetype="dotted", colour= 'grey') + 
+ggtitle('FROH')
+```
+
+## Number of ROH segments and spontaneous delivery risk  
+
+
+```{r echo= F}
+ggplot(filter(d, measure== 'NSEG'), aes(x=cohort, y=exp(beta), ymin=lowerci, ymax=upperci, color= cohort))+
+ geom_pointrange(shape= 18, size= 1)+
+ geom_hline(yintercept = 1, linetype=2) +
+scale_color_viridis_d(option= 'D') +
+facet_grid(cols= vars(sample)) +
+ coord_flip() +
+theme_cowplot(12) +
+theme(legend.position="none",
+        strip.background = element_blank()) +
+    ylab('Estimate [95% CI]') +
+geom_vline(xintercept= 1.5, linetype="dotted", colour= 'grey') + 
+ggtitle('NSEG')
+```
+
+## FHOM and spontaneous delivery risk  
+
+```{r echo= F}
+ggplot(filter(d, measure== 'FHOM'), aes(x=cohort, y=exp(beta), ymin=lowerci, ymax=upperci, color= cohort))+
+ geom_pointrange(shape= 18, size= 1)+
+ geom_hline(yintercept = 1, linetype=2) +
+scale_color_viridis_d(option= 'D') +
+facet_grid(cols= vars(sample)) +
+ coord_flip() +
+theme_cowplot(12) +
+theme(legend.position="none",
+        strip.background = element_blank()) +
+    ylab('Estimate [95% CI]') +
+geom_vline(xintercept= 1.5, linetype="dotted", colour= 'grey') + 
+ggtitle('FHOM')
+```
+
+## Autozygosity in family trios  
+
+
+```{r echo= F, fig.width=14, fig.height=12}
+include_graphics(snakemake@input[[11]])
+```
+
+
+## ROH frequency  
+
+```{r echo= F}
+include_graphics(snakemake@input[[12]])
+```
+
+## Autozygosity mapping (mothers)
+
+```{r echo= F, fig.fullwidth = TRUE}
+include_graphics(snakemake@input[[13]], dpi= 200)
+```
+
+
+## Top segments
+
+```{r echo= F}
+d= fread(snakemake@input[[14]])
+d$segment= gsub('.0', '', d$segment, fixed=T)
+
+x= fread(snakemake@input[[15]])
+x$segment= paste(x$chr, x$cM1, x$cM2, sep= ':')
+d= inner_join(d, x, by= 'segment')
+
+d$beta_meta= exp(d$beta_meta)
+
+d$pvalue_meta= formatC(d$pvalue_meta, format = "e", digits = 2)
+d=d[,c('segment', 'n_meta', 'freq', 'beta_meta', 'sd_meta', 'pvalue_meta', 'gene', 'Mim')]
+
+kable(d, col.names = c('chr:cM1:cM2', 'Sample size', 'Frequency', 'Estimate', 'Sd', 'Pvalue', 'Gene', 'OMIM')) %>% kable_styling(latex_options= 'scale_down')  %>% column_spec(7, bold = T, color = "black", background = "white")
+```
+
+## Imputed variants within HC (recessive model)
+
+```{r echo= F}
+
+d= fread(snakemake@input[[22]])
+d$pvalue_meta= formatC(d$pvalue_meta, format = "e", digits = 2)
+d$beta_meta= exp(d$beta_meta)
+d$variant= paste(d$chr, d$pos, d$ref, d$eff, sep= ':')
+d$variant= gsub('.0', '', d$variant, fixed=T)
+d=d[,c('variant', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta', 'gene', 'Mim')]
+kable(d, col.names = c('chr:pos:ref:eff', 'Sample size', 'Estimate', 'Sd', 'Pvalue', 'Gene', 'OMIM')) %>% kable_styling(latex_options= 'scale_down')  %>% column_spec(7, bold = T, color = "black", background = "white")
+
+
+```
+
+
+## Autozygosity mapping (offspring)
+
+```{r echo= F}
+
+include_graphics(snakemake@input[[16]], dpi= 200)
+```
+
+
+## Top segments
+
+```{r echo= F}
+
+d= fread(snakemake@input[[17]])
+d$segment= gsub('.0', '', d$segment, fixed=T)
+
+x= fread(snakemake@input[[18]])
+
+x$segment= paste(x$chr, x$cM1, x$cM2, sep= ':')
+
+d= inner_join(d, x, by= 'segment')
+
+d$beta_meta= exp(d$beta_meta)
+
+d$pvalue_meta= formatC(d$pvalue_meta, format = "e", digits = 2)
+d=d[,c('segment', 'n_meta', 'freq', 'beta_meta', 'sd_meta', 'pvalue_meta', 'gene', 'Mim')]
+
+kable(d, col.names = c('chr:cM1:cM2', 'Sample size', 'Frequency', 'Estimate', 'Sd', 'Pvalue', 'Gene', 'OMIM')) %>% kable_styling(latex_options= 'scale_down')  %>% column_spec(6, bold = T, color = "black", background = "white")
+
+```
+
+## Imputed variants within HC (recessive model)
+
+
+```{r echo= F}
+
+d= fread(snakemake@input[[23]])
+d$pvalue_meta= formatC(d$pvalue_meta, format = "e", digits = 2)
+d$beta_meta= exp(d$beta_meta)
+d$variant= paste(d$chr, d$pos, d$ref, d$eff, sep= ':')
+d$variant= gsub('.0', '', d$variant, fixed=T)
+d=d[,c('variant', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta', 'gene', 'Mim')]
+kable(d, col.names = c('chr:pos:ref:eff', 'Sample size', 'Estimate', 'Sd', 'Pvalue', 'Gene', 'OMIM')) %>% kable_styling(latex_options= 'scale_down')  %>% column_spec(7, bold = T, color = "black", background = "white")
+
+```
+
+# Autozygosity was not associated with delivery timing, but it's mapping provided loci for further follow-up.  
+
