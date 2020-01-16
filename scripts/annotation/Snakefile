@@ -1,0 +1,381 @@
+import csv
+import pandas as pd
+import sys
+import numpy as np
+import os
+import gzip
+from functools import reduce
+import scipy.stats as st
+import statsmodels.stats.multitest as multi
+
+cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
+smpl_nms= ['maternal','paternal', 'fetal']
+batch_nms= ['m12', 'm24']
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+
+# Other arguments:
+
+pruning_nms= ['none', 'soft', 'moderate', 'hard']
+
+dens_nms= [5]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_nms= [0.0000001]
+het_nms= [0, 1]
+GAP_nms= [5]
+
+dens_bp= [5000]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+length_bp= [0.0000001]
+het_bp= [0, 1]
+GAP_bp= [5000]
+
+GTEx_tissue_nms= ['Adipose_Subcutaneous', 'Adipose_Visceral_Omentum', 'Adrenal_Gland', 'Artery_Aorta', 'Artery_Coronary', 'Artery_Tibial', 'Brain_Amygdala', 'Brain_Anterior_cingulate_cortex_BA24', 'Brain_Caudate_basal_ganglia', 'Brain_Cerebellar_Hemisphere', 'Brain_Cerebellum', 'Brain_Cortex', 'Brain_Frontal_Cortex_BA9', 'Brain_Hippocampus', 'Brain_Hypothalamus', 'Brain_Nucleus_accumbens_basal_ganglia', 'Brain_Putamen_basal_ganglia', 'Brain_Spinal_cord_cervical_c-1', 'Brain_Substantia_nigra', 'Breast_Mammary_Tissue', 'Cells_Cultured_fibroblasts', 'Cells_EBV-transformed_lymphocytes', 'Colon_Sigmoid', 'Colon_Transverse', 'Esophagus_Gastroesophageal_Junction', 'Esophagus_Mucosa', 'Esophagus_Muscularis', 'Heart_Atrial_Appendage', 'Heart_Left_Ventricle', 'Kidney_Cortex', 'Liver', 'Lung', 'Minor_Salivary_Gland', 'Muscle_Skeletal', 'Nerve_Tibial', 'Ovary', 'Pancreas', 'Pituitary', 'Prostate', 'Skin_Not_Sun_Exposed_Suprapubic', 'Skin_Sun_Exposed_Lower_leg', 'Small_Intestine_Terminal_Ileum', 'Spleen', 'Stomach', 'Testis', 'Thyroid', 'Uterus', 'Vagina', 'Whole_Blood']
+
+# Functions
+
+def isfloat(str):
+    try:
+        float(str)
+        return True
+    except ValueError:
+        return False
+
+def getOverlap(start0, end0, start1, end1):
+	return (np.maximum(0, np.minimum(end0, end1) - np.maximum(start0, start1))) / (np.array(end0) - np.array(start0) )
+
+def absOverlap(start0, end0, start1, end1):
+	return (np.maximum(0, np.minimum(end0, end1) - np.maximum(start0, start1)))
+
+def row_filter(row):
+	gene= row['RSID'].split(',')[1]
+	chr= row['RSID'].split(',')[0].split('_')[0].replace('chr', '').replace('X', '23')
+	pos= row['RSID'].split(',')[0].split('_')[1]
+	beta= row['BETA_FE']
+	with open(outfile, 'a') as f:
+		f.write("%s\t%s\t%s\t%s\t%s\n" % (chr, int(pos) - 1, pos, gene, beta))
+
+
+rule format_gene_map:
+	'Format gene map from UCSC.'
+	input:
+		'/mnt/work/pol/refdata/UCSC_gene_tx.txt',
+		'/mnt/work/pol/refdata/Pseudogenes_UCSC.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_transcription.txt'
+	run:
+		d= pd.read_csv(input[0], sep= '\t', header= 0)
+		x= pd.read_csv(input[1], sep= '\t', header= 0)
+		d= d.loc[~d.geneSymbol.isin(x.name2), :]
+		d['chrom']= d.chrom.replace(' ', '', regex= True)
+		d['chrom']= d.chrom.replace('chr', '', regex= True)
+		d['chrom']= d.chrom.replace('X', '23', regex= True)
+		d['chrom']= pd.to_numeric(d.chrom, errors= 'coerce')
+		d= d.loc[~d.EntrezID.isnull(), :]
+		d= d.loc[d.cdsStart != d.cdsEnd,:]
+		d.dropna(subset= ['chrom'], inplace= True)
+		x= d.groupby(['chrom', 'geneSymbol', 'EntrezID'])['txStart'].min().reset_index()
+		x1= d.groupby(['chrom', 'geneSymbol', 'EntrezID'])['txEnd'].max().reset_index()
+		df= pd.merge(x, x1, on= ['chrom', 'geneSymbol', 'EntrezID'])
+		df.columns= ['chr', 'gene', 'EntrezID', 'start', 'end']
+		df.to_csv(output[0], sep= '\t', header= True, index= False)
+		
+rule map_genes_segments:
+	'Map genes to segments.'
+	input:
+		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont',
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_transcription.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/genes_HC_{sample}.txt'
+	run:
+		df= pd.read_csv(input[0], header= 0, sep= '\t')
+		if df.shape[0] == 0:
+                        open(output[0], 'a').close()
+		else:
+			df[['chr', 'cM1', 'cM2']]= df.segment.str.split(':', expand= True)
+			df[['chr', 'cM1', 'cM2']]= df[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
+			gene= pd.read_csv(input[1], sep= '\t', header= 0)
+			gene['chr']= pd.to_numeric(gene.chr, errors= 'coerce')
+			gene.dropna(subset= ['chr'], axis= 0, inplace= True)
+			df_HC= df.drop_duplicates('segment')
+			x= df_HC.merge(gene, on= 'chr')
+			x['overlap']= getOverlap(x.pos1, x.pos2, x.start, x.end)
+			x= x.loc[x.overlap>0, ['segment', 'gene', 'EntrezID', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta']]
+			df_HC= df_HC.loc[~df_HC.segment.isin(x.segment), :]
+			df_HC= df_HC.merge(gene, on= 'chr')
+			df_HC['overlap']= getOverlap(df_HC.pos1, df_HC.pos2, df_HC.start, df_HC.end)
+			df_HC['bp_diff']= np.where((df_HC.pos1 - df_HC.end) > 0, df_HC.pos1 - df_HC.end, df_HC.start - df_HC.pos2)
+			df_HC['min_bp']= df_HC['bp_diff'].groupby(df_HC['segment']).transform('min')
+			df_HC= df_HC.sort_values('min_bp').groupby('segment').head(1)
+			df_HC= df_HC[['segment', 'gene', 'EntrezID', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta']]
+			x= pd.concat([df_HC, x])
+			x.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule HC_to_OMIM:
+	'Only using recessive diseases.'
+	input:
+		'/mnt/work/pol/ROH/annotation/genes_HC_{sample}.txt',
+		'/mnt/work/pol/refdata/OMIM/hg19/genemap2_hg19.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/OMIM_HC_{sample}.txt'
+	run:
+		if os.stat(input[0]).st_size == 0:
+                        open(output[0], 'a').close()
+		else:
+			d= pd.read_csv(input[0], sep= '\t', header= 0)
+			df= pd.read_csv(input[1], sep= '\t', header= 0)
+			df['chr']= pd.to_numeric(df.chr.str.replace('chr', ''), errors= 'coerce')
+			df.dropna(subset= ['chr'], inplace= True)
+			df= df[['cyto', 'Mim', 'GeneSymbol', 'EntrezID', 'Phenotype', 'Comments']]
+			df.dropna(subset= ['Phenotype'], inplace= True)
+			rec= df[df.Phenotype.str.contains('recessive', na= False)]
+			d= pd.merge(d, rec, on= 'EntrezID', how= 'left')
+			d.to_csv(output[0], header= True, index= False, sep= '\t')
+
+rule select_independent_HC:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/OMIM_HC_{sample}.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt'
+	run:
+		if os.stat(input[0]).st_size == 0:
+                        open(output[0], 'a').close()
+		else:
+                        df= pd.read_csv(input[0], sep= '\t', header= 0)
+			df[['chr', 'cM1', 'cM2']]= df.segment.str.split(':', expand= True)
+                        df[['chr', 'cM1', 'cM2']]= df[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
+			df['cMm']= ((df['cM1'] + df['cM2']) / 2 ) / (100 * 10**4)
+			df.sort_values(by= ['chr', 'cMm'], inplace= True)
+			df['cMdif']= df.cMm - df.groupby('chr')['cMm'].shift(1)
+			df['cMdif']= (df['cMdif']>0.5)*1
+			df['clump']= df.groupby('chr')['cMdif'].cumsum()
+			df.sort_values(by= ['pvalue_meta'], inplace= True)
+			df= df.groupby(['chr', 'clump']).head(1)
+			df= df[['segment', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta', 'gene', 'EntrezID', 'cyto', 'Mim']]
+			df.to_csv(output[0], sep= '\t', index= False, header= True)
+
+rule annotate_imputed:
+	'Map imputed variants to genes.'
+	input:
+		'/mnt/work/pol/ROH/results/imputed/cox_imputed_{sample}.txt',
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_transcription.txt',
+		'/mnt/work/pol/refdata/OMIM/hg19/genemap2_hg19.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/genes_imputed_{sample}.txt'
+	run:
+		d= pd.read_csv(input[0], sep= '\t', header= 0)
+		if d.shape[0] == 0:
+                        open(output[0], 'a').close()
+		else:
+                        d[['chr', 'pos', 'ref', 'eff']]= d.variant.str.split(':', expand= True)
+                        d[['chr', 'pos']]= d[['chr', 'pos']].apply(lambda x: x.astype('float'))
+                        gene= pd.read_csv(input[1], sep= '\t', header= 0)
+			gene['chr']= pd.to_numeric(gene.chr, errors= 'coerce')
+			gene.dropna(subset= ['chr'], axis= 0, inplace= True)
+			d.dropna(subset= ['pvalue_meta'], axis= 0, inplace= True)
+			d.sort_values(by= ['pvalue_meta'], inplace= True)
+			d= d.loc[d.pvalue_meta< 5*10**-8, :]
+			x= pd.merge(d, gene, on= 'chr', how= 'left')
+			x1= x.loc[(x.pos>= x.start) & (x.pos<= x.end), :]
+			x= x.loc[~x.variant.isin(x1.variant), :]
+			x['bp_diff']= np.where(abs(x.pos - x.start) < abs(x.pos - x.end), abs(x.start - x.pos), abs(x.end - x.pos))
+			x['min_bp']= x['bp_diff'].groupby(x['variant']).transform('min')
+                        x= x.sort_values('min_bp').groupby('variant').head(1)
+			x= x[['chr', 'pos', 'ref', 'eff', 'gene', 'EntrezID']]
+			x1= x1[['chr', 'pos', 'ref', 'eff', 'gene', 'EntrezID']]
+			x= pd.concat([x, x1])
+			omim= pd.read_csv(input[2], sep= '\t', header= 0)
+                        omim['chr']= pd.to_numeric(omim.chr.str.replace('chr', ''), errors= 'coerce')
+                        omim.dropna(subset= ['chr'], inplace= True)
+                        omim= omim[['cyto', 'Mim', 'GeneSymbol', 'EntrezID', 'Phenotype', 'Comments']]
+                        omim.dropna(subset= ['Phenotype'], inplace= True)
+                        rec= omim[omim.Phenotype.str.contains('recessive', na= False)]
+			x= pd.merge(x, rec, on= 'EntrezID', how= 'left')
+			d= pd.merge(d, x, on= ['chr', 'pos', 'ref', 'eff'], how= 'left')
+			d= d[['chr', 'pos', 'ref', 'eff', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta', 'gene', 'EntrezID', 'Mim']]
+			d.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule download_GNOMAD:
+	'Download GNOMAD genomes.'
+	output:
+		temp('/mnt/work/pol/ROH/annotation/GNOMAD/geno/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.gz'),
+		temp('/mnt/work/pol/ROH/annotation/GNOMAD/geno/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.gz.tbi')
+	params:
+		'https://storage.googleapis.com/gnomad-public/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.bgz',
+		'https://storage.googleapis.com/gnomad-public/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.bgz.tbi'
+	shell:
+		'''
+		wget -O {output[0]} {params[0]}
+		wget -O {output[1]} {params[1]}
+		'''
+
+rule extract_GNOMAD:
+        'Use tabix to filter GNOMAD'
+        input:
+                '/mnt/work/pol/ROH/annotation/GNOMAD/geno/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.gz',
+		'/mnt/work/pol/ROH/results/misc/HC_toextract_{sample}',
+                '/mnt/work/pol/ROH/annotation/GNOMAD/geno/gnomad.genomes.r2.1.1.sites.{CHR}.vcf.gz.tbi'
+        output:
+		'/mnt/work/pol/ROH/annotation/GNOMAD/geno/filtered_{CHR}_HC_{sample}'
+	run:
+                if wildcards.sample== 'paternal': open(output[0], 'a').close()
+		if wildcards.sample!= 'paternal': shell("tabix -R {input[1]} {input[0]} > {output[0]}")
+
+
+rule count_missense:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/GNOMAD/geno/filtered_{CHR}_HC_{sample}',
+		'/mnt/work/pol/ROH/results/HC_{sample}_cox_spont'
+	output:
+		temp('/mnt/work/pol/ROH/annotation/GNOMAD/chr{CHR}_HC_{sample}.txt')
+	run:
+		d= pd.read_csv(input[0], sep= '\t', header= None, names= ['chr', 'pos', 'X1', 'X2', 'X3', 'X4', 'X5', 'VEP'])
+		if d.shape[0]== 0:
+                        open(output[0], 'a').close()
+		if d.shape[0]> 0:
+			d= d[['chr', 'pos', 'VEP']]
+			df= pd.read_csv(input[1], sep= '\t', header= 0)
+			df[['chr', 'cM1', 'cM2']]= df.segment.str.split(':', expand= True)
+			df['chr']= df['chr'].astype('float')
+			d= pd.merge(df, d, on= ['chr'])
+			d= d.loc[(d.pos1<= d.pos) & (d.pos2>= d.pos), :]
+			d_counts= d.groupby('segment').size().reset_index(name='counts')
+			high= ['stop_lost', 'stop_gained', 'start_lost', 'frameshift', 'splice_donor', 'splice_acceptor', 'transcript_ablation', 'transcript_amplification' ]
+			moderate= ['inframe_deletion', 'inframe_insertion', 'missense_variant', 'protein_altering_variant', 'regulatory_region_ablation']
+			d_m= d[d.VEP.str.contains('|'.join(moderate))]
+			d_h= d[d.VEP.str.contains('|'.join(high))]
+			dm_counts= d_m.groupby('segment').size().reset_index(name='moderate')
+			dh_counts= d_h.groupby('segment').size().reset_index(name='high')
+			x= pd.merge(d_counts, dm_counts, on= 'segment', how= 'outer')
+			x= pd.merge(x, dh_counts, on= 'segment', how= 'outer')
+			x.fillna(0, inplace= True)
+			x.to_csv(output[0], sep= '\t', header= False, index= False)
+
+rule concat_VEP:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/annotation/GNOMAD/chr{CHR}_HC_{{sample}}.txt', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/annotation/GNOMAD/HC_{sample}_VEP.txt'
+	shell:
+		'cat {input} > {output[0]}'
+
+rule download_GTEx:
+	''
+	output:
+		'/mnt/work/pol/ROH/annotation/GTEx/GTEx_gene_median_tpm.gz'
+	params:
+		'https://storage.googleapis.com/gtex_analysis_v8/rna_seq_data/GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_median_tpm.gct.gz'
+	shell:
+		'wget -O {output[0]} {params[0]}'
+
+rule GTEx_HC:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/GTEx/GTEx_gene_median_tpm.gz',
+		'/mnt/work/pol/ROH/annotation/genes_HC_{sample}.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/GTEx/HC_{sample}_GTEx.txt'
+	run:
+		d= pd.read_csv(input[0], header= 0, sep= '\t', compression= 'gzip', skiprows= 2)
+		cols= [col.replace(' - ', '_').replace(' ', '_').replace('(', '').replace(')', '').replace('-', '_') for col in d.columns]
+		d.columns= cols
+		if os.stat(input[1]).st_size == 0:
+			open(output[0], 'a').close()
+		if os.stat(input[1]).st_size> 0:
+			df= pd.read_csv(input[1], sep= '\t', header= 0)
+			d= d.loc[d.Description.isin(df.gene), :]
+			d= pd.melt(d, id_vars= 'Description', value_vars= cols[2:])
+			d= d.sort_values('value', ascending= False).groupby('Description').head(3)
+			d= d.groupby('Description')['variable'].apply(', '.join).reset_index()
+			d['variable']= d.variable.str.replace('_', ' ')
+			df= pd.merge(df, d, left_on= 'gene', right_on= 'Description')
+			df= df[['segment', 'gene', 'EntrezID', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta', 'variable']]
+			df.columns= ['segment', 'gene', 'EntrezID', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta', 'GTEx_tissues']
+			df.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule dl_GTEx_eQTL_meta:
+	''
+	output:
+		temp('/mnt/work/pol/ROH/annotation/GTEx/GTEx_Analysis_v8.metasoft.txt.gz')
+	params:
+		'https://storage.googleapis.com/gtex_analysis_v8/multi_tissue_eqtl_data/GTEx_Analysis_v8.metasoft.txt.gz'
+	shell:
+		'wget -O {output[0]} {params[0]}'
+
+rule format_GTEx_eQTL:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/GTEx/GTEx_Analysis_v8.metasoft.txt.gz'
+	output:
+		temp('/mnt/work/pol/ROH/annotation/GTEx/meta_GTEx_eQTLs_v8.txt')
+	shell:
+		'gzip -cd {input[0]} | cut -f1-5 > {output[0]}'
+
+rule filter_GTEx_eQTL:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/GTEx/meta_GTEx_eQTLs_v8.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/GTEx/all_GTEx_eQTLs_v8.bed'
+	run:
+		def row_filter(row):
+			gene= row['RSID'].split(',')[1]
+		        chr= row['RSID'].split(',')[0].split('_')[0].replace('chr', '').replace('X', '23')
+		        pos= row['RSID'].split(',')[0].split('_')[1]
+		        beta= row['BETA_FE']
+		        with open(outfile, 'a') as f:
+		                f.write("%s\t%s\t%s\t%s\t%s\n" % (chr, int(pos) - 1, pos, gene, beta))
+		outfile= output[0]
+		with open(input[0], 'rt') as f:
+			for row in csv.DictReader(f, delimiter='\t'):
+				row_filter(row)
+
+rule HC_to_bed:
+        'List of variants for extracting genotype.'
+        input:
+                '/mnt/work/pol/ROH/results/HC_{sample}_cox_spont'
+        output:
+                '/mnt/work/pol/ROH/results/misc/HC_{sample}.bed'
+        run:
+                d= pd.read_csv(input[0], sep= '\t', header= 0)
+                if d.shape[0]== 0:
+                        open(output[0], 'a').close()
+                if d.shape[0]> 0:
+                        d[['chr', 'cM1', 'cM2']]= d['segment'].str.split(':',expand=True)
+			d['chr']= np.where(d.chr== '23', 'X', d.chr)
+                        d= d[['chr', 'pos1', 'pos2', 'segment']]
+                        d[['chr', 'pos1', 'pos2']]= d[['chr', 'pos1', 'pos2']].apply(pd.to_numeric, errors= 'coerce')
+			d['chr']= d.chr.astype(int)
+			d['pos1']= d.pos1.astype(int)
+			d['pos2']= d.pos2.astype(int)
+			d['pos1']= d.pos1 - 1
+                        d.sort_values(['chr', 'pos1'], inplace= True)
+                        d.to_csv(output[0], sep= '\t', index= False, header= False)
+
+rule intersect_bed_HC_eQTLs:
+	''
+	input:
+		'/mnt/work/pol/ROH/results/misc/HC_{sample}.bed',
+		'/mnt/work/pol/ROH/annotation/GTEx/all_GTEx_eQTLs_v8.bed'
+	output:
+		'/mnt/work/pol/ROH/annotation/GTEx/eQTLs_HC_intersect_{sample}_metaGTEx.txt'
+	shell:
+		'bedtools intersect -wa -wb -a {input[0]} -b {input[1]} > {output[0]}'
+
+rule count_eQTLs_segment_gene:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/GTEx/eQTLs_HC_intersect_{sample}_metaGTEx.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/GTEx/HC_gene_eQTLs_{sample}.txt'
+	run:
+		if os.stat(input[0]).st_size == 0:
+			open(output[0], 'a').close()
+		if os.stat(input[0]).st_size> 0:
+			d= pd.read_csv(input[0], header= None, names= ['chr', 'pos1', 'pos2', 'segment', 'chr2', 'pos12', 'pos22', 'gene', 'beta'], sep= '\t')
+			d= d[['segment', 'gene', 'beta']]
+			df= d.groupby(['segment', 'gene'])['beta'].count().reset_index(name= 'eqtls')
+			df.to_csv(output[0], header= True, index= False, sep= '\t')
+
