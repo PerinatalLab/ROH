@@ -43,8 +43,51 @@ rule mapping_ROH_segments:
                 '/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
                 expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.fam', pruning= pruning_nms)
         output:
-                temp('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz')
+                '/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz'
         script:
                 'segment_map_ROH.py'
 
 
+rule UCSC_replace_bp_cm:
+	'Change UCSC physical position to genetic position.'
+	input:
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_transcription.txt',
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/genetic_map_chrX_nonPAR_combined_b37.txt'
+	output:
+		temp('/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt')
+	run:
+		d= pd.read_csv(input[0], sep= '\t', header= 0)
+		d['gene']= d.chr.map(str) + ':' + d.gene + ':' + d.EntrezID.map(str)
+		d= d[[ 'chr', 'gene', 'start', 'end']]
+		g= pd.read_csv(input[1], sep= ' ', header= 0)
+		g= g[['chr', 'Genetic_Map(cM)', 'position']]
+		g.columns= ['chr', 'Genetic_Map(cM)', 'pos']
+		x= pd.read_csv(input[2], sep= ' ', header= 0)
+		x['chr']= 23
+		x= x[['chr', 'position', 'Genetic_Map(cM)']]
+		x.columns= ['chr', 'pos', 'Genetic_Map(cM)']
+		g= pd.concat([g, x])
+		newdf= pd.DataFrame()
+		for CHR in set(d.chr):
+			df_temp= d.loc[d.chr== CHR, :]
+			g_temp= g.loc[g.chr== CHR, :]
+			df_temp['pos1']= np.interp(df_temp['start'], g_temp['pos'], g_temp['Genetic_Map(cM)'])
+			df_temp['pos2']= np.interp(df_temp['end'], g_temp['pos'], g_temp['Genetic_Map(cM)'])
+			newdf= newdf.append(df_temp)
+		newdf['pos1']= (newdf.pos1*10**4).round() * 100
+		newdf['pos2']= (newdf.pos2*10**4).round() * 100
+		newdf= newdf[['chr', 'gene', 'pos1', 'pos2']]
+		newdf.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule map_ROH_genes:
+	'Map ROH segments to genes.'
+	input:
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt',
+		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom',
+		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.fam', pruning= pruning_nms)
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_genemap.txt')
+	script:
+		'gene_maps_ROH.py'
