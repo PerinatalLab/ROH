@@ -38,6 +38,8 @@ def pheno_harvest():
 	d= d[(d.ABRUPTIOP==0)]
 	d= d[(d.PLACENTA_PREVIA==0) ]
 	d= d[(d.FOSTERV_POLYHYDRAMNION==0)]
+	d= d[(d.FOSTERV_OLIGOHYDRAMNION== 0)]
+	d= d[(d.FOSTERV_MISF_STINK_INFI== 0)]
 	d= d[(d.C00_MALF_ALL==0)]
 	d['BATCH']= np.where(d.SentrixID_1.isin(fam.IID), 0, 1)
 	d= d.sample(frac=1)
@@ -75,6 +77,8 @@ def pheno_rotterdam():
 	d= d[(d.ABRUPTIOP=='Nei')]
 	d= d[(d.PLACENTA_PREVIA=='Nei') ]
 	d= d[(d.FOSTERV_POLYHYDRAMNION=='Nei')]
+	d= d[(d.FOSTERV_OLIGOHYDRAMNION== 'Nei')]
+	d= d[(d.FOSTERV_MISF_STINK_INFI== 'Nei')]
 	d= d[(d.C00_MALF_ALL=='Nei')]
 	flag= pd.read_csv(snakemake.input[8], sep= '\t', header= 0)
 	flag= flag[(flag['genotypesOK']== True) & (flag['phenoOK']== True) & (flag['coreLMM']== True)]
