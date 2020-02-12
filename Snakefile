@@ -3,8 +3,6 @@ import numpy as np
 import os
 import gzip
 from functools import reduce
-import scipy.stats as st
-import statsmodels.stats.multitest as multi
 
 cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
 smpl_nms= ['maternal','paternal', 'fetal']
@@ -50,18 +48,12 @@ rule all:
 		expand('/mnt/work/pol/ROH/results/imputed/surv_imputed_{sample}.txt', sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/results/HC_{sample}_surv_spont', sample= smpl_nms),
 		'/mnt/work/pol/ROH/results/imputed/replication/surv_moms.txt',
-		'/mnt/work/pol/ROH/reports/meta_beamer_ROH.pdf',
+#		'/mnt/work/pol/ROH/reports/meta_beamer_ROH.pdf',
 		expand('/mnt/work/pol/ROH/results/ROH_freq_{sample}.txt', sample= smpl_nms),
-#		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/top_segments_maps_{sample}_chr{CHR}.txt.gz', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
-#		expand('/mnt/work/pol/ROH/{cohort}/genotypes/top/{sample}_gt{CHR}_HC', cohort= cohort_nms, sample= smpl_nms, CHR= CHR_nms),
-#		expand('/mnt/work/pol/ROH/results/conditional/surv_conditional_{sample}.txt', sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt', sample= smpl_nms),
 		expand('/mnt/work/pol/ROH/annotation/genes_imputed_{sample}.txt', sample= smpl_nms),
-		expand('/mnt/work/pol/results/obgyn/obgyn_{sample}.txt', sample= smpl_nms),
 		'/mnt/work/pol/ROH/reports/Figures.pdf',
-		expand('/mnt/work/pol/ROH/annotation/GNOMAD/HC_{sample}_VEP.txt', sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/annotation/GTEx/HC_{sample}_GTEx.txt', sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/annotation/GTEx/HC_gene_eQTLs_{sample}.txt', sample= smpl_nms),
+#		expand('/mnt/work/pol/ROH/annotation/GNOMAD/HC_{sample}_VEP.txt', sample= smpl_nms),
 		'/mnt/work/pol/ROH/figures/parent_offspring_assoc_optim.eps',
 		'/mnt/work/pol/ROH/figures/SNP_R2_optim.eps',
 		'/mnt/work/pol/ROH/figures/zscore_mht_moms.eps',
@@ -152,6 +144,7 @@ rule phenofile:
 		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
 		'/mnt/work/pol/{cohort}/pheno/flag_list.txt',
 		'/mnt/work/pol/{cohort}/pca/all_pca_outliers_hapmap.txt',
+		'/mnt/work/pol/ROH/{cohort}/runs/sUPD_{cohort}_{sample}.txt',
 		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.bim', pruning= pruning_nms)
         output:
                 '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
