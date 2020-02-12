@@ -3,8 +3,6 @@ import numpy as np
 import os
 import gzip
 from functools import reduce
-import scipy.stats as st
-import statsmodels.stats.multitest as multi
 
 cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
 smpl_nms= ['maternal','paternal', 'fetal']
@@ -220,11 +218,56 @@ rule mapping_ROH_segments_chrX:
 	input:
 		'/mnt/work/pol/ROH/{cohort}/runs/chrX_{cohort}.hom',
 		'/mnt/work/pol/ROH/{cohort}/runs/chrX_input_ROH_geno.txt',
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/{pruning}/pruned{{cohort}}.fam', pruning= pruning_nms)
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/{pruning}/pruned{{cohort}}.fam', pruning= pruning_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/runs/chrX_{cohort}.hom', cohort= cohort_nms)
 	output:
 		temp('/mnt/work/pol/ROH/{cohort}/genotypes/chrX/maps/segments_maps_chrX.txt.gz')
 	script:
 		'segment_map_ROH.py'
+
+rule exclude_subjects_chrX:
+        ''
+        input:
+                '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_maternal.txt',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/maps/segments_maps_chrX.txt.gz'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/genotypes/chrX/maps/filtered_map_{sample}_chrX.txt')
+        run:
+                d= pd.read_csv(input[0], sep ='\t', header= 0)
+                df= pd.read_csv(input[1], sep ='\t', header= 0, compression= 'gzip')
+                cols= ['segment', 'CHR'] + d.IID.values.tolist()
+                df= df[[cols]]
+                df.to_csv(output[0], sep= '\t', header= True, index= False)
+
+
+rule all_segments_chrX:
+        ''
+        input:
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/chrX/maps/filtered_map_maternal_chrX.txt', cohort= cohort_nms)
+        output:
+                temp('/mnt/work/pol/ROH/runs/segments/chrX_all_ROH_frequency_maternal.txt')
+        run:
+                df_list= list()
+                for i in input:
+                        x= pd.read_csv(i, sep ='\t', header= 0)
+                        df_list.append(x)
+                d= reduce(lambda x, y: pd.merge(x, y, on = ['CHR', 'segment']), df_list)
+                d.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule ROH_frequency_chrX:
+	'Calculate ROH frequency.'
+	input:
+		'/mnt/work/pol/ROH/runs/segments/chrX_all_ROH_frequency_maternal.txt'
+	output:
+		'/mnt/work/pol/ROH/ROH_frequency_maternal_chrX.txt'
+	run:
+		for i in input:
+			for chunk in pd.read_csv(i, sep ='\t', header= 0, chunksize= 500, iterator= True):
+				chunk.fillna(0, inplace= True)
+				x= chunk.iloc[:,2:].mean(axis= 1)
+				x= pd.concat([chunk.iloc[:,0:2], x], axis= 1, ignore_index= True, sort= False)
+				x.to_csv(output[0], mode= 'a', sep= '\t', header= False, index= False)
+
 
 rule aft_analysis_chrX:
         'Cox proportional hazard analyis on bined ROH calls.'
@@ -249,7 +292,7 @@ rule split_segments_chrX:
 rule aft_cM_to_bp_chrX:
         'Convert cM to bp in surv results.'
         input:
-                '/mnt/work/pol/ROH/{cohort}/results/chrX/maps_surv/maternal/chrX_surv_spont_maternal_segmented',
+                '/mnt/work/pol/ROH/{cohort}/results/chrX/maps_surv/maternal/chrX_surv_spont_temp',
                 expand('/mnt/work/pol/ROH/{cohort}/runs/chrX_input_ROH_geno.txt', cohort= cohort_nms),
                 expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/{pruning}/pruned{{cohort}}.bim', cohort= cohort_nms, pruning= pruning_nms)
         output:
@@ -296,7 +339,6 @@ rule extract_GT_chrX:
                 if 'normentmay' in wildcards.cohort: vcf= input[7]
                 if os.stat(input[0]).st_size > 0: shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {vcf} -o {output[0]}")
                 if os.stat(input[0]).st_size == 0: open(output[0], 'a').close()
-
 
 rule surv_imputed_chrX:
 	'Cox regression for imputed variants within HC segments.'
@@ -371,33 +413,12 @@ rule surv_imputed_rep_chrX:
 rule pheno_chrX:
 	''
 	input:
-		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_maternal.hom',
-		'/mnt/work/pol/ROH/{cohort}/runs/chrX_{cohort}.hom',
-		'/mnt/work/pol/ROH/{cohort}/runs/maternal_input_ROH_geno.txt',
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.bim', pruning= pruning_nms)
+		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_maternal.txt',
+		'/mnt/work/pol/ROH/{cohort}/runs/chrX_{cohort}.hom.indiv',
+		'/mnt/work/pol/ROH/{cohort}/runs/chrX_input_ROH_geno.txt',
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/{pruning}/pruned{{cohort}}', pruning= pruning_nms)
 	output:
 		'/mnt/work/pol/ROH/{cohort}/pheno/chrX_runs_mfr_maternal.txt'
 	script:
 		'scripts/pheno_chrX.py'
 
-rule gene_mapping_ROH_segments_chrX:
-	'Obtain matrix (rows= segment, columns = subject), with all minimum segmental ROHs per subject (1= homozygous part of ROH).'
-	input:
-		'/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt',
-		'/mnt/work/pol/ROH/{cohort}/runs/chrX_{cohort}.hom',
-		'/mnt/work/pol/ROH/{cohort}/runs/chrX_input_ROH_geno.txt',
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/{pruning}/pruned{{cohort}}.fam', pruning= pruning_nms)
-	output:
-		temp('/mnt/work/pol/ROH/{cohort}/genotypes/chrX/maps/gene/gene_maps_chrX.txt')
-	script:
-		'gene_maps_ROH.py'
-
-rule gene_aft_analysis_chrX:
-        'AFT survival analyis on bined ROH calls.'
-        input:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/chrX/maps/gene/gene_maps_chrX.txt',
-                '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_maternal.txt'
-        output:
-                temp('/mnt/work/pol/ROH/{cohort}/results/chrX/maps_surv/maternal/gene_chrX_spont_temp')
-        script:
-                '../surv/aft_genes.R'
