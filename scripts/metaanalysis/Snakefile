@@ -156,36 +156,3 @@ rule meta_analysis_replication:
                 df['n_meta']= df[n_cols].sum(axis=1)
                 df.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['variant', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
 
-rule meta_obgyn:
-	''
-	input:
-		expand('/mnt/work/pol/ROH/{cohort}/results/obgyn/obgyn_{{sample}}.txt', cohort= cohort_nms)
-	output:
-		'/mnt/work/pol/results/obgyn/obgyn_{sample}.txt'
-	run:
-		i= 0
-                df_list= list()
-                for infile in input:
-                        d= pd.read_csv(infile, sep= '\t', header= None, names= ['Birth_pos', 'forceps', 'prom', 'vacuum','episiotomi', 'assisted', 'segment'])
-                        d.rename(columns={'Birth_pos': 'Birth_pos_'+str(i), 'forceps': 'forceps_'+ str(i), 'prom': 'prom_' + str(i), 'vacuum': 'vacuum_' + str(i), 'episiotomi': 'episiotomi_' + str(i), 'assisted': 'assisted_' + str(i)}, inplace=True)
-                        i+= 1
-                        df_list.append(d)
-		df= reduce(lambda x, y: pd.merge(x, y, on = 'segment', how= 'outer'), df_list)
-		if df.shape[0] == 0:
-			open(output[0], 'a').close()
-		else:
-			pos_cols= [col for col in df.columns if 'Birth_' in col]
-			forc_cols= [col for col in df.columns if 'forceps_' in col]
-			prom_cols= [col for col in df.columns if 'prom_' in col]
-			vac_cols= [col for col in df.columns if 'vacuum_' in col]
-			epi_cols= [col for col in df.columns if 'episiotomi_' in col]
-			ass_cols= [col for col in df.columns if 'assisted_' in col]
-			df['meta_Birth_pos']= [x[1] for x in df[pos_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
-		        df['meta_forceps']= [x[1] for x in df[forc_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
-			df['meta_prom']= [x[1] for x in df[prom_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
-	                df['meta_vacuum']= [x[1] for x in df[vac_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
-		        df['meta_episiotomi']= [x[1] for x in df[epi_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
-			df['meta_assisted']= [x[1] for x in df[ass_cols].apply(lambda x: st.combine_pvalues(x, method= 'fisher', weights= None), axis= 1)]
-			df= df[['segment', 'meta_Birth_pos', 'meta_forceps', 'meta_prom', 'meta_vacuum', 'meta_episiotomi', 'meta_assisted']]
-			df.to_csv(output[0], sep= '\t', header= True, index= False)
-	
