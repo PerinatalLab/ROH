@@ -41,7 +41,8 @@ rule mapping_ROH_segments:
         input:
                 '/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom',
                 '/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
-                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.fam', pruning= pruning_nms)
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.fam', pruning= pruning_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{{sample}}.hom', cohort= cohort_nms)
         output:
                 '/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz'
         script:

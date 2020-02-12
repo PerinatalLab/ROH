@@ -16,10 +16,18 @@ CHR= snakemake.wildcards.CHR
 
 chr_df= d.loc[d.CHR== int(float(CHR)),:]
 
-a= pd.concat([chr_df.POS1, chr_df.POS2])
+temp_list= list()
+input_files= [infile for infile in snakemake.input[1:] if '.hom' in infile]
+for infile in input_files:
+	temp_df= pd.read_csv(infile, delim_whitespace= True, header= 0)
+	temp_df= temp_df.loc[temp_df.CHR== int(float(CHR)),:]
+	temp_df= temp_df[['POS1', 'POS2']]
+	temp_list.append(temp_df)
+
+temp_df= pd.concat(temp_list)
+a= pd.concat([temp_df.POS1, temp_df.POS2])
 a= np.unique(a)
 a= np.sort(a)
-
 
 df_list= list()
 
