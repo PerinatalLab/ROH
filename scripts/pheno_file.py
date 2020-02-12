@@ -48,7 +48,9 @@ def pheno_harvest():
 	d= d.loc[d.IID.isin(flag.IID), :]
 	d.drop_duplicates(subset= ['PREG_ID_1724'], keep= 'first', inplace= True)
 	pca_out= [line.strip() for line in open(snakemake.input[10], 'rt')]
+	sUPD= [line.strip() for line in open(snakemake.input[11], 'rt')]
 	d= d.loc[~d.IID.isin(pca_out), :]
+	d= d.loc[~d-IID.isin(sUPD), :]
 	return d
 
 def pheno_rotterdam():
@@ -86,6 +88,8 @@ def pheno_rotterdam():
 	d.drop_duplicates(subset= ['PREG_ID_315'], keep= 'first', inplace= True)
 	pca_out= [line.strip() for line in open(snakemake.input[10], 'rt')]
 	d= d.loc[~d.IID.isin(pca_out), :]
+	sUPD= [line.strip() for line in open(snakemake.input[11], 'rt')]
+	d= d.loc[~d-IID.isin(sUPD), :]
 	return d
 
 ### Relatedness
