@@ -93,9 +93,10 @@ rule hazard_curves_subcohorts_fig:
 rule frequency_fig:
         ''
         input:
-                expand('/mnt/work/pol/ROH/results/ROH_freq_{sample}.txt', sample= smpl_nms)
+                expand('/mnt/work/pol/ROH/results/ROH_freq_{sample}.txt', sample= smpl_nms),
+		'/mnt/work/pol/ROH/ROH_frequency_maternal_chrX.txt'
         output:
-                '/mnt/work/pol/ROH/figures/ROH_frequency.eps'
+                '/mnt/work/pol/ROH/figures/ROH_frequency.eps',
         script:
                 'frequency_plots.R'
 

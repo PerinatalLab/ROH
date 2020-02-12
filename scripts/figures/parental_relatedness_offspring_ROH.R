@@ -14,9 +14,9 @@ if (nrow(kin) > 0){
   kin_temp= kin
   colnames(kin_temp)= c("ID2", "ID1", "KINSHIP")
   kin_temp= rbind(kin_temp, kin)
-  kin_temp= kin_temp %>% add_count(ID1, name= 'n')
-  kin_temp= kin_temp %>% add_count(ID2, name= 'nn')
-  kin_temp= arrange(kin_temp, n, nn)
+  kin_temp= kin_temp %>% add_count(ID1, name= 'n_ID1')
+  kin_temp= kin_temp %>% add_count(ID2, name= 'n_ID2')
+  kin_temp= arrange(kin_temp, n_ID1, n_ID2)
   to_keep= list()
 
   for (i in 1:nrow(kin_temp)) {
@@ -42,8 +42,7 @@ for (coh in cohorts){
 
 
 input_coh= input[grep(coh, input)]
-
-pca= fread(input_coh[grep('pca.txt', input_coh)])
+pca= fread(unlist(input_coh[grep('pca.txt', input_coh)]))
 
 fam_ibd= fread(unlist(input_coh[grepl('ibd/to_phase.fam', input_coh)]))
 names(fam_ibd)= c('FID', 'IID', 'x1','x2', 'x3','x4')
@@ -84,6 +83,7 @@ trio= trio %>% filter(Child %in% flag$IID)
 
 arg= fread(unlist(input_coh[grepl('arg_R2', input_coh)]))
 arg= arg[arg$R2== max(arg$R2, na.rm=T), ]
+print(arg$file)
 d= fread(arg$file)
 
 d= full_join(d, fam_roh, by= c('IID'))
