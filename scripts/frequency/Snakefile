@@ -36,61 +36,63 @@ def isfloat(str):
     except ValueError:
         return False
 
-rule ROH_freq:
-        'Count per-position relative frequency of ROHs.'
-        input:
-                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/maps/{{sample}}/segments_maps_{{sample}}_chr{CHR}.txt.gz', CHR= CHR_nms)
-        output:
-                '/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}'
-        run:
-                for i in input:
-                        for chunk in pd.read_csv(gzip.open(i), sep ='\t', header= 0, chunksize= 500):
-                                chunk.fillna(0, inplace= True)
-                                x= chunk.iloc[:,2:].mean(axis= 1)
-                                x= pd.concat([chunk.iloc[:,0:2], x], axis= 1, ignore_index= True, sort= False)
-                                x.to_csv(output[0], mode= 'a', sep= '\t', header= False, index= False)
+rule exclude_subjects:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz'
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/filtered_map_{sample}_{CHR}.txt')
+	run:
+		d= pd.read_csv(input[0], sep ='\t', header= 0)
+		df= pd.read_csv(input[1], sep ='\t', header= 0, compression= 'gzip')
+		cols= ['segment', 'CHR'] + d.IID.values.tolist()
+		df= df[[cols]]
+		df.to_csv(output[0], sep= '\t', header= True, index= False)
 
-rule split_segments_frequency:
-        'Split overlapping segments between sub-cohorts for frequency.'
-        input:
-                '/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{sample}',
-                expand('/mnt/work/pol/ROH/{cohort}/runs/frequency/ROH_frequency_{{sample}}', cohort= cohort_nms)
-        output:
-                '/mnt/work/pol/ROH/{cohort}/results/ROH_frequency_{sample}.txt'
-        script:
-                '../surv/overlap_split_segment.py'
+rule all_segments:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{{sample}}/filtered_map_{{sample}}_{{CHR}}.txt', cohort= cohort_nms)
+	output:
+		temp('/mnt/work/pol/ROH/runs/segments/all_ROH_frequency_{sample}_{CHR}.txt')
+	run:
+		df_list= list()
+		for i in input:
+			x= pd.read_csv(i, sep ='\t', header= 0)
+			df_list.append(x)
+		d= reduce(lambda x, y: pd.merge(x, y, on = ['CHR', 'segment']), df_list)
+		d.to_csv(output[0], sep= '\t', header= True, index= False)
 
+rule ROH_frequency:
+	'Calculate ROH frequency.'
+	input:
+		expand('/mnt/work/pol/ROH/runs/segments/all_ROH_frequency_{{sample}}_{CHR}.txt', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/ROH_frequency_{sample}.txt'
+	run:
+		for i in input:
+			for chunk in pd.read_csv(i, sep ='\t', header= 0, chunksize= 500, iterator= True):
+				chunk.fillna(0, inplace= True)
+				x= chunk.iloc[:,2:].mean(axis= 1)
+				x1= chunk.iloc[:, 2:].sum(axis= 1)
+				x= pd.concat([chunk.iloc[:,0:2], x, x1], axis= 1, ignore_index= True, sort= False)
+				x.to_csv(output[0], mode= 'a', sep= '\t', header= False, index= False)
 
-rule extract_count:
-        'Extract number of subjects per segment for each cohort.'
-        input:
-                '/mnt/work/pol/ROH/{cohort}/results/surv_spont_{sample}',
-                '/mnt/work/pol/ROH/{cohort}/results/ROH_frequency_{sample}.txt'
-        output:
-                temp('/mnt/work/ROH/{cohort}/results/count_{sample}.txt')
-        run:
-                d= pd.read_csv(input[0], sep= '\t', header= 0)
-                freq= pd.read_csv(input[1], sep= '\t', header= 0)
-                d= pd.merge(d, freq, on= ['chr', 'cM1', 'cM2'])
-                d['count_roh']= round(d.n * d.freq)
-                d= d[['cM1', 'cM2', 'chr', 'count_roh', 'n']]
-                d.to_csv(output[0], sep= '\t', index= False, header= True)
-
-rule combine_frequencies:
-        'Calculate number of subjects per segment for each cohort.'
-        input:
-                expand('/mnt/work/ROH/{cohort}/results/count_{{sample}}.txt', cohort= cohort_nms)
-        output:
-                '/mnt/work/pol/ROH/results/ROH_freq_{sample}.txt'
-        run:
-                df_list= list()
-                for infile in input:
-                        d= pd.read_csv(infile, sep= '\t', header= 0)
-                        df_list.append(d)
-                d= pd.concat(df_list)
-                x= d.groupby(['chr', 'cM1', 'cM2'])['count_roh'].sum().reset_index()
-                df= d.groupby(['chr', 'cM1', 'cM2'])['n'].sum().reset_index()
-                d= pd.merge(x, df, on= ['chr', 'cM1', 'cM2'])
-                d['freq']= d.count_roh / d.n
-                d.to_csv(output[0], sep='\t', header= True, index= False, columns= ['chr', 'cM1', 'cM2', 'freq'])
-
+rule ROH_frequency_nonnull:
+	'Calculate ROH frequency.'
+	input:
+		expand('/mnt/work/pol/ROH/runs/segments/all_ROH_frequency_{{sample}}_{CHR}.txt', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/ROH_frequency_{sample}.txt'
+	run:
+		df_list= list()
+		for i in input:
+			d= pd.read_csv(i, sep ='\t', header= 0)
+			d.fillna(0, inplace= True)
+			df_list.append(d)
+		d= reduce(lambda x, y: pd.merge(x, y, on = ['CHR', 'segment']), df_list)
+		x= d.iloc[:, 2:].mean(axis= 1)
+		x1= d.iloc[:, 2:].sum(axis= 1)
+		x= pd.concat([d.iloc[:,0:2], x, x1], axis= 1, ignore_index= True, sort= False)
+		x.to_csv(output[0], sep= '\t', header= False, index= False)
