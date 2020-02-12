@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 
 def pheno():
-        d= pd.read_csv(snakemake.input[0], delim_whitespace= True, header= 0)
+        d= pd.read_csv(snakemake.input[0], sep= '\t', header= 0)
         dX= pd.read_csv(snakemake.input[1], delim_whitespace= True, header= 0)
 	dX= d[['IID', 'KB', 'KBAVG', 'NSEG']]
 	dX.columns= ['IID', 'KBX', 'KBAVGX', 'NSEGX']
@@ -15,12 +15,12 @@ def pheno():
         bp= bim.groupby(['chr'])['pos'].diff(1).sum() / 1000000
 
         d= pd.merge(d, dX, on= ['IID'], how= 'outer')
-	d['KB']= d[['KB', 'KBX']].sum(axis= 1)
-	d['KBAVG']= d[['KBAVG', 'KBAVGX']].sum(axis= 1)
-	d['NSEG']= d[['NSEG', 'NSEGX']].sum(axis= 1)
-        d['KB']= d['KB'] / 1000000 * 1000
-        d['FKB']= d['KB'].divide(bp, axis=1)
+	d['KBX']= d[['KB', 'KBX']].sum(axis= 1)
+	d['KBAVGX']= d[['KBAVG', 'KBAVGX']].sum(axis= 1)
+	d['NSEGX']= d[['NSEG', 'NSEGX']].sum(axis= 1)
+        d['KBX']= d['KBX'] / 1000000 * 1000
+        d['FKBX']= d['KBX'].divide(bp, axis=1)
         return d
 
 d= pheno()
-d.to_csv(snakemake.output[0], sep= '\t', index= False)
+d.to_csv(snakemake.output[0], sep= '\t', index= False, columns= ['IID', 'KBX', 'NSEGX', 'KBAVGX', 'FKBX'])
