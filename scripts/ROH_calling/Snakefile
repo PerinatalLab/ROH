@@ -3,8 +3,6 @@ import numpy as np
 import os
 import gzip
 from functools import reduce
-import scipy.stats as st
-import statsmodels.stats.multitest as multi
 
 cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
 smpl_nms= ['maternal','paternal', 'fetal']
@@ -234,6 +232,35 @@ rule run_ROH_multi_arg_bp:
                 '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
                 '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_fetal.txt'
 
+rule filter_sUPD_ROH_opt_cM:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom'
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/multi/list_{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.txt')
+	run:
+		d_cm= pd.read_csv(input[0], delim_whitespace= True, header= 0)
+		d_cm= d_cm.groupby(['IID', 'CHR'])['KB'].agg('sum').reset_index()
+		CHROM= pd.DataFrame({'CHR': range(1, 23), 'cM': [293.397, 274.87893, 227.85336, 220.30382, 208.95622, 198.26502, 190.60013, 178.15377, 180.47343, 183.11295, 161.85604, 175.13532, 129.79234, 116.76934, 150.84068, 131.13381, 128.53434, 120.14257, 106.85774, 110.2054, 64.65146, 75.11986]})
+		d_cm= pd.merge(d_cm, CHROM, on= ['CHR'])
+		d_cm= d_cm.loc[((d_cm.KB / 1000) / d_cm.cM) > 0.75, :]
+		d_cm.to_csv(output[0], sep= '\t', header= False, index= False, columns= ['IID'])
+
+rule filter_sUPD_ROH_opt_bp:
+        ''
+        input:
+                '/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom'
+        output:
+                temp('/mnt/work/pol/ROH/{cohort}/multi/list_{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.txt')
+        run:
+                d_bp= pd.read_csv(input[0], delim_whitespace= True, header= 0)
+                d_bp= d_bp.groupby(['IID', 'CHR'])['KB'].agg('sum').reset_index()
+                CHROM= pd.DataFrame({'CHR': range(1, 23), 'bp': [249163442, 243078003, 197813415, 191010061, 180695227, 170919206, 159091363, 146137372, 141069069, 135430928, 134747012, 133630123, 96075688, 87668527, 82491127, 90079418, 81032226, 78003657, 58843222, 62887650, 37234222, 35178458]})
+                d_bp= pd.merge(d_bp, CHROM, on= ['CHR'])
+                d_bp= d_bp.loc[((d_bp.KB * 1000) / d_bp.bp) > 0.75, :]
+                d_bp.to_csv(output[0], sep= '\t', header= False, index= False, columns= ['IID'])
+
+
 rule determine_arguments_ROH:
         'Determine ROH estimation arguments that maximise ROH - parental IBD correlation.'
         input:
@@ -245,6 +272,10 @@ rule determine_arguments_ROH:
                 '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
                 '/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0',
                 '/mnt/work/pol/{cohort}/pca/all_pca_outliers_hapmap.txt',
+		'/mnt/work/pol/{cohort}/pheno/{cohort}_mfr.csv',
+		'/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv',
+		expand('/mnt/work/pol/ROH/{{cohort}}/multi/list_{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.txt', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms),
+		expand('/mnt/work/pol/ROH/{{cohort}}/multi/list_{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.txt', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms),
                 expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms),
                 expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms)
         output:
@@ -295,6 +326,20 @@ rule estimate_ROH:
                 l= list(["".join(bed), "".join(bim), "".join(fam)])
                 with open(output[2], 'w') as f:
                         f.writelines( "%s\n" % item for item in l)
+
+rule list_sUPD_ROH:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/runs/sUPD_{cohort}_{sample}.txt'
+	run:
+		d_cm= pd.read_csv(input[0], delim_whitespace= True, header= 0)
+		d_cm= d_cm.groupby(['IID', 'CHR'])['KB'].agg(['sum', 'size']).reset_index()
+		CHROM= pd.DataFrame({'CHR': range(1, 23), 'cM': [293.397, 274.87893, 227.85336, 220.30382, 208.95622, 198.26502, 190.60013, 178.15377, 180.47343, 183.11295, 161.85604, 175.13532, 129.79234, 116.76934, 150.84068, 131.13381, 128.53434, 120.14257, 106.85774, 110.2054, 64.65146, 75.11986]})
+		d_cm= pd.merge(d_cm, CHROM, on= ['CHR'])
+		d_cm= d_cm.loc[((d_cm.KB / 1000) / d_cm.cM) > 0.75, :]
+		d_cm.to_csv(output[0], sep= '\t', header= False, index= False, columns= ['IID'])
 
 rule excess_homozygosity:
         'Compute excess homozygosity using PLINK --het flag.'
