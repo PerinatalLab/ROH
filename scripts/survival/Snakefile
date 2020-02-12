@@ -38,30 +38,6 @@ def isfloat(str):
         return False
 
 
-rule eff_number_segments:
-	'Calculate the effective number of segments in each cohort, and for every chromosome.'
-	input:
-		expand('/mnt/work/pol/ROH/{cohort}/genotypes/chrX/maps/segments_maps_chrX.txt.gz',cohort= cohort_nms),
-		expand('/mnt/work/pol/ROH/{cohort}/genotypes/maps/{{sample}}/segments_maps_{{sample}}_chr{CHR}.txt.gz', CHR= CHR_nms, cohort= cohort_nms)
-	output:
-		'/mnt/work/pol/ROH/results/eff_num_{sample}.txt'
-	run:
-		df_list= list()
-		if wildcards.sample!= 'maternal': all_files= [f for f in input if 'chrX' not in f]
-		if wildcards.sample== 'maternal': all_files= input
-		for infile in all_files:
-			d= pd.read_csv(infile, compression= 'gzip', header= 0, sep= '\t')
-			chrom= d.iloc[0,0]
-			d= d.iloc[:, 2:]
-			pca= PCA()
-			pca.fit(d)
-			eff_num= (np.cumsum(pca.explained_variance_ratio_)<=0.995).sum()
-			cohort= infile.split('ROH/')[1].split('/')[0]
-			x= pd.DataFrame({'chr': [chrom], 'cohort': [cohort], 'eff_num': [eff_num]})
-			df_list.append(x)
-		df= pd.concat(df_list)
-		df.to_csv(output[0], sep= '\t', header= True, index= False)
-
 rule surv_analysis:
         'Linear regression analysis analyis on bined ROH calls.'
         input:
@@ -92,32 +68,33 @@ rule split_segments:
                 'overlap_split_segment.py'
 
 rule surv_cM_to_bp:
-        'Convert cM to bp in surv results.'
-        input:
-                '/mnt/work/pol/ROH/{cohort}/results/surv_spont_{sample}_temp',
-                expand('/mnt/work/pol/ROH/{cohort}/runs/{{sample}}_input_ROH_geno.txt', cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{{sample}}.bim', cohort= cohort_nms, pruning= pruning_nms)
-        output:
-                '/mnt/work/pol/ROH/{cohort}/results/autoz_surv_spont_{sample}'
-        run:
-                d= pd.read_csv(input[0], header= 0, sep= '\t')
-                flist= [infile for infile in input if 'geno.txt' in infile]
-                bim_list= list()
-                for infile in flist:
-                        x= [line.strip() for line in open("".join(infile), 'r')]
-                        bim= [i for i in x if 'bim' in i]
-                        bim= pd.read_csv("".join(bim), delim_whitespace= True, header= None, names= ['chr', 'id', 'pos', 'cM', 'A1', 'A2'])
-                        bim_list.append(bim)
-                bim= pd.concat(bim_list)
-                bim.drop_duplicates(subset= ['chr', 'pos'], keep= 'first', inplace= True)
-                bim.drop_duplicates(subset= ['chr', 'cM'], keep= 'first', inplace= True)
-                bim= bim[['chr', 'pos', 'cM']]
-                d= pd.merge(d, bim, left_on= ['chr', 'cM1'], right_on= ['chr', 'cM'])
-                d.rename(columns= {'pos': 'pos1'}, inplace= True)
-                d= pd.merge(d, bim, left_on= ['chr', 'cM2'], right_on= ['chr', 'cM'])
-                d.rename(columns= {'pos': 'pos2'}, inplace= True)
-                d.drop(['cM_x', 'cM_y'], axis= 1, inplace= True)
-                d.to_csv(output[0], sep= '\t', header= True, index= False)
+	'Convert cM to bp in surv results.'
+	input:
+#                '/mnt/work/pol/ROH/{cohort}/results/surv_spont_{sample}_temp',
+		'/mnt/work/pol/ROH/{cohort}/results/maps_surv/{sample}/surv_spont_{sample}',
+		expand('/mnt/work/pol/ROH/{cohort}/runs/{{sample}}_input_ROH_geno.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_{{sample}}.bim', cohort= cohort_nms, pruning= pruning_nms)
+	output:
+		'/mnt/work/pol/ROH/{cohort}/results/autoz_surv_spont_{sample}'
+	run:
+		d= pd.read_csv(input[0], header= 0, sep= '\t')
+		flist= [infile for infile in input if 'geno.txt' in infile]
+		bim_list= list()
+		for infile in flist:
+			x= [line.strip() for line in open("".join(infile), 'r')]
+			bim= [i for i in x if 'bim' in i]
+			bim= pd.read_csv("".join(bim), delim_whitespace= True, header= None, names= ['chr', 'id', 'pos', 'cM', 'A1', 'A2'])
+			bim_list.append(bim)
+		bim= pd.concat(bim_list)
+		bim.drop_duplicates(subset= ['chr', 'pos'], keep= 'first', inplace= True)
+		bim.drop_duplicates(subset= ['chr', 'cM'], keep= 'first', inplace= True)
+		bim= bim[['chr', 'pos', 'cM']]
+		d= pd.merge(d, bim, left_on= ['chr', 'cM1'], right_on= ['chr', 'cM'])
+		d.rename(columns= {'pos': 'pos1'}, inplace= True)
+		d= pd.merge(d, bim, left_on= ['chr', 'cM2'], right_on= ['chr', 'cM'])
+		d.rename(columns= {'pos': 'pos2'}, inplace= True)
+		d.drop(['cM_x', 'cM_y'], axis= 1, inplace= True)
+		d.to_csv(output[0], sep= '\t', header= True, index= False)
 
 rule concat_segmental_surv_autozygous_chrX:
 	''
@@ -144,14 +121,16 @@ rule surv_imputed:
                 'surv_imputed.R'
 
 rule filter_variants:
-	'Select variants with INFO score> 0.6 in all cohorts.'
+	'Select variants with INFO score> 0.4 in all cohorts.'
 	input:
+		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/nofilter_surv_spont_maternal', cohort= cohort_nms),
 		expand('/mnt/work/pol/{cohort}/info/INFO.txt.gz', cohort= cohort_nms)
 	output:
 		temp('/mnt/work/pol/ROH/results/variants_info_score.txt')
 	run:
 		d_list= list()
-		for infile in input:
+		input_files= [infile for infile in input if 'INFO' in infile]
+		for infile in input_files:
 			df= pd.read_csv(infile, header= None, sep= '\t', names= ['chr', 'pos', 'REF', 'EFF', 'AC', 'AN', 'INFO'])
 			df= df.loc[df.INFO> 0.4, ['chr', 'pos', 'REF', 'EFF']]
 			df["REF"], df["EFF"] = np.where(df['REF'] > df['EFF'], [df["EFF"], df["REF"]], [df["REF"], df["EFF"]])
@@ -183,26 +162,4 @@ rule concat_imputed_surv_chrX:
 	run:
 		if wildcards.sample== 'maternal': shell('cat {input} > {output[0]}')
 		if wildcards.sample!= 'maternal': shell('mv {input[1]} {output[0]}')
-
-rule aft_gene:
-        'AFT model analyis on gene-based bined ROH calls.'
-        input:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_genemap.txt',
-                '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt'
-        output:
-                temp('/mnt/work/pol/ROH/{cohort}/results/maps_gene/{sample}/gene_spont_{sample}')
-        script:
-                'aft_genes.R'
-
-rule concat_gene_autozygous_chrX:
-        ''
-        input:
-                '/mnt/work/pol/ROH/{cohort}/results/maps_gene/{sample}/gene_spont_{sample}',
-                '/mnt/work/pol/ROH/{cohort}/results/chrX/maps_surv/maternal/gene_chrX_spont_temp'
-        output:
-                '/mnt/work/pol/ROH/{cohort}/results/gene_aft_spont_{sample}'
-        run:
-                infiles= input[0]
-                if wildcards.sample== 'maternal': shell('cat {input} > {output[0]}')
-                if wildcards.sample!= 'maternal': shell('cat {infiles} > {output[0]}')
 
