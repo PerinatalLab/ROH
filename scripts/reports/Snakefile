@@ -36,34 +36,6 @@ def isfloat(str):
     except ValueError:
         return False
 
-rule preliminary_report:
-        'Generate report for harvest analysis.'
-        input:
-                expand('/mnt/work/pol/ROH/{{cohort}}/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
-                '/mnt/work/pol/{cohort}/pheno/q1_v9.txt',
-                '/mnt/work/pol/{cohort}/pheno/flag_list.txt',
-                expand('/mnt/work/pol/ROH/{{cohort}}/runs/{{cohort}}_{sample}.hom', sample= smpl_nms),
-                expand('/mnt/work/pol/ROH/{{cohort}}/runs/frequency/ROH_frequency_{sample}', sample= smpl_nms),
-                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{sample}.bim', pruning= pruning_nms, sample= smpl_nms),
-                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/cm_pruned{{cohort}}_{sample}.bim', pruning= pruning_nms, sample= smpl_nms),
-                '/mnt/work/pol/ROH/{cohort}/runs/maternal_input_ROH_geno.txt',
-                '/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',
-                '/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt',
-                expand('/mnt/work/pol/ROH/{{cohort}}/results/het/{sample}_excess_hom.txt', sample= smpl_nms),
-                '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
-                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
-                expand('/mnt/work/pol/ROH/results/{conf}_{sample}_lm_spont', sample= smpl_nms, conf= ['HC', 'LC', 'NC']),
-                expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_lm_spont_{sample}', cohort= cohort_nms, sample= smpl_nms),
-#               expand('/mnt/work/pol/ROH/results/enrichment/OMIM_{model}_{sample}.txt', sample= smpl_nms, model= ['recessive', 'dominant']),
-#               expand('/mnt/work/pol/ROH/results/enrichment/GNOMAD_{sample}_{consequence}.txt', consequence= ['mod', 'high'], sample= smpl_nms),
-                expand('/mnt/work/pol/ROH/results/imputed/lm_imputed_{sample}.txt', sample= smpl_nms),
-#               'figures/figure1.eps',
-                expand('/mnt/work/pol/ROH/{cohort}/results/ROH_frequency_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
-                expand('/mnt/work/pol/ROH/results/ROH_freq_{sample}.txt', sample= smpl_nms)
-        output:
-                'reports/ROH_{cohort}_analysis.html'
-        script:
-                'scripts/reports/report_ROH.Rmd'
 
 rule html_meta_report:
         'Generate report for all cohorts together.'
