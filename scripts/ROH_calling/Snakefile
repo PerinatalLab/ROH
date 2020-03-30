@@ -11,16 +11,16 @@ CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,
 
 # Other arguments:
 
-pruning_nms= ['none', 'soft', 'moderate', 'hard']
+pruning_nms= ['none', 'soft', 'moderate']
 
 dens_nms= [5]
-SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_nms= [0.0000001]
 het_nms= [0, 1]
 GAP_nms= [5]
 
 dens_bp= [5000]
-SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_bp= [0.0000001]
 het_bp= [0, 1]
 GAP_bp= [5000]
@@ -91,18 +91,88 @@ rule exclude_non_biallelic:
                 d.to_csv(output[0], sep= '\t', header= False, index= False)
 
 rule split_bed:
-        'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.05 and split file by sample.'
+	'Modify the bed file: remove CHR 23, 24, 25 and 26, maf <=0.05 and split file by sample.'
+	input:
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped.{ext}', ext= ['bed','bim','fam']),
+		'/mnt/work/pol/ROH/{cohort}/pheno/ids_{sample}.txt',
+		'/mnt/work/pol/ROH/{cohort}/multiallelic.txt'
+	output:
+		temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log']))
+	params:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}'
+	shell:
+		'~/soft/plink --bfile {params[0]} --exclude range {input[4]} --maf 0.05 --keep {input[3]} --make-bed --chr 1-22 --make-founders --out {params[1]}'
+
+rule freq_plink:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log'])
+	output:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/genotyped_{sample}.frq'
+	params:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/genotyped_{sample}'
+	shell:
+		'''
+		~/soft/plink --bfile {params[0]} --freq --out {params[1]}
+		'''
+
+rule format_freq:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/genotyped_{sample}.frq'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/maf_genotyped_{sample}.freq'
+	run:
+		d= pd.read_csv(input[0], header= 0, delim_whitespace=True)
+		d['P']= 1 - d.MAF
+		d.to_csv(output[0], header= True, index= False, sep= '\t')
+
+rule multi_clumping:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/maf_genotyped_{sample}.freq',
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log'])
+	output:
+#		temp('/mnt/work/pol/ROH/{cohort}/genotypes/temp/soft/{cohort}_genotyped_{sample}.clumped'),
+#                temp('/mnt/work/pol/ROH/{cohort}/genotypes/temp/moderate/{cohort}_genotyped_{sample}.clumped'),
+#                temp('/mnt/work/pol/ROH/{cohort}/genotypes/temp/hard/{cohort}_genotyped_{sample}.clumped')
+	params:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/soft/{cohort}_genotyped_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/moderate/{cohort}_genotyped_{sample}',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/temp/hard/{cohort}_genotyped_{sample}'
+	shell:
+		'''
+		~/soft/plink --bfile {params[0]} --out {params[1]} --clump {input[0]} --clump-p1 1 --clump-p2 1 --clump-kb 250 --clump-r2 0.9
+		~/soft/plink --bfile {params[0]} --out {params[2]} --clump {input[0]} --clump-p1 1 --clump-p2 1 --clump-kb 250 --clump-r2 0.5
+		~/soft/plink --bfile {params[0]} --out {params[3]} --clump {input[0]} --clump-p1 1 --clump-p2 1 --clump-kb 250 --clump-r2 0.1
+		'''
+
+rule plink_bfile_clump:
+        'Exclude genetic variants in prune.out files (obtained with rule plink_split_bed).'
         input:
-                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped.{ext}', ext= ['bed','bim','fam']),
-                '/mnt/work/pol/ROH/{cohort}/pheno/{sample}_ids',
-                '/mnt/work/pol/ROH/{cohort}/multiallelic.txt'
+                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/hard/{cohort}_genotyped_{sample}.clumped',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/soft/{cohort}_genotyped_{sample}.clumped',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/moderate/{cohort}_genotyped_{sample}.clumped',
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam'])
         output:
-                temp(expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/temp/{{cohort}}_genotyped_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log']))
+#                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/hard/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log']),
+#                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/soft/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log']),
+#                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/moderate/pruned{{cohort}}_{{sample}}.{ext}', ext= ['bed', 'bim', 'fam', 'log'])
         params:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped',
-                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}'
+                '/mnt/work/pol/ROH/{cohort}/genotypes/temp/{cohort}_genotyped_{sample}',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/hard/pruned{cohort}_{sample}',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/soft/pruned{cohort}_{sample}',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/moderate/pruned{cohort}_{sample}'
         shell:
-                '~/soft/plink --bfile {params[0]} --exclude range {input[4]} --maf 0.05 --keep {input[3]} --make-bed --chr 1-22 --make-founders --out {params[1]}'
+                '''
+                ~/soft/plink --bfile {params[0]} --exclude <(cut -f3 {input[0]}) --make-bed --out {params[1]}
+                ~/soft/plink --bfile {params[0]} --exclude <(cut -f3 {input[1]}) --make-bed --out {params[2]}
+                ~/soft/plink --bfile {params[0]} --exclude <(cut -f3 {input[2]}) --make-bed --out {params[3]}
+                '''
+
 
 rule multi_pruning:
         'Filter PLINK file according to different pruning parameters.'
@@ -173,24 +243,25 @@ rule replace_bp_cm:
         run:
                 d= pd.read_csv(input[0], sep= '\t', header= None)
                 d.columns= ['chr', 'SNP', 'X', 'pos', 'A1', 'A2']
-                g= pd.read_csv(input[1], sep= ' ', header= 0)
-                g= g[['chr', 'Genetic_Map(cM)', 'position']]
-                g.columns= ['chr', 'Genetic_Map(cM)', 'pos']
+                g= pd.read_csv(input[1], delim_whitespace= True, header= 0, names= ['chr', 'pos', 'rate', 'cM'])
+                g= g[['chr', 'cM', 'pos']]
+#                g.columns= ['chr', 'Genetic_Map(cM)', 'pos']
                 df= pd.merge(d, g, on= ['chr', 'pos'], how= 'left')
-                df_miss= df.loc[df['Genetic_Map(cM)'].isna(), :]
+                df_miss= df.loc[df['cM'].isna(), :]
                 newdf= pd.DataFrame()
                 for CHR in set(df_miss.chr):
                         df_temp= df_miss.loc[df_miss.chr== CHR, :]
                         g_temp= g.loc[g.chr== CHR, :]
-                        df_temp['newX']= np.interp(df_temp['pos'], g_temp['pos'], g_temp['Genetic_Map(cM)'])
+                        df_temp['newX']= np.interp(df_temp['pos'], g_temp['pos'], g_temp['cM'])
                         newdf= newdf.append(df_temp)
                 newdf= newdf[['chr','pos', 'newX']]
                 df= pd.merge(df, newdf, on= ['chr', 'pos'], how= 'left')
-                df['X']= np.where(df['Genetic_Map(cM)'].isna(), df['newX'], df['Genetic_Map(cM)'])
+                df['X']= np.where(df['cM'].isna(), df['newX'], df['cM'])
                 df['X']= (df.X*10**4).round() * 100
                 df['X']= df['X'] + df.groupby(['chr', 'X']).cumcount()
                 df[['pos', 'X']]= df[['X','pos']]
                 df= df[['chr', 'SNP', 'X', 'pos', 'A1', 'A2']]
+		df.sort_values(['chr', 'pos'], ascending= True, inplace= True)
                 df.to_csv(output[0], sep= '\t', header= False, index= False)
 
 rule run_ROH_multi_arg:
@@ -217,8 +288,9 @@ rule run_ROH_multi_arg_bp:
                 '/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_fetal.bim',
                 '/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_fetal.fam'
         output:
-                temp(expand('/mnt/work/pol/ROH/{{cohort}}/multi/{{pruning}}_bpfetal_{{densbp}}_{{SNPbp}}_{{lengthbp}}_{{hetbp}}_{{GAPbp}}.{ext}', ext= ['log', 'hom', 'hom.summary'])),
-                '/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv'
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/multi/{{pruning}}_bpfetal_{{densbp}}_{{SNPbp}}_{{lengthbp}}_{{hetbp}}_{{GAPbp}}.{ext}', ext= ['log', 'hom.summary'])),
+                '/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv',
+		'/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom'
         params:
                 '/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}'
         run:
@@ -226,38 +298,51 @@ rule run_ROH_multi_arg_bp:
                 shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg-window-snp {wildcards.SNPbp} --homozyg-snp {wildcards.SNPbp} --homozyg-kb {wildcards.lengthbp} --homozyg-gap {wildcards.GAPbp} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het {wildcards.hetbp} --homozyg-density {wildcards.densbp} --out {params[0]}")
 
 
-                '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_pca.txt',
-                '/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam',
-                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam',
-                '/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
-                '/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_fetal.txt'
 
 rule filter_sUPD_ROH_opt_cM:
 	''
 	input:
-		'/mnt/work/pol/ROH/{cohort}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom'
+		'/mnt/work/pol/ROH/{cohort}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/cm_pruned{cohort}_fetal.bim',
+		'/mnt/work/pol/ROH/{cohort}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv'
 	output:
-		temp('/mnt/work/pol/ROH/{cohort}/multi/list_{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.txt')
+		'/mnt/work/pol/ROH/{cohort}/multi/list_{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.txt'
 	run:
 		d_cm= pd.read_csv(input[0], delim_whitespace= True, header= 0)
 		d_cm= d_cm.groupby(['IID', 'CHR'])['KB'].agg('sum').reset_index()
-		CHROM= pd.DataFrame({'CHR': range(1, 23), 'cM': [293.397, 274.87893, 227.85336, 220.30382, 208.95622, 198.26502, 190.60013, 178.15377, 180.47343, 183.11295, 161.85604, 175.13532, 129.79234, 116.76934, 150.84068, 131.13381, 128.53434, 120.14257, 106.85774, 110.2054, 64.65146, 75.11986]})
+		CHROM= pd.read_csv(input[1], header= None, delim_whitespace= True, names= ['CHR', 'snp', 'X', 'cM', 'A1', 'A2'], usecols= ['CHR', 'cM'])
+		CHROM['cMd']= CHROM.groupby(['CHR'])['cM'].diff(1)
+		CHROM= CHROM.groupby('CHR')['cMd'].agg('sum').reset_index()
 		d_cm= pd.merge(d_cm, CHROM, on= ['CHR'])
-		d_cm= d_cm.loc[((d_cm.KB / 1000) / d_cm.cM) > 0.75, :]
+		d_cm= d_cm.loc[((d_cm.KB * 1000) / d_cm.cMd) > 0.70, :]
+		cM= sum(CHROM.cMd)
+		x= pd.read_csv(input[2], header= 0, delim_whitespace= True)
+		x['FKB']= x['KB'] * 1000 / cM
+		x= x.loc[x.FKB>= 0.08, :]
+		d_cm= pd.concat([d_cm[['IID', 'KB']], x[['IID', 'KB']]])
 		d_cm.to_csv(output[0], sep= '\t', header= False, index= False, columns= ['IID'])
 
 rule filter_sUPD_ROH_opt_bp:
         ''
         input:
-                '/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom'
+                '/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/{pruning}/pruned{cohort}_fetal.bim',
+		'/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv'
         output:
-                temp('/mnt/work/pol/ROH/{cohort}/multi/list_{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.txt')
+                '/mnt/work/pol/ROH/{cohort}/multi/list_{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.txt'
         run:
                 d_bp= pd.read_csv(input[0], delim_whitespace= True, header= 0)
                 d_bp= d_bp.groupby(['IID', 'CHR'])['KB'].agg('sum').reset_index()
-                CHROM= pd.DataFrame({'CHR': range(1, 23), 'bp': [249163442, 243078003, 197813415, 191010061, 180695227, 170919206, 159091363, 146137372, 141069069, 135430928, 134747012, 133630123, 96075688, 87668527, 82491127, 90079418, 81032226, 78003657, 58843222, 62887650, 37234222, 35178458]})
-                d_bp= pd.merge(d_bp, CHROM, on= ['CHR'])
-                d_bp= d_bp.loc[((d_bp.KB * 1000) / d_bp.bp) > 0.75, :]
+                CHROM= pd.read_csv(input[1], header= None, delim_whitespace= True, names= ['CHR', 'snp', 'X', 'bp', 'A1', 'A2'], usecols= ['CHR', 'bp'])
+		CHROM['bpd']= CHROM.groupby('CHR')['bp'].diff(1)
+		CHROM= CHROM.groupby('CHR')['bpd'].agg('sum').reset_index()
+		d_bp= pd.merge(d_bp, CHROM, on= ['CHR'])
+                d_bp= d_bp.loc[((d_bp.KB * 1000) / d_bp.bpd) > 0.70, :]
+		bp= sum(CHROM.bpd)
+		x= pd.read_csv(input[2], header= 0, delim_whitespace= True)
+		x['FKB']= (x['KB'] * 1000) / bp
+		x= x.loc[x.FKB>= 0.08, :]
+		d_bp= pd.concat([d_bp[['IID', 'KB']], x[['IID', 'KB']]])
                 d_bp.to_csv(output[0], sep= '\t', header= False, index= False, columns= ['IID'])
 
 
@@ -271,13 +356,13 @@ rule determine_arguments_ROH:
                 '/mnt/work/pol/{cohort}/pheno/flag_list.txt',
                 '/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',
                 '/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0',
-                '/mnt/work/pol/{cohort}/pca/all_pca_outliers_hapmap.txt',
+                '/mnt/work/pol/{cohort}/pca/pca_exclude.txt',
 		'/mnt/work/pol/{cohort}/pheno/{cohort}_mfr.csv',
 		'/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv',
 		expand('/mnt/work/pol/ROH/{{cohort}}/multi/list_{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.txt', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms),
 		expand('/mnt/work/pol/ROH/{{cohort}}/multi/list_{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.txt', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms),
                 expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms),
-                expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms)
+		expand('/mnt/work/pol/ROH/{{cohort}}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms)
         output:
                 '/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt',
                 '/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt'
@@ -315,7 +400,7 @@ rule estimate_ROH:
                 bed= [bed for bed in input if prun in bed and 'bed' in bed]
                 fam= [fam for fam in input if prun in fam and 'fam' in fam]
                 GAP= round(parlist[5] * 1000)
-                SNPwm= round(parlist[3] * 0.05)
+                SNPwm= round(parlist[2] * 0.05)
                 dens= round(parlist[1] * 1000)
                 if parlist[1] < 100:
                         bim= [bim for bim in input if prun in bim and 'bim' in bim and 'cm' in bim]
@@ -330,16 +415,37 @@ rule estimate_ROH:
 rule list_sUPD_ROH:
 	''
 	input:
-		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom'
+		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom',
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.bim', pruning= pruning_nms),
+		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/cm_pruned{{cohort}}_{{sample}}.bim', pruning= pruning_nms),
+		'/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt'
 	output:
 		'/mnt/work/pol/ROH/{cohort}/runs/sUPD_{cohort}_{sample}.txt'
 	run:
+		maxim= [df for df in input if 'max_R2' in df]
+		parlist= [line.strip() for line in open("".join(maxim), 'r')]
+		parlist= [float(x) for x in parlist]
+		if parlist[0]== 0:
+			prun= 'none'
+		if parlist[0]== 1:
+			prun= 'soft'
+		if parlist[0]== 2:
+			prun= 'moderate'
+		if parlist[0]== 3:
+			prun= 'hard'
+		if parlist[1] < 100:
+			bim= [bim for bim in input if prun in bim and 'bim' in bim and 'cm' in bim]
+		if parlist[1] > 100:
+			bim= [bim for bim in input if prun in bim and 'bim' in bim and 'cm' not in bim]
 		d_cm= pd.read_csv(input[0], delim_whitespace= True, header= 0)
-		d_cm= d_cm.groupby(['IID', 'CHR'])['KB'].agg(['sum', 'size']).reset_index()
-		CHROM= pd.DataFrame({'CHR': range(1, 23), 'cM': [293.397, 274.87893, 227.85336, 220.30382, 208.95622, 198.26502, 190.60013, 178.15377, 180.47343, 183.11295, 161.85604, 175.13532, 129.79234, 116.76934, 150.84068, 131.13381, 128.53434, 120.14257, 106.85774, 110.2054, 64.65146, 75.11986]})
+		d_cm= d_cm.groupby(['IID', 'CHR'])['KB'].agg('sum').reset_index()
+		CHROM= pd.read_csv("".join(bim), delim_whitespace= True, header= 0, names= ['CHR', 'snp', 'X', 'cm', 'A1', 'A2'], usecols= ['CHR', 'cm'])
+		CHROM['cmd']= CHROM.groupby('CHR')['cm'].diff(1)
+		CHROM= CHROM.groupby('CHR')['cmd'].agg('sum').reset_index()
 		d_cm= pd.merge(d_cm, CHROM, on= ['CHR'])
-		d_cm= d_cm.loc[((d_cm.KB / 1000) / d_cm.cM) > 0.75, :]
+		d_cm= d_cm.loc[((d_cm.KB / 1000) / d_cm.cmd) > 0.70, :]
 		d_cm.to_csv(output[0], sep= '\t', header= False, index= False, columns= ['IID'])
+
 
 rule excess_homozygosity:
         'Compute excess homozygosity using PLINK --het flag.'
@@ -372,4 +478,81 @@ rule merge_homozygosity:
                         dflist.append(d)
                 d= reduce(lambda x, y: pd.merge(x, y, on= 'IID'), dflist)
                 d.to_csv(output[0], index=False, header= True, sep= '\t')
+
+
+rule ROH_calling_fixed_params_Joshi:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.bed',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.bim',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam'
+	output:
+		expand('/mnt/work/pol/ROH/{{cohort}}/fixed_params/Joshi_params_ROH.{ext}', ext= ['log', 'hom.summary', 'hom.indiv', 'hom'])
+	params:
+		'/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_ROH'
+		
+	shell:
+		"/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg --homozyg-window-snp 50 --homozyg-snp 50 --homozyg-kb 1500 --homozyg-gap 1000 --homozyg-density 50 --homozyg-window-missing 5 --homozyg-window-het 1 --out {params[0]}"
+
+rule ROH_calling_fixed_params_Gazal:
+        ''
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/moderate/pruned{cohort}_fetal.bed',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/moderate/pruned{cohort}_fetal.bim',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/moderate/pruned{cohort}_fetal.fam'
+        output:
+                expand('/mnt/work/pol/ROH/{{cohort}}/fixed_params/Gazal_params_ROH.{ext}', ext= ['log', 'hom.summary', 'hom.indiv', 'hom'])
+        params:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/Gazal_params_ROH'
+                
+        shell:
+                "/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg --homozyg-window-het 0 --homozyg-snp 50 --homozyg-kb 0.0000001 --homozyg-density 5000 --homozyg-gap 5000 --out {params[0]}"
+
+rule filter_sUPD_ROH_opt_bp_Joshi:
+        ''
+        input:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_ROH.hom',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.bim',
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_ROH.hom.indiv'
+        output:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/list_Joshi_sUPD_fetal.txt'
+        run:
+                d_bp= pd.read_csv(input[0], delim_whitespace= True, header= 0)
+                d_bp= d_bp.groupby(['IID', 'CHR'])['KB'].agg('sum').reset_index()
+                CHROM= pd.read_csv(input[1], header= None, delim_whitespace= True, names= ['CHR', 'snp', 'X', 'bp', 'A1', 'A2'], usecols= ['CHR', 'bp'])
+                CHROM['bpd']= CHROM.groupby('CHR')['bp'].diff(1)
+                CHROM= CHROM.groupby('CHR')['bpd'].agg('sum').reset_index()
+                d_bp= pd.merge(d_bp, CHROM, on= ['CHR'])
+                d_bp= d_bp.loc[((d_bp.KB * 1000) / d_bp.bpd) > 0.70, :]
+                bp= sum(CHROM.bpd)
+                x= pd.read_csv(input[2], header= 0, delim_whitespace= True)
+                x['FKB']= (x['KB'] * 1000) / bp
+                x= x.loc[x.FKB>= 0.08, :]
+                d_bp= pd.concat([d_bp[['IID', 'KB']], x[['IID', 'KB']]])
+                d_bp.to_csv(output[0], sep= '\t', header= False, index= False, columns= ['IID'])
+
+rule filter_sUPD_ROH_opt_bp_Gazal:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/fixed_params/Gazal_params_ROH.hom',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/moderate/pruned{cohort}_fetal.bim',
+		'/mnt/work/pol/ROH/{cohort}/fixed_params/Gazal_params_ROH.hom.indiv'
+	output:
+		'/mnt/work/pol/ROH/{cohort}/fixed_params/list_Gazal_sUPD_fetal.txt'
+	run:
+		d_bp= pd.read_csv(input[0], delim_whitespace= True, header= 0)
+		d_bp= d_bp.groupby(['IID', 'CHR'])['KB'].agg('sum').reset_index()
+		CHROM= pd.read_csv(input[1], header= None, delim_whitespace= True, names= ['CHR', 'snp', 'X', 'bp', 'A1', 'A2'], usecols= ['CHR', 'bp'])
+		CHROM['bpd']= CHROM.groupby('CHR')['bp'].diff(1)
+		CHROM= CHROM.groupby('CHR')['bpd'].agg('sum').reset_index()
+		d_bp= pd.merge(d_bp, CHROM, on= ['CHR'])
+		d_bp= d_bp.loc[((d_bp.KB * 1000) / d_bp.bpd) > 0.70, :]
+		bp= sum(CHROM.bpd)
+		x= pd.read_csv(input[2], header= 0, delim_whitespace= True)
+		x['FKB']= (x['KB'] * 1000) / bp
+		x= x.loc[x.FKB>= 0.08, :]
+		d_bp= pd.concat([d_bp[['IID', 'KB']], x[['IID', 'KB']]])
+		d_bp.to_csv(output[0], sep= '\t', header= False, index= False, columns= ['IID'])
+
+
 
