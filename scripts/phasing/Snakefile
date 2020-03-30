@@ -11,16 +11,16 @@ CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,
 
 # Other arguments:
 
-pruning_nms= ['none', 'soft', 'moderate', 'hard']
+pruning_nms= ['none', 'soft', 'moderate']
 
 dens_nms= [5]
-SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_nms= [0.0000001]
 het_nms= [0, 1]
 GAP_nms= [5]
 
 dens_bp= [5000]
-SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_bp= [0.0000001]
 het_bp= [0, 1]
 GAP_bp= [5000]
