@@ -8,6 +8,7 @@ header-includes:
 - \usepackage{titling}
 - \setlength{\droptitle}{10em}
 - \renewcommand{\caption}{}
+- \pagenumbering{gobble}
 ---
 
 ```{r dependencies, include=FALSE}
@@ -24,9 +25,15 @@ options(warn=-1)
 opts_chunk$set(dpi=300)
 ```
 
-```{r fig.align="center", fig.cap=" S3 Figure: Associations between offspring optimized ROHs and total parental genetic relatedness (cM) in each sub-cohort. Optimized ROH calling arameters were cohort-specific. Sample size: 5024, 3240, 4533, 2566, 1221, 3957, respectively for cohort1 to cohort6, in order.", echo=FALSE}
+```{r fig.align="center", fig.cap=" S2A Figure: Associations between offspring ROHs called using Joshi parameters and total parental genetic relatedness (cM) in each sub-cohort. ROH calling parameters were fixed. Sample size: 5024, 3240, 4533, 2566, 1221, 3957, respectively for cohort1 to cohort6, in order.", echo=FALSE}
 
 knitr::include_graphics(snakemake@input[[1]])
+
+```
+
+```{r fig.align="center", fig.cap=" S2B Figure: Associations between offspring ROHs called using Gazal parameters and total parental genetic relatedness (cM) in each sub-cohort. ROH calling parameters were fixed. Sample size: 5024, 3240, 4533, 2566, 1221, 3957, respectively for cohort1 to cohort6, in order.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[2]])
 
 ```
 

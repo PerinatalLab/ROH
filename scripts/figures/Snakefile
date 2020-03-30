@@ -10,16 +10,16 @@ CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,
 
 # Other arguments:
 
-pruning_nms= ['none', 'soft', 'moderate', 'hard']
+pruning_nms= ['none', 'soft', 'moderate']
 
 dens_nms= [5]
-SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_nms= [0.0000001]
 het_nms= [0, 1]
 GAP_nms= [5]
 
 dens_bp= [5000]
-SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_bp= [0.0000001]
 het_bp= [0, 1]
 GAP_bp= [5000]
@@ -45,14 +45,61 @@ rule ParentalGR_offspringROH_fig:
                 expand('/mnt/work/pol/{cohort}/pheno/flag_list.txt', cohort= cohort_nms),
                 expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',cohort= cohort_nms),
                 expand('/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0', cohort= cohort_nms),
-                expand('/mnt/work/pol/{cohort}/pca/all_pca_outliers_hapmap.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pca/pca_exclude.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/{cohort}/pheno/{cohort}_mfr.csv', cohort= cohort_nms),
+		expand('/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv', cohort= cohort_nms),
                 expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt', cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/{cohort}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms, cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms, cohort= cohort_nms)
+		expand('/mnt/work/pol/ROH/{cohort}/multi/list_{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.txt', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms, cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/multi/list_{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.txt', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms, cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/multi/{pruning}_fetal_{dens}_{SNP}_{length}_{het}_{GAP}.hom.indiv', dens= dens_nms, SNP= SNP_nms, length= length_nms, het= het_nms, GAP= GAP_nms, pruning= pruning_nms, cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/multi/{pruning}_bpfetal_{densbp}_{SNPbp}_{lengthbp}_{hetbp}_{GAPbp}.hom.indiv', densbp= dens_bp, SNPbp= SNP_bp, lengthbp= length_bp, hetbp= het_bp, GAPbp= GAP_bp, pruning= pruning_nms, cohort= cohort_nms)
         output:
                 '/mnt/work/pol/ROH/figures/parent_offspring_assoc_optim.eps'
         script:
                 'parental_relatedness_offspring_ROH.R'
+
+rule ROHfixed_params_Joshi:
+	''
+	input:
+		expand('/mnt/work/pol/{cohort}/pca/{cohort}_pca.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/flag_list.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pca/pca_exclude.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/{cohort}_mfr.csv', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/fixed_params/list_Joshi_sUPD_fetal.txt', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_ROH.hom.indiv', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/figures/fixed_params_Joshi.eps'
+	script:
+		'fixed_params_ROH.R'
+
+rule ROHfixed_params_Gazal:
+        ''
+        input:
+                expand('/mnt/work/pol/{cohort}/pca/{cohort}_pca.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/flag_list.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pca/pca_exclude.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/{cohort}_mfr.csv', cohort= cohort_nms),
+                expand('/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/list_Gazal_sUPD_fetal.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/Gazal_params_ROH.hom.indiv', cohort= cohort_nms)
+        output:
+                '/mnt/work/pol/ROH/figures/fixed_params_Gazal.eps'
+        script:
+                'fixed_params_ROH.R'
+
 
 rule ROH_calling_parameter_optimization_fig:
         ''
@@ -69,22 +116,16 @@ rule ROH_calling_parameter_optimization_fig:
 rule manhattan_fig:
         ''
         input:
-                '/mnt/work/pol/ROH/results/HC_maternal_surv_spont',
-                '/mnt/work/pol/ROH/results/LC_maternal_surv_spont',
-                '/mnt/work/pol/ROH/results/NC_maternal_surv_spont',
-                '/mnt/work/pol/ROH/results/HC_fetal_surv_spont',
-                '/mnt/work/pol/ROH/results/LC_fetal_surv_spont',
-                '/mnt/work/pol/ROH/results/NC_fetal_surv_spont'
+                '/mnt/work/pol/ROH/results/surv_spont_{sample}'
         output:
-                '/mnt/work/pol/ROH/figures/zscore_mht_moms.eps',
-                '/mnt/work/pol/ROH/figures/zscore_mht_fets.eps'
+                '/mnt/work/pol/ROH/figures/zscore_mht_{sample}.eps'
         script:
                 'manhattan_plots.R'
 
 rule hazard_curves_subcohorts_fig:
         ''
         input:
-                expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_maternal.txt', cohort= cohort_nms)
+                '/mnt/work/pol/ROH/pheno/runs_mfr_maternal.txt'
         output:
                 '/mnt/work/pol/ROH/figures/hazard_allcoh.eps'
         script:
@@ -93,8 +134,7 @@ rule hazard_curves_subcohorts_fig:
 rule frequency_fig:
         ''
         input:
-                expand('/mnt/work/pol/ROH/results/ROH_freq_{sample}.txt', sample= smpl_nms),
-		'/mnt/work/pol/ROH/ROH_frequency_maternal_chrX.txt'
+                expand('/mnt/work/pol/ROH/results/surv_spont_{sample}', sample= smpl_nms)
         output:
                 '/mnt/work/pol/ROH/figures/ROH_frequency.eps',
         script:
@@ -103,20 +143,55 @@ rule frequency_fig:
 rule tmrca_fig:
         ''
         input:
-                expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms)
+                expand('/mnt/work/pol/ROH/pheno/runs_mfr_{sample}.txt', sample= smpl_nms)
         output:
                 '/mnt/work/pol/ROH/figures/tmrca.eps'
         script:
                 'tmrca.R'
+
+rule individual_segments_map:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt',
+		'/mnt/work/pol/ROH/pheno/runs_mfr_{sample}.txt',
+		'/mnt/work/pol/ROH/annotation/cM_gene_transcription.txt',
+		expand('/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{{sample}}.hom', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/figures/individual_segments_{sample}.eps'
+	script:
+		'individual_segments.R'
+
+rule segments_pvalue:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt',
+		'/mnt/work/pol/ROH/annotation/cM_gene_transcription.txt',
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
+		'/mnt/work/pol/ROH/results/surv_spont_{sample}'
+	output:
+		'/mnt/work/pol/ROH/figures/segments_pvalue_{sample}.eps'
+	script:
+		'segmental_plot.R'
+
+rule survival_curves_top:
+	''
+	input:
+		'/mnt/work/pol/ROH/genotypes/maps/{sample}/top_segments_{sample}.txt',
+		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt',
+		'/mnt/work/pol/ROH/pheno/runs_mfr_{sample}.txt'
+	output:
+		'/mnt/work/pol/ROH/figures/survival_curves_{sample}.eps'
+	script:
+		'survival_curves_segments.R'
 
 #### Tables:
 
 rule AFT_FROH_table:
         'FROH and spontaneous delivery risk.'
         input:
-                expand('/mnt/work/pol/{cohort}/pheno/q1_v9.txt',cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/{cohort}/results/het/{sample}_excess_hom.txt', sample= smpl_nms, cohort= cohort_nms)
+                expand('/mnt/work/pol/{cohort}/pheno/q1_v9.txt', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/pheno/excess_{sample}.txt', sample= smpl_nms)
         output:
                 '/mnt/work/pol/ROH/tables/AFT_FROH.txt'
         script:
@@ -126,8 +201,8 @@ rule AFT_FROH_table:
 rule description_cohorts_table:
 	''
 	input:
-		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_maternal.txt', cohort= cohort_nms),
-		expand('/mnt/work/pol/{cohort}/pheno/q1_v9.txt',cohort= cohort_nms)
+		'/mnt/work/pol/ROH/pheno/runs_mfr_maternal.txt',
+		expand('/mnt/work/pol/{cohort}/pheno/q1_v9.txt', cohort= cohort_nms)
 	output:
 		'/mnt/work/pol/ROH/tables/descr_cohorts.txt',
 		'/mnt/work/pol/ROH/tables/pvalues_descr_cohorts.txt'
@@ -137,8 +212,8 @@ rule description_cohorts_table:
 rule description_autozygosity_table:
 	''
 	input:
-		expand('/mnt/work/pol/ROH/{cohort}/pheno/runs_mfr_{sample}.txt', cohort= cohort_nms, sample= smpl_nms),
-		expand('/mnt/work/pol/ROH/{cohort}/results/het/{sample}_excess_hom.txt', sample= smpl_nms, cohort= cohort_nms)
+		expand('/mnt/work/pol/ROH/pheno/runs_mfr_{sample}.txt', sample= smpl_nms),
+		expand('/mnt/work/pol/ROH/pheno/excess_{sample}.txt', sample= smpl_nms)
 	output:
 		'/mnt/work/pol/ROH/tables/autoz_maternal.txt',
 		'/mnt/work/pol/ROH/tables/autoz_paternal.txt',
@@ -150,82 +225,90 @@ rule description_autozygosity_table:
 rule annotation_HCindep_segments_table:
 	''
 	input:
-		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_maternal.txt',
-		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_fetal.txt',
-		'/mnt/work/pol/ROH/results/ROH_freq_maternal.txt',
-		'/mnt/work/pol/ROH/results/ROH_freq_fetal.txt',
-		'/mnt/work/pol/ROH/annotation/GNOMAD/HC_maternal_VEP.txt',
-		'/mnt/work/pol/ROH/annotation/GNOMAD/HC_fetal_VEP.txt',
-		'/mnt/work/pol/ROH/results/HC_maternal_surv_spont',
-		'/mnt/work/pol/ROH/results/HC_fetal_surv_spont'
+		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt'
 	output:
-		'/mnt/work/pol/ROH/tables/HC_indep_annotated.txt'
+		'/mnt/work/pol/ROH/tables/HC_indep_annotated_{sample}.txt'
 	run:
-		dm= pd.read_csv(input[0], sep= '\t', header= 0)
-		df= pd.read_csv(input[1], sep= '\t', header= 0)
-		VEPm= pd.read_csv(input[4], sep= '\t', header= None, names= ['segment', 'variants', 'VEP_mod', 'VEP_high'])
-		VEPf= pd.read_csv(input[5], sep= '\t', header= None, names= ['segment', 'variants', 'VEP_mod', 'VEP_high'])
-		dm= pd.merge(dm, VEPm, on= 'segment', how= 'left')
-		df= pd.merge(df, VEPf, on= 'segment', how= 'left')
-		HCm= pd.read_csv(input[6], sep= '\t', header= 0, usecols= ['segment', 'pos1', 'pos2'])
-		HCf= pd.read_csv(input[7], sep= '\t', header= 0, usecols= ['segment', 'pos1', 'pos2'])
-		dm= pd.merge(dm, HCm, on= 'segment', how= 'left')
-		df= pd.merge(df, HCf, on= 'segment', how= 'left')
-		dm[['chr', 'cM1', 'cM2']]= dm['segment'].str.split(':', expand= True)
-                dm[['chr', 'cM1', 'cM2']]= dm[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
-                df[['chr', 'cM1', 'cM2']]= df['segment'].str.split(':', expand= True)
-                df[['chr', 'cM1', 'cM2']]= df[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
-                freqm= pd.read_csv(input[2], sep= '\t', header= 0)
-                dm= pd.merge(dm, freqm, on= ['chr', 'cM1', 'cM2'], how= 'left')
-                freqf= pd.read_csv(input[3], sep= '\t', header= 0)
-                df= pd.merge(df, freqf, on= ['chr', 'cM1', 'cM2'], how= 'left')
-		dm['size']= (dm.cM2 - dm.cM1) / 10**6
-		df['size']= (df.cM2 - df.cM1) / 10**6
-		dm['member']= 'Mother'
-		df['member']= 'Fetus'
-		d= pd.concat([dm, df])
-		d.to_csv(output[0], sep= '\t', header= True, index= False)
-
+		if os.stat(input[0]).st_size == 0:
+                        open(output[0], 'a').close()
+		else:
+			dm= pd.read_csv(input[0], sep= '\t', header= 0)
+			dm[['chr', 'cM1', 'cM2']]= dm['segment'].str.split(':', expand= True)
+		        dm[['chr', 'cM1', 'cM2']]= dm[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
+			dm['size']= (dm.cM2 - dm.cM1) / 10**6
+			dm['member']= np.where('maternal' == wildcards.sample, 'Mother', np.where('fetal'== wildcards.sample, 'Fetal', 'Paternal'))
+			dm.to_csv(output[0], sep= '\t', header= True, index= False)
 
 rule annotation_HC_segments:
-        ''
-        input:
-                '/mnt/work/pol/ROH/annotation/OMIM_HC_maternal.txt',
-                '/mnt/work/pol/ROH/annotation/OMIM_HC_fetal.txt',
-                '/mnt/work/pol/ROH/results/ROH_freq_maternal.txt',
-                '/mnt/work/pol/ROH/results/ROH_freq_fetal.txt',
-                '/mnt/work/pol/ROH/annotation/GNOMAD/HC_maternal_VEP.txt',
-                '/mnt/work/pol/ROH/annotation/GNOMAD/HC_fetal_VEP.txt',
-                '/mnt/work/pol/ROH/results/HC_maternal_surv_spont',
-                '/mnt/work/pol/ROH/results/HC_fetal_surv_spont'
-        output:
-                '/mnt/work/pol/ROH/tables/HC_annotated.txt'
-        run:
-                dm= pd.read_csv(input[0], sep= '\t', header= 0, usecols= ['segment', 'gene', 'EntrezID', 'cyto', 'Mim'])
-                df= pd.read_csv(input[1], sep= '\t', header= 0, usecols= ['segment', 'gene', 'EntrezID', 'cyto', 'Mim'])
-                VEPm= pd.read_csv(input[4], sep= '\t', header= None, names= ['segment', 'variants', 'VEP_mod', 'VEP_high'])
-                VEPf= pd.read_csv(input[5], sep= '\t', header= None, names= ['segment', 'variants', 'VEP_mod', 'VEP_high'])
-                dm= pd.merge(dm, VEPm, on= 'segment', how= 'left')
-                df= pd.merge(df, VEPf, on= 'segment', how= 'left')
-                HCm= pd.read_csv(input[6], sep= '\t', header= 0, usecols= ['segment', 'pos1', 'pos2'])
-                HCf= pd.read_csv(input[7], sep= '\t', header= 0, usecols= ['segment', 'pos1', 'pos2'])
-                dm= pd.merge(dm, HCm, on= 'segment', how= 'left')
-                df= pd.merge(df, HCf, on= 'segment', how= 'left')
-                dm[['chr', 'cM1', 'cM2']]= dm['segment'].str.split(':', expand= True)
-                dm[['chr', 'cM1', 'cM2']]= dm[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
-                df[['chr', 'cM1', 'cM2']]= df['segment'].str.split(':', expand= True)
-                df[['chr', 'cM1', 'cM2']]= df[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
-                freqm= pd.read_csv(input[2], sep= '\t', header= 0)
-                dm= pd.merge(dm, freqm, on= ['chr', 'cM1', 'cM2'], how= 'left')
-                freqf= pd.read_csv(input[3], sep= '\t', header= 0)
-                df= pd.merge(df, freqf, on= ['chr', 'cM1', 'cM2'], how= 'left')
-                dm['size']= (dm.cM2 - dm.cM1) / 10**6
-                df['size']= (df.cM2 - df.cM1) / 10**6
-                dm['member']= 'Mother'
-                df['member']= 'Fetus'
-                d= pd.concat([dm, df])
-                d.to_csv(output[0], sep= '\t', header= True, index= False)
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/OMIM_{sample}.txt',
+		'/mnt/work/pol/ROH/results/{sample}/eff_ROH.txt'
+	output:
+		'/mnt/work/pol/ROH/tables/HC_annotated_{sample}.txt'
+	run:
+		dm= pd.read_csv(input[0], sep= '\t', header= 0, usecols= ['segment', 'gene', 'beta', 'freq', 'sd', 'pvalue', 'EntrezID', 'cyto', 'Mim'])
+		with open(input[1]) as f:
+                                eff= sum([int(line.strip()) for line in f])
+		dm= dm.loc[dm.pvalue< 0.05/ eff, :]
+		if dm.shape[0] == 0:
+			open(output[0], 'a').close()
+		else:
+			dm[['chr', 'cM1', 'cM2']]= dm['segment'].str.split(':', expand= True)
+			dm[['chr', 'cM1', 'cM2']]= dm[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
+			dm['size']= (dm.cM2 - dm.cM1) / 10**6
+			dm['member']= 'Mother'
+			dm.to_csv(output[0], sep= '\t', header= True, index= False)
 
+rule optimized_params:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/arguments/max_R2_{cohort}.txt', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/tables/optim_param.txt'
+	run:
+		df_list= list()
+		for infile in input:
+			d= pd.read_csv(infile, sep= '\t', header= None).T
+			d.columns= ['pruning', 'dens', 'SNP', 'dist', 'het', 'GAP']
+			df_list.append(d)
+		x= pd.concat(df_list)
+		x['Cohort']= ['Cohort1', 'Cohort2', 'Cohort3', 'Cohort4', 'Cohort5', 'Cohort6']
+		x.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule preproc_genetic_relatedness:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam',
+		'/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt',
+		'/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt'
+	output:
+		temp('/mnt/work/pol/ROH/tables/{cohort}_parental_relatedness.txt')
+	run:
+		fam= pd.read_csv(input[0], header= None, names= ['FID', 'IID', 'x1','x2', 'x3','x4'], delim_whitespace= True)
+		ibd= pd.read_csv(input[1], header= 0, delim_whitespace= True)
+		trio= pd.read_csv(input[2], header= 0, delim_whitespace= True)
+		trio= trio.loc[trio.Father.isin(fam.IID) & trio.Mother.isin(fam.IID), :]
+		ibd= pd.merge(ibd, trio, on= ['Mother', 'Father'], how= 'outer')
+		ibd['cM']= np.where(ibd['cM'].isnull(), 0, ibd.cM)
+		ibd= ibd[['cM', 'Mother', 'Father']]
+		if wildcards.cohort== 'harvestm12': coh= 'Cohort1'
+		if wildcards.cohort== 'harvestm24': coh= 'Cohort2'
+		if wildcards.cohort== 'rotterdam1': coh= 'Cohort3'
+		if wildcards.cohort== 'rotterdam2': coh= 'Cohort4'
+		if wildcards.cohort== 'normentfeb': coh= 'Cohort5'
+		if wildcards.cohort== 'normentmay': coh= 'Cohort6'
+		d= pd.DataFrame({'cohort': coh, 'Median': np.percentile(ibd.cM, 50), 'p25': np.percentile(ibd.cM, 25), 'p75': np.percentile(ibd.cM, 75)}, index= [0])
+		d.to_csv(output[0], header= False, index= False, sep= '\t')
+
+rule parental_genetic_relatedness:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/tables/{cohort}_parental_relatedness.txt', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/tables/parental_relatedness.txt'
+	shell:
+		'cat {input} > {output[0]}'
 
 ######## Supplementary Figures
 
@@ -235,14 +318,15 @@ rule S1_figures:
 		'/mnt/work/pol/ROH/figures/SNP_R2_optim_allcoh_nohet.eps',
 		'/mnt/work/pol/ROH/figures/SNP_R2_optim_allcoh_1het.eps'
 	output:
-		'/mnt/work/pol/ROH/figures/S1_Figures.pdf'
+		'/mnt/work/pol/ROH/figures/S1_Figure.pdf'
 	script:
 		'S1_figures.Rmd'
 
-rule S2_figure:
+rule S2_figures:
 	''
 	input:
-		'/mnt/work/pol/ROH/figures/parent_offspring_assoc_optim.eps'
+		'/mnt/work/pol/ROH/figures/fixed_params_Joshi.eps',
+		'/mnt/work/pol/ROH/figures/fixed_params_Gazal.eps'
 	output:
 		'/mnt/work/pol/ROH/figures/S2_Figure.pdf'
 	script:
@@ -257,50 +341,77 @@ rule S3_figure:
 	script:
 		'S3_figure.Rmd'
 
+rule S4_figure:
+        ''
+        input:
+                '/mnt/work/pol/ROH/figures/segments_pvalue_maternal.eps'
+        output:
+                '/mnt/work/pol/ROH/figures/S4_Figure.pdf'
+        script:
+                'S4_figure.Rmd'
+
+
 ####### Supplementary Tables:
 
 rule S1_table:
 	''
 	input:
-		'/mnt/work/pol/ROH/tables/descr_cohorts.txt',
-		'/mnt/work/pol/ROH/tables/pvalues_descr_cohorts.txt'
+		'/mnt/work/pol/ROH/tables/parental_relatedness.txt'
 	output:
 		'/mnt/work/pol/ROH/tables/S1_Table.pdf'
 	script:
 		'S1_table.Rmd'
 
 rule S2_table:
-	''
-	output:
-		'/mnt/work/pol/ROH/tables/S2_Table.pdf'
-	script:
-		'S2_table.Rmd'
+        ''
+        input:
+                '/mnt/work/pol/ROH/tables/optim_param.txt'
+        output:
+                '/mnt/work/pol/ROH/tables/S2_Table.pdf'
+        script:
+                'S2_table.Rmd'
 
 rule S3_tables:
-	''
-	input:
-		'/mnt/work/pol/ROH/tables/autoz_all.txt',
-		'/mnt/work/pol/ROH/tables/autoz_maternal.txt',
-		'/mnt/work/pol/ROH/tables/autoz_paternal.txt',
-		'/mnt/work/pol/ROH/tables/autoz_fetal.txt'
-	output:
-		'/mnt/work/pol/ROH/tables/S3_Tables.pdf'
-	script:
-		'S3_table.Rmd'
+        ''
+        input:
+                '/mnt/work/pol/ROH/tables/autoz_all.txt',
+                '/mnt/work/pol/ROH/tables/autoz_maternal.txt',
+                '/mnt/work/pol/ROH/tables/autoz_paternal.txt',
+                '/mnt/work/pol/ROH/tables/autoz_fetal.txt'
+        output:
+                '/mnt/work/pol/ROH/tables/S3_Table.pdf'
+        script:
+                'S3_table.Rmd'
 
 rule S4_table:
         ''
         input:
-                '/mnt/work/pol/ROH/results/imputed/surv_imputed_maternal.txt',
-		'/mnt/work/pol/ROH/annotation/genes_imputed_maternal.txt',
-		expand('/mnt/work/pol/{cohort}/info/INFO.txt.gz', cohort= cohort_nms)
-		
+                '/mnt/work/pol/ROH/tables/AFT_FROH.txt'
         output:
                 '/mnt/work/pol/ROH/tables/S4_Table.pdf'
         script:
                 'S4_table.Rmd'
 
 rule S5_table:
+	''
+	input:
+		'/mnt/work/pol/ROH/tables/descr_cohorts.txt',
+		'/mnt/work/pol/ROH/tables/pvalues_descr_cohorts.txt'
+	output:
+		'/mnt/work/pol/ROH/tables/S5_Table.pdf'
+	script:
+		'S5_table.Rmd'
+
+rule S6_table:
+	''
+	output:
+		'/mnt/work/pol/ROH/tables/S6_Table.pdf'
+	script:
+		'S6_table.Rmd'
+
+
+### Non-used
+rule S5_table_nonused:
         ''
         input:
                 '/mnt/work/pol/ROH/results/imputed/replication/surv_moms.txt',
@@ -310,6 +421,6 @@ rule S5_table:
 		'/mnt/work/pol/normentjun/info/INFO.txt.gz'
 
         output:
-                '/mnt/work/pol/ROH/tables/S5_Table.pdf'
+#                '/mnt/work/pol/ROH/tables/S5_Table.pdf'
         script:
                 'S5_table.Rmd'

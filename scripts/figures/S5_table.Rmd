@@ -9,6 +9,7 @@ header-includes:
 - \setlength{\droptitle}{10em}
 - \renewcommand{\caption}{}
 - \usepackage[font=bf]{caption}
+- \pagenumbering{gobble}
 ---
 
 ```{r dependencies, include=FALSE}
@@ -27,80 +28,38 @@ opts_chunk$set(dpi=300)
 
 ```{r echo= F}
 
-info_f= snakemake@input[grepl('INFO', snakemake@input)]
-
 d= fread(snakemake@input[[1]], h=T)
+d$spont= with(d, paste0(spont_n, ' (', spont_frac, ')'))
+d$ga= with(d, paste0(ga_mean, ' (', ga_sd, ')'))
+d$parity= with(d, paste0(parity_n, ' (', parity_frac, ')'))
+#d$bw= with(d, paste0(bw_mean, ' (', bw_sd, ')'))
+d$age= with(d, paste0(age_mean, ' (', age_sd, ')'))
+d$inc1= with(d, paste0(inc1_n, ' (', inc1_frac, ')'))
+d$inc2= with(d, paste0(inc2_n, ' (', inc2_frac, ')'))
+d$inc3= with(d, paste0(inc3_n, ' (', inc3_frac, ')'))
+d$edu1= with(d, paste0(edu1_n, ' (', edu1_frac, ')'))
+d$edu2= with(d, paste0(edu2_n, ' (', edu2_frac, ')'))
+d$edu3= with(d, paste0(edu3_n, ' (', edu3_frac, ')'))
 
-disc= fread(snakemake@input[[2]], h=T)
-d= filter(d, variant %in% disc$variant)
-
-
-d= separate(d, variant, into= c('chr', 'pos', 'REF', 'ALT'), sep= ':', remove= F)
-d$pos= as.numeric(as.character(d$pos))
-d$chr= as.numeric(as.character(d$chr))
-
-z= fread(snakemake@input[[3]], h= T)
-z= select(z, chr, pos, ref, eff, gene, EntrezID, Mim)
-
-colnames(z)= c('chr', 'pos', 'REF', 'ALT', 'Gene', 'EntrezID', 'Mim')
-
-d= inner_join(d, z[, c('chr', 'pos', 'REF', 'ALT', 'Gene', 'EntrezID', 'Mim')], by= c('chr', 'pos', 'REF', 'ALT'))
-
-d= select(d, -c(REF, ALT))
-
-info_list= list()
-
-for (infile in info_f) {
-
-	x= fread(infile, h= F)
-	colnames(x)= c('chr', 'pos', 'REF', 'ALT', 'AC', 'AN', 'INFO')
-	x= inner_join(x, d[, c('chr', 'pos')], by= c('chr', 'pos'))
-	x$A= ifelse(x$REF > x$ALT, x$ALT, x$REF)
-	x$A1= ifelse(x$REF> x$ALT, x$REF, x$ALT)
-	x$variant= paste(x$chr, x$pos, x$A, x$A1, sep= ':')
-	info_list= c(list(x), info_list)
-}
-
-df_all= do.call('rbind', info_list)
-
-df= df_all %>% group_by(variant) %>% summarize(AN= sum(AN), AC= sum(AC))
-df_all= select(df_all, variant, ALT, REF)
-df_all= df_all[!duplicated(df_all$variant), ]
-
-df= inner_join(df, df_all, by= 'variant')
-
-df$AF= df$AC / df$AN
-
-df$MA= ifelse(df$AF< 0.5, df$ALT, df$REF)
-df$MAF= ifelse(df$AF< 0.5, df$AF, 1 - df$AF)
-df$NMA= ifelse(df$MA== df$REF, df$ALT, df$REF)
-df$REF= df$NMA
-df$ALT= df$MA
-
-df= select(df, variant, REF, ALT, MAF)
-
-d= inner_join(d, df, by= 'variant')
-
-d= separate(d, variant, into=c('X1', 'X2', 'A', 'A1'), sep= ':', remove= F)
-d$beta_meta= ifelse(d$A1== d$ALT, d$beta_meta, -1 * d$beta_meta)
-d$variant= paste(d$chr, d$pos, d$REF, d$ALT, sep= ':')
-d$estimate= round((exp(d$beta_meta) - 1) * 100, 1)
-
-d$beta= paste0(round(d$beta_meta, 3), ' (', round(d$sd_meta, 3), ')')
-d$pvalue= formatC(d$pvalue_meta, format = "e", digits = 2)
-d= d[order(d$pvalue_meta, decreasing= F),]
-
-d= select(d, variant, MAF, n_meta, estimate, beta, pvalue, Gene, EntrezID, Mim)
-
-d$MAF= round(d$MAF, 4)
-
-colnames(d)= c('chr:pos:REF:ALT', 'MAF', 'N', 'Estimate', 'Beta (sd)', 'P-value', 'Gene', 'EntrezID', 'Mim')
-
-kable(d, align= c('l', rep('c', 8)), row.names= F, caption = "S4 Table: Replication of maternal top genetic variants associated with time-to-spontaneous delivery under a recessive model.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('chr, chromosome; pos, position; REF, reference allel; ALT, effect allele; sd, standard deviation.', 'Association results for accelerated failure time model on spontaneous delivery under a recessive model. Replication samples included two batches with ~3000 mothers from the MoBa cohort. Effect allele refers to minor allele, and the estimate (and beta) expresses the effect of being homozygous for this allele. MAF was calculated using the two replication sub-cohorts. The estimate, beta and p-values were obtained after inverse-variance weighted meta-analysis of individual cohort beta and sd. Gene column shows the nearest protein coding gene, and Mim the OMIM number for that specific gene, if any.'), threeparttable= T)
+pval= fread(snakemake@input[[2]], h=T)
 
 
+d= select(d, cohort, total_n, spont, ga, parity, age, inc1, inc2, inc3, edu1, edu2, edu3)
+df= as.data.frame(t(d[,-1]))
+colnames(df)= d$cohort
 
+pval= formatC(pval$pvalue, format = "e", digits = 2)
 
+df= cbind(df, c('', pval[1], pval[2], pval[3], pval[4], '', pval[5], '', '', pval[6], ''))
 
+colnames(df)= c('Cohort1',   'Cohort2',   'Cohort3',   'Cohort4',   'Cohort5',   'Cohort6', 'P-value')
+
+rownames(df)= c('Total n', 'Spontaneous delivery, n', 'Gestational duration, days', 'Nulliparous, n', 'Maternal age, years',  'Inc. 0 parents >300.000 kr', 'Inc. 1 parent >300.000 kr', 'Inc. 2 parents > 300.000 kr', 'Education ≤12 years', 'Education 13 to 16 years', 'Education ≥17 years')
+
+#kable(df, row.names= T, booktabs = T, caption = "S1 Table: ", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down'), stripe_index= c(4:6, 8, 11)) %>% column_spec(1, bold = T, color = "black", background = "white")
+
+kable(df, align= rep('c', 7), row.names= T, caption = "S1 Table: Descriptive characteristics of pregnancies in all sub-cohorts.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down'), stripe_index= c(4:6, 8, 11)) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Inc, income.','Spontaneous delivery was defined as a delivery not initiated by cesarean section nor induction. All data was obtained from the Medical Birth Registry of Norway, except household income and maternal educational attainment, which were obtained from a questionnaire filled by the mother in early pregnancy. P-values were obtianed using ANOVA and Chi² for continuous and categorical data, respectively.'), threeparttable= T) %>%   landscape()
+
+```
 
 

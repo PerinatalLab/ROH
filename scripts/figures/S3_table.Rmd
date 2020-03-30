@@ -9,6 +9,7 @@ header-includes:
 - \setlength{\droptitle}{10em}
 - \renewcommand{\caption}{}
 - \usepackage[labelfont=bf]{caption}
+- \pagenumbering{gobble}
 ---
 
 ```{r dependencies, include=FALSE}
