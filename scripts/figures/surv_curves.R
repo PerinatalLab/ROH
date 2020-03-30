@@ -19,48 +19,13 @@ dists_long= c('Cohort1', 'Cohort2', 'Cohort3', 'Cohort4', 'Cohort5', 'Cohort6')
 parametric_haz <- vector(mode = "list", length = length(cohorts))
 n_dists <- length(cohorts)
 
-
-
-
-for (coh in cohorts){
-mom= fread(input[grep(coh, input)])
-
-if (coh== 'harvestm12' | coh== 'harvestm24'){
-mom= mutate(mom, spont= as.numeric(FSTART==1 & (is.na(KSNITT) | KSNITT>1) &
-                (is.na(KSNITT_PLANLAGT) | KSNITT_PLANLAGT==1) &
-                INDUKSJON_PROSTAGLANDIN==0 &
-                INDUKSJON_ANNET==0 &
-                INDUKSJON_OXYTOCIN==0 &
-                INDUKSJON_AMNIOTOMI==0),
-                PARITY0= as.numeric(PARITET_5==0))
-}
-
-if (coh!= 'harvestm12' & coh!= 'harvestm24'){
-mom= mutate(mom, spont= as.numeric((FSTART=='Spontan' | FSTART== '') & ((KSNITT=='') | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
-                INDUKSJON_PROSTAGLANDIN=='Nei' &
-                INDUKSJON_ANNET=='Nei' &
-                INDUKSJON_OXYTOCIN=='Nei' &
-                INDUKSJON_AMNIOTOMI=='Nei'),
-                PARITY0= as.numeric(PARITET_5=='0 (førstegangsfødende)'))
-names(mom)[names(mom) == 'SentrixID'] <- 'SentrixID_1'
-}
-
-mom$cohort= coh
-mom= mom[!duplicated(mom$SentrixID_1),]
+mom= fread(snakemake@input[[1]])
 
 mom= select(mom, spont, SVLEN_UL_DG, cohort)
-df_list= c(df_list, list(mom))
 
-}
-
-d= do.call('rbind', df_list)
-
-
-for (i in 1:length(cohorts)){
-  fit <- flexsurvreg(Surv(SVLEN_UL_DG, spont) ~ 1, data = d[d$cohort== cohorts[i],], dist = 'Weibull') 
-  parametric_haz[[i]] <- summary(fit, type = "hazard", ci = FALSE, tidy = TRUE)
-  parametric_haz[[i]]$cohort <- dists_long[i]
-}
+fit <- flexsurvreg(Surv(SVLEN_UL_DG, spont) ~ 1, data = d, dist = 'Weibull')
+parametric_haz[[i]= summary(fit, type = "hazard", ci = FALSE, tidy = TRUE)
+parametric_haz[[i]]$cohort= dists_long[i]
 
 parametric_haz <- rbindlist(parametric_haz)
 

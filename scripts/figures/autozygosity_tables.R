@@ -2,20 +2,21 @@ library(data.table)
 library(dplyr)
 
 df_struct= function(member) {
-print(class(unlist(coh_input[grep(paste0('mfr_', member), coh_input)])))
-print(unlist(coh_input[grep(paste0('mfr_', member), coh_input)]))
-df= fread(unlist(coh_input[grep(paste0('mfr_', member), coh_input)]))
+print(class(unlist(input[grep(paste0('mfr_', member), input)])))
+print(unlist(input[grep(paste0('mfr_', member), input)]))
+df= fread(unlist(input[grep(paste0('mfr_', member), input)]))
 
 
-fhom= fread(unlist(coh_input[grep(paste0(member, '_excess'), coh_input)]))
-fhom= select(fhom, IID, none_F)
-names(fhom)= c('IID', 'FHOM')
-df= full_join(df, fhom, by= 'IID')
+fhom= fread(unlist(input[grep(paste0('excess_', member), input)]))
+fhom= select(fhom, IID, none_F, cohort)
+names(fhom)= c('IID', 'FHOM', 'cohort')
+
+
+df= full_join(df, fhom, by= c('cohort', 'IID'))
 
 df$KBAVG= df$KBAVG / 10**6 * 1000
 df$tmrca= 100 / (2 * df$KBAVG)
 df$tmrca= ifelse(df$tmrca== Inf, NA, df$tmrca)
-df$cohort= coh
 df$fam= member
 df$FKB= df$FKB * 100
 df= select(df, FKB, NSEG, FHOM, KBAVG, tmrca, cohort, fam)
@@ -24,28 +25,12 @@ return(df)
 
 cohorts= c('harvestm12', 'harvestm24', 'rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay')
 
-mom_list= list()
-dad_list= list()
-fet_list= list()
-
 input= snakemake@input
 
-for (coh in cohorts){
-coh_input= input[grep(coh, input)]
 
 mom= df_struct('maternal')
 dad= df_struct('paternal')
 fet= df_struct('fetal')
-
-mom_list= c(mom_list, list(mom))
-dad_list= c(dad_list, list(dad))
-fet_list= c(fet_list, list(fet))
-}
-
-mom= do.call('rbind', mom_list)
-dad= do.call('rbind', dad_list)
-fet= do.call('rbind', fet_list)
-
 
 sum_mom= mom %>% group_by(cohort) %>% summarize(
 FKB_m= median(FKB, na.rm= T), FKB_25= quantile(FKB, probs= 0.25, na.rm=T), FKB_75= quantile(FKB, probs= 0.75, na.rm=T),

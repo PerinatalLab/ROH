@@ -161,5 +161,5 @@ xlab('') +
 
 p= plot_grid(p1, p2, p3, p4, ncol= 2, nrow= 2)
 
-save_plot(snakemake@output[[1]], s2, base_width=297, base_height=210, units="mm")
+save_plot(snakemake@output[[1]], s2, base_width=297, base_height=210, units="mm", device= cairo_ps)
 

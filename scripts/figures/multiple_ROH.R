@@ -90,8 +90,8 @@ scale_shape_manual(name="Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3
 
 
 
-save_plot(snakemake@output[[1]], p1, base_width=297, base_height=210, units="mm")
-save_plot(snakemake@output[[2]], p2, base_width=297, base_height=210, units="mm")
+save_plot(snakemake@output[[1]], p1, base_width=297, base_height=210, units="mm", device= cairo_ps)
+save_plot(snakemake@output[[2]], p2, base_width=297, base_height=210, units="mm", device= cairo_ps)
 
 
 
@@ -132,5 +132,5 @@ facet_wrap(~cohort, labeller = labeller(cohort= as_labeller(c('harvestm12'='Coho
 
 
 #ggsave(snakemake@output[[1]], grid.draw(g), device= 'eps', dpi= 'retina', width= 12, height= 8, units= 'cm')
-save_plot(snakemake@output[[3]], plot= s1A, base_width=297, base_height=210, units="mm")
-save_plot(snakemake@output[[4]], plot= s1B, base_width=297, base_height=210, units="mm")
+save_plot(snakemake@output[[3]], plot= s1A, base_width=297, base_height=210, units="mm", device= cairo_ps)
+save_plot(snakemake@output[[4]], plot= s1B, base_width=297, base_height=210, units="mm", device= cairo_ps)

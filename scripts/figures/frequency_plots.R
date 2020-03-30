@@ -3,15 +3,14 @@ library(cowplot)
 library(viridis)
 library(dplyr)
 library(data.table)
+library(tidyr)
 
 colors_3= c('#FFBD01', '#00B25D', '#9C02A7')
 
-input= snakemake@input
+x= fread(snakemake@input[[1]], h=T)
 
-for (infile in input) {
-x= fread(infile)
-
-if (grepl('maternal', infile)) {
+#x= separate(x, segment, into= c('cM1', 'cM2'), sep= ':')
+#x= mutate(x, cM1= as.numeric(cM1), cM2= as.numeric(cM2))
 
 x$mcM= (x$cM1 + x$cM2) / 2
 
@@ -43,9 +42,10 @@ ggtitle('Mothers')
 
 #return(mom)
 
-}
+x= fread(snakemake@input[[2]], h=T)
 
-if (grepl('paternal', infile)) {
+#x= separate(x, segment, into= c('cM1', 'cM2'), sep= ':')
+#x= mutate(x, cM1= as.numeric(cM1), cM2= as.numeric(cM2))
 
 x$mcM= (x$cM1 + x$cM2) / 2
 
@@ -75,9 +75,12 @@ scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + 
     ylab('Frequency') +
 ggtitle('Fathers')
 #return(dad)
-}
 
-if (grepl('fetal', infile)) {
+
+x= fread(snakemake@input[[3]], h=T)
+
+#x= separate(x, segment, into= c('cM1', 'cM2'), sep= ':')
+#x= mutate(x, cM1= as.numeric(cM1), cM2= as.numeric(cM2))
 
 x$mcM= (x$cM1 + x$cM2) / 2
 
@@ -105,11 +108,7 @@ scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + 
          xlab('Chromosome') +
     ylab('Frequency') +
 ggtitle('Offspring')
-#return(fet)
-}
-
-}
 
 plot1= plot_grid(mom, dad, fet, ncol= 1, labels= 'AUTO', align= 'v')
 
-save_plot(snakemake@output[[1]], plot= plot1, base_width=297, base_height=210, units="mm")
+save_plot(snakemake@output[[1]], plot= plot1, base_width=297, base_height=210, units="mm", device= cairo_ps)

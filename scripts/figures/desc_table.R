@@ -5,42 +5,26 @@ library(survival)
 
 cohorts= c('harvestm12', 'harvestm24', 'rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay')
 
-mom_list= list()
+q1_list= list()
 
 input= unlist(snakemake@input)
+
+mom= fread(snakemake@input[[1]])
 
 for (coh in cohorts){
 input_coh= input[grep(coh, input)]
 
-mom= fread(input_coh[grep('mfr_maternal', input_coh)])
 q1= fread(input_coh[grep('q1', input_coh)])
 
 if (coh== 'harvestm12' | coh== 'harvestm24'){
-mom= rename(mom, 'PREG_ID_315'= 'PREG_ID_1724')
-q1= rename(q1, 'PREG_ID_315'= 'PREG_ID_1724')
+q1= rename(q1, 'PREG_ID'= 'PREG_ID_1724')
 
-mom= mutate(mom, spont= as.numeric(FSTART==1 & (is.na(KSNITT) | KSNITT>1) &
-                (is.na(KSNITT_PLANLAGT) | KSNITT_PLANLAGT==1) &
-                INDUKSJON_PROSTAGLANDIN==0 &
-                INDUKSJON_ANNET==0 &
-                INDUKSJON_OXYTOCIN==0 &
-                INDUKSJON_AMNIOTOMI==0),
-                PARITY0= as.numeric(PARITET_5==0))
-}
-
-if (coh!= 'harvestm12' & coh!= 'harvestm24'){
-mom= mutate(mom, spont= as.numeric((FSTART=='Spontan' | FSTART== '') & ((KSNITT=='') | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
-                INDUKSJON_PROSTAGLANDIN=='Nei' &
-                INDUKSJON_ANNET=='Nei' &
-                INDUKSJON_OXYTOCIN=='Nei' &
-                INDUKSJON_AMNIOTOMI=='Nei'),
-                PARITY0= as.numeric(PARITET_5=='0 (førstegangsfødende)'))
-
+} else {
+q1= rename(q1, 'PREG_ID'= 'PREG_ID_315')
 q1$AA1124= as.integer(factor(q1$AA1124, c("9-årig grunnskole", "1-2-årig videregående", "Videregående yrkesfaglig", "3-årig videregående allmennfaglig, gymnas", "Distriktshøyskole, universitet inntil 4 år (cand. mag., sykepleier, lærer, ingeniør)", "Universitet, høyskole, mer enn 4 år (hovedfag, embetseksamen)")))
 q1$AA1125= as.integer(factor(q1$AA1125, c("9-årig grunnskole", "1-2-årig videregående", "Videregående yrkesfaglig", "3-årig videregående allmennfaglig, gymnas", "Distriktshøyskole, universitet inntil 4 år (cand. mag., sykepleier, lærer, ingeniør)", "Universitet, høyskole, mer enn 4 år (hovedfag, embetseksamen)")))
 q1$AA1315= as.integer(factor(q1$AA1315, c("Ingen Inntekt", "Under 150.000 kr.", "150-199.999 kr.", "200-299.999 kr.", "300-399.999 kr.", "400-499.999 kr.", "over 500.000 kr.")))
 q1$AA1316= as.integer(factor(q1$AA1316, c("Ingen Inntekt", "Under 150.000 kr.", "150-199.999 kr.", "200-299.999 kr.", "300-399.999 kr.", "400-499.999 kr.", "over 500.000 kr.")))
-mom$MORS_ALDER= mom$FAAR - mom$MOR_FAAR
 }
 
 q1$edu[q1$AA1124 <3 | q1$AA1125<3]= 1
@@ -67,18 +51,17 @@ q1$edu= ifelse(q1$edu>=4, 4, q1$edu)
 q1$edu= ifelse(q1$edu<2, 2, q1$edu)
 q1$edu= q1$edu -1 
 
-q1= select(q1, PREG_ID_315, income, edu)
+q1= select(q1, PREG_ID, income, edu)
+q1$cohort= coh
+q1= filter(q1, PREG_ID %in% mom$PREG_ID)
 
-mom= left_join(mom, q1, by= 'PREG_ID_315')
-mom= select(mom, spont, SVLEN_UL_DG, PARITY0, VEKT, MORS_ALDER, income, edu)
-mom$cohort= coh
-
-mom_list= c(mom_list, list(mom))
+q1_list[[coh]]= q1
 
 }
 
-mom= do.call('rbind', mom_list)
+q1= do.call('rbind', q1_list)
 
+mom= left_join(mom, q1, by= c('PREG_ID', 'cohort'))
 
 newlist= lapply(cohorts, function(x) {
 df= mom[mom$cohort== x, ]
@@ -91,10 +74,8 @@ ga_mean= round(mean(df$SVLEN_UL_DG, na.rm= T)),
 ga_sd= round(sd(df$SVLEN_UL_DG, na.rm= T), 1),
 parity_n= sum(df$PARITY0, na.rm=T),
 parity_frac= round(mean(df$PARITY0, na.rm= T), 2),
-bw_mean= round(mean(df$VEKT, na.rm= T)),
-bw_sd= round(sd(df$VEKT, na.rm= T)),
-age_mean= round(mean(df$MORS_ALDER, na.rm= T)),
-age_sd= round(sd(df$MORS_ALDER, na.rm= T), 1),
+age_mean= round(mean(df$ALDER, na.rm= T)),
+age_sd= round(sd(df$ALDER, na.rm= T), 1),
 inc1_n= sum(df$income== 0, na.rm= T),
 inc1_frac= round(mean(df$income== 0, na.rm= T), 2),
 inc2_n= sum(df$income== 1, na.rm= T),
@@ -115,12 +96,11 @@ x= do.call('rbind', newlist)
 spont_pvalue= chisq.test(table(mom$spont, mom$cohort))$p.value
 parity_pvalue= chisq.test(table(mom$PARITY0, mom$cohort))$p.value
 ga_pvalue= summary(aov(SVLEN_UL_DG~ cohort, mom))[[1]][["Pr(>F)"]][1]
-bw_pvalue= summary(aov(VEKT~ cohort, mom))[[1]][["Pr(>F)"]][1]
-age_pvalue= summary(aov(MORS_ALDER~ cohort, mom))[[1]][["Pr(>F)"]][1]
+age_pvalue= summary(aov(ALDER~ cohort, mom))[[1]][["Pr(>F)"]][1]
 inc_pvalue= chisq.test(table(mom$income, mom$cohort))$p.value
 edu_pvalue= chisq.test(table(mom$edu, mom$cohort))$p.value
 
-z= data.frame(var= c('spont', 'ga', 'parity', 'bw', 'age', 'income', 'edu'), pvalue= c(spont_pvalue, ga_pvalue, parity_pvalue, bw_pvalue, age_pvalue, inc_pvalue, edu_pvalue))
+z= data.frame(var= c('spont', 'ga', 'parity', 'age', 'income', 'edu'), pvalue= c(spont_pvalue, ga_pvalue, parity_pvalue, age_pvalue, inc_pvalue, edu_pvalue))
 
 
 write.table(x, snakemake@output[[1]], sep= '\t', row.names=F, col.names=T, quote=F)

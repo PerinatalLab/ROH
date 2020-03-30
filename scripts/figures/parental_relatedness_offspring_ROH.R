@@ -3,6 +3,7 @@ library(dplyr)
 library(ggplot2)
 library(cowplot)
 library(Cairo)
+library(caret)
 
 colors_3= c('#FFBD01', '#00B25D', '#9C02A7')
 
@@ -37,11 +38,15 @@ input= unlist(snakemake@input)
 cohorts= c('harvestm12', 'harvestm24', 'rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay')
 
 df_list= list()
+r_list= list()
 
 for (coh in cohorts){
 
 
 input_coh= input[grep(coh, input)]
+
+out_list= input_coh[grep('list_', input_coh)]
+
 pca= fread(unlist(input_coh[grep('pca.txt', input_coh)]))
 
 fam_ibd= fread(unlist(input_coh[grepl('ibd/to_phase.fam', input_coh)]))
@@ -53,55 +58,90 @@ names(fam_roh)= c('FID', 'IID', 'x1','x2', 'x3','x4')
 ibd= fread(unlist(input_coh[grepl('parental_ibd.txt', input_coh)]))
 
 trio= fread(unlist(input_coh[grepl('trios.txt', input_coh)]))
-trio= filter(trio, Child %in% fam_ibd$IID, Father %in% fam_ibd$IID, Mother %in% fam_ibd$IID)
+trio= filter(trio, Child %in% fam_roh$IID, Father %in% fam_ibd$IID, Mother %in% fam_ibd$IID)
 
 ibd= full_join(ibd, trio, by= c('Child', 'Mother', 'Father'))
 
 flag= fread(unlist(input_coh[grepl('flag_list.txt', input_coh)]))
 
-pca_out= fread(unlist(input_coh[grepl('all_pca_outliers_hapmap.txt', input_coh)]), h=F)
+pca_out= fread(unlist(input_coh[grepl('exclude', input_coh)]), h=F)
+mfr= fread(unlist(input_coh[grepl('mfr', input_coh)]))
+link= fread(unlist(input_coh[grepl('linkage', input_coh)]))
 
 if (coh== 'harvestm12' | coh == 'harvestm24') {
-flag= rename(flag, coreLMM = coreOK, phenoOK= phenotypesOK)
+flag= rename(flag, phenoOK= phenotypesOK)
+link= select(link, PREG_ID_1724, SentrixID_1)
+mfr= inner_join(mfr, link, by= 'PREG_ID_1724')
+
+mfr= mutate(mfr, FLERFODSEL==0 , DODKAT<6 | DODKAT>10, !is.na(SVLEN_UL_DG), SVLEN_UL_DG<308, SVLEN_UL_DG>154, is.na(IVF), FOSTERV_POLYHYDRAMNION==0, C00_MALF_ALL==0, FOSTERV_OLIGOHYDRAMNION== 0, VEKT>1500)
+
+flag= filter(flag, IID %in% mfr$SentrixID_1)
+
+} else {
+
+link= select(link, PREG_ID_315, SentrixID)
+
+mfr= inner_join(mfr, link, by= 'PREG_ID_315')
+mfr= mutate(mfr, FLERFODSEL== 'Enkeltfødsel' , grepl('Levendefødt', DODKAT), !is.na(SVLEN_UL_DG),SVLEN_UL_DG<308, SVLEN_UL_DG>154, is.na(IVF) | IVF== '', FOSTERV_POLYHYDRAMNION=='Nei', C00_MALF_ALL=='Nei', FOSTERV_OLIGOHYDRAMNION== 'Nei', VEKT>1500)
+
+flag= filter(flag, IID %in% mfr$SentrixID)
+
 }
 
 names(pca)= c('FID', 'IID', 'NMISS_ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10')
 
-flag= filter(flag, coreLMM== TRUE, genotypesOK== TRUE, phenoOK== TRUE)
+pca= select(pca, IID, PC1, PC2, PC3, PC4, PC5, PC6)
+
+flag= filter(flag, genotypesOK== TRUE, phenoOK== TRUE)
 
 kin= fread(unlist(input_coh[grepl('.kin0', input_coh)]))
 
 trio= trio %>% filter(Mother %in% flag$IID, Father %in% flag$IID, Child %in% flag$IID)
 
-flag= flag %>% filter(!IID %in% SelectRelated(kin, trio$Mother))
-trio= trio %>% filter(Mother %in% flag$IID)
-flag= flag %>% filter(!IID %in% SelectRelated(kin, trio$Father))
-trio= trio %>% filter(Father %in% flag$IID)
-flag= flag %>% filter(!IID %in% SelectRelated(kin, trio$Child))
-trio= trio %>% filter(Child %in% flag$IID)
-
+out_list= snakemake@input[grep('list_', snakemake@input)]
 
 arg= fread(unlist(input_coh[grepl('arg_R2', input_coh)]))
+r2= max(arg$R2, na.rm=T)
+
 arg= arg[arg$R2== max(arg$R2, na.rm=T), ]
 print(arg$file)
 d= fread(arg$file)
 
+
+for (outUPD in out_list){
+if (sub('.txt', '.hom.indiv', sub('list_', '', outUPD)) == arg$file){
+x= readLines(outUPD)
+}
+}
+
+d= left_join(d, pca, by= 'IID')
 d= full_join(d, fam_roh, by= c('IID'))
 d= inner_join(d, ibd, by= c('IID'= 'Child'))
-
+d= filter(d, !(IID %in% x))
 d= filter(d, Mother %in% flag$IID,
         Father %in% flag$IID,
         IID %in% flag$IID,
+	!(IID %in% x),
         !(IID %in% pca_out$V2),
         !(Father %in% pca_out$V2),
         !(Mother %in% pca_out$V2))
+	d= filter(d, !Mother %in% SelectRelated(kin, d$Mother))
+        d= filter(d, !Father %in% SelectRelated(kin, d$Father))
+        d= filter(d, !IID %in% SelectRelated(kin, d$IID))
 
 d$cM= ifelse(is.na(d$cM), 0, d$cM)
 d$KB= ifelse(is.na(d$KB), 0, d$KB)
 
-d= select(d, cM, KB)
+d= select(d, cM, KB, PC1, PC2, PC3, PC4, PC5, PC6)
 d$cohort= coh
 
+#train_control <- trainControl(method="cv", number=10)
+#d$rescM= lm(cM~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6, d)$resid
+#model <- train(rescM~ KB, data=d, trControl=train_control, method="lm", na.action= na.omit)
+
+#r_list[[coh]]= mean(model$resample$Rsquared)
+
+r_list[[coh]]= r2
 df_list= c(df_list, list(d))
 }
 
@@ -114,37 +154,30 @@ d$cohort2= ifelse((d$cohort== 'harvestm12' | d$cohort== 'harvestm24' | d$cohort=
 
 d$cohort= factor(d$cohort, levels= c('harvestm12', 'harvestm24', 'rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay'))
 
-r_list= c()
-coh_list= c()
-for (coh in cohorts){
-r_list= c(r_list, with(d[d$cohort== coh, ], cor(cM, KB, use= 'complete')**2))
-coh_list= c(coh_list, coh)
-}
+#d$cM= ifelse(d$cM==0, 10**-6, d$cM)
 
 
 
-lab= data.frame(R= r_list, cohort= coh_list)
+lab= as.data.frame(do.call('rbind', r_list))
+lab$cohort= rownames(lab)
+names(lab)= c('R', 'cohort')
+
 
 print(group_by(d, cohort) %>% summarize(n= sum(!is.na(cM) & !is.na(KB))))
+print(lab)
 
-print(cor(d$cM, d$KB, use= 'complete'))
-
-x1= ggplot(d, aes(x= cM, y= KB)) +
-geom_point(aes( colour= cohort, shape= cohort), size = 1.5) + 
+x1= ggplot(data= d, aes(x= cM, y= KB/10**6, colour= cohort)) +
+geom_point(size= 1.5) +
 theme_cowplot(12, font_size= 12) +
-scale_colour_manual(name = "Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= rep(colors_3, 2)) +
-scale_shape_manual(name="Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= rep(15:16, 3)) +
+scale_colour_manual(name = "Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= c(colors_3, 'black', 'grey', 'cyan')) +
+#scale_shape_manual(name="Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= rep(15:16, 3)) +
 geom_smooth(method = "lm", se=FALSE, colour= "black", formula = y ~ x, size= 0.6, linetype = 'dashed') +
 facet_wrap(vars(cohort), ncol= 3) +
-geom_text(data=lab, aes(x= Inf, y= -Inf, label= paste0('R**2:  ', sprintf('%0.2f', round(R,2)))), hjust= 1, vjust= -1, parse= T) +
+geom_text(data=lab, aes(x= Inf, y= -Inf, label= paste0('R**2:  ', sprintf('%0.2f', round(R,2)))), hjust= 1, vjust= -1, parse= T, colour= 'black', show.legend = FALSE) +
 theme(strip.text = element_blank(),
           strip.background = element_blank()) +
 xlab('Parental genetic relatedness, total cM') +
     ylab('Offspring ROH length, cM')
 
-save_plot(snakemake@output[[1]], plot= x1, base_width=297, base_height=210, units="mm")
-
-
-
-
+save_plot(snakemake@output[[1]], plot= x1, base_width=297, base_height=210, units="mm", device= cairo_ps)
 
