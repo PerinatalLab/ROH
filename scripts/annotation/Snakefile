@@ -15,16 +15,16 @@ CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,
 
 # Other arguments:
 
-pruning_nms= ['none', 'soft', 'moderate', 'hard']
+pruning_nms= ['none', 'soft', 'moderate']
 
 dens_nms= [5]
-SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_nms= [0.0000001]
 het_nms= [0, 1]
 GAP_nms= [5]
 
 dens_bp= [5000]
-SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_bp= [0.0000001]
 het_bp= [0, 1]
 GAP_bp= [5000]
@@ -54,7 +54,6 @@ def row_filter(row):
 	with open(outfile, 'a') as f:
 		f.write("%s\t%s\t%s\t%s\t%s\n" % (chr, int(pos) - 1, pos, gene, beta))
 
-
 rule format_gene_map:
 	'Format gene map from UCSC.'
 	input:
@@ -77,15 +76,40 @@ rule format_gene_map:
 		x1= d.groupby(['chrom', 'geneSymbol', 'EntrezID'])['txEnd'].max().reset_index()
 		df= pd.merge(x, x1, on= ['chrom', 'geneSymbol', 'EntrezID'])
 		df.columns= ['chr', 'gene', 'EntrezID', 'start', 'end']
+		df= df.loc[df.start != df.end, :]
 		df.to_csv(output[0], sep= '\t', header= True, index= False)
-		
+
+rule gene_map_bp_to_cM:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_transcription.txt',
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/genetic_map_chrX_nonPAR_combined_b37.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/cM_gene_transcription.txt'
+	run:
+		d= pd.read_csv(input[0], delim_whitespace=True, header= 0)
+		gm= pd.read_csv(input[1], delim_whitespace=True, header= 0, names= ['chr', 'pos', 'rate', 'cM'])
+		gx= pd.read_csv(input[2], delim_whitespace=True, header= 0, names= ['pos', 'rate', 'cM'])
+		gx['chr']= 23
+		gm= pd.concat([gm,gx])
+		df_list= list()
+		for CHR in set(d.chr):
+			temp_d= d.loc[d.chr== CHR, :]
+			temp_gm= gm.loc[gm.chr== CHR, :]
+			temp_d['cM1']= np.interp(temp_d.start, temp_gm['pos'], temp_gm['cM'])
+			temp_d['cM2']= np.interp(temp_d.end, temp_gm['pos'], temp_gm['cM'])
+			df_list.append(temp_d)
+		x= pd.concat(df_list)
+		x.to_csv(output[0], sep= '\t', header= True, index= False)
+
 rule map_genes_segments:
 	'Map genes to segments.'
 	input:
-		'/mnt/work/pol/ROH/results/HC_{sample}_surv_spont',
+		'/mnt/work/pol/ROH/results/surv_spont_{sample}',
 		'/mnt/work/pol/ROH/annotation/UCSC_gene_transcription.txt'
 	output:
-		'/mnt/work/pol/ROH/annotation/genes_HC_{sample}.txt'
+		'/mnt/work/pol/ROH/annotation/genes_segments_{sample}.txt'
 	run:
 		df= pd.read_csv(input[0], header= 0, sep= '\t')
 		if df.shape[0] == 0:
@@ -97,26 +121,26 @@ rule map_genes_segments:
 			gene['chr']= pd.to_numeric(gene.chr, errors= 'coerce')
 			gene.dropna(subset= ['chr'], axis= 0, inplace= True)
 			df_HC= df.drop_duplicates('segment')
-			x= df_HC.merge(gene, on= 'chr')
+			x= df_HC.merge(gene, on= 'chr', how= 'left')
 			x['overlap']= getOverlap(x.pos1, x.pos2, x.start, x.end)
-			x= x.loc[x.overlap>0, ['segment', 'gene', 'EntrezID', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta']]
+			x= x.loc[x.overlap>0, ['segment', 'gene', 'EntrezID', 'n','freq', 'beta', 'sd', 'pvalue', 'loglik', 'pos1', 'pos2']]
 			df_HC= df_HC.loc[~df_HC.segment.isin(x.segment), :]
 			df_HC= df_HC.merge(gene, on= 'chr')
 			df_HC['overlap']= getOverlap(df_HC.pos1, df_HC.pos2, df_HC.start, df_HC.end)
 			df_HC['bp_diff']= np.where((df_HC.pos1 - df_HC.end) > 0, df_HC.pos1 - df_HC.end, df_HC.start - df_HC.pos2)
 			df_HC['min_bp']= df_HC['bp_diff'].groupby(df_HC['segment']).transform('min')
 			df_HC= df_HC.sort_values('min_bp').groupby('segment').head(1)
-			df_HC= df_HC[['segment', 'gene', 'EntrezID', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta']]
+			df_HC= df_HC[['segment', 'gene', 'EntrezID', 'n', 'freq', 'beta', 'sd', 'pvalue', 'loglik', 'pos1', 'pos2']]
 			x= pd.concat([df_HC, x])
 			x.to_csv(output[0], sep= '\t', header= True, index= False)
 
 rule HC_to_OMIM:
 	'Only using recessive diseases.'
 	input:
-		'/mnt/work/pol/ROH/annotation/genes_HC_{sample}.txt',
+		'/mnt/work/pol/ROH/annotation/genes_segments_{sample}.txt',
 		'/mnt/work/pol/refdata/OMIM/hg19/genemap2_hg19.txt'
 	output:
-		'/mnt/work/pol/ROH/annotation/OMIM_HC_{sample}.txt'
+		'/mnt/work/pol/ROH/annotation/OMIM_{sample}.txt'
 	run:
 		if os.stat(input[0]).st_size == 0:
                         open(output[0], 'a').close()
@@ -134,25 +158,32 @@ rule HC_to_OMIM:
 rule select_independent_HC:
 	''
 	input:
-		'/mnt/work/pol/ROH/annotation/OMIM_HC_{sample}.txt'
+		'/mnt/work/pol/ROH/annotation/OMIM_{sample}.txt',
+		'/mnt/work/pol/ROH/results/{sample}/eff_ROH.txt'
 	output:
 		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt'
 	run:
 		if os.stat(input[0]).st_size == 0:
-                        open(output[0], 'a').close()
+			open(output[0], 'a').close()
 		else:
-                        df= pd.read_csv(input[0], sep= '\t', header= 0)
-			df[['chr', 'cM1', 'cM2']]= df.segment.str.split(':', expand= True)
-                        df[['chr', 'cM1', 'cM2']]= df[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
-			df['cMm']= ((df['cM1'] + df['cM2']) / 2 ) / (100 * 10**4)
-			df.sort_values(by= ['chr', 'cMm'], inplace= True)
-			df['cMdif']= df.cMm - df.groupby('chr')['cMm'].shift(1)
-			df['cMdif']= (df['cMdif']>0.5)*1
-			df['clump']= df.groupby('chr')['cMdif'].cumsum()
-			df.sort_values(by= ['pvalue_meta'], inplace= True)
-			df= df.groupby(['chr', 'clump']).head(1)
-			df= df[['segment', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta', 'gene', 'EntrezID', 'cyto', 'Mim']]
-			df.to_csv(output[0], sep= '\t', index= False, header= True)
+			with open(input[1]) as f:
+				eff= sum([int(line.strip()) for line in f])
+			df= pd.read_csv(input[0], sep= '\t', header= 0)
+			df= df.loc[df.pvalue< (0.05 / eff), :]
+			if df.shape[0]== 0:
+				open(output[0], 'a').close()
+			else:
+				df[['chr', 'cM1', 'cM2']]= df.segment.str.split(':', expand= True)
+		                df[['chr', 'cM1', 'cM2']]= df[['chr', 'cM1', 'cM2']].apply(lambda x: x.astype('float'))
+				df['cMm']= ((df['cM1'] + df['cM2']) / 2 ) / (100 * 10**4)
+				df.sort_values(by= ['chr', 'cMm'], inplace= True)
+				df['cMdif']= df.cMm - df.groupby('chr')['cMm'].shift(1)
+				df['cMdif']= (df['cMdif']>0.5)*1
+				df['clump']= df.groupby('chr')['cMdif'].cumsum()
+				df.sort_values(by= ['pvalue'], inplace= True)
+				df= df.groupby(['chr', 'clump']).head(1)
+				df= df[['segment', 'n', 'freq', 'beta', 'sd', 'pvalue', 'pos1', 'pos2', 'gene', 'EntrezID', 'cyto', 'Mim']]
+				df.to_csv(output[0], sep= '\t', index= False, header= True)
 
 rule annotate_imputed:
 	'Map imputed variants to genes.'
@@ -163,7 +194,7 @@ rule annotate_imputed:
 	output:
 		'/mnt/work/pol/ROH/annotation/genes_imputed_{sample}.txt'
 	run:
-		d= pd.read_csv(input[0], sep= '\t', header= 0)
+		d= pd.read_csv(input[0], sep= '\t', header= None, names= ['variant', 'REF', 'EFF', 'n', 'hom', 'beta', 'sd', 'pvalue'] )
 		if d.shape[0] == 0:
                         open(output[0], 'a').close()
 		else:
@@ -172,9 +203,8 @@ rule annotate_imputed:
                         gene= pd.read_csv(input[1], sep= '\t', header= 0)
 			gene['chr']= pd.to_numeric(gene.chr, errors= 'coerce')
 			gene.dropna(subset= ['chr'], axis= 0, inplace= True)
-			d.dropna(subset= ['pvalue_meta'], axis= 0, inplace= True)
-			d.sort_values(by= ['pvalue_meta'], inplace= True)
-			d= d.loc[d.pvalue_meta< 5*10**-8, :]
+			d.dropna(subset= ['pvalue'], axis= 0, inplace= True)
+			d.sort_values(by= ['pvalue'], inplace= True)
 			x= pd.merge(d, gene, on= 'chr', how= 'left')
 			x1= x.loc[(x.pos>= x.start) & (x.pos<= x.end), :]
 			x= x.loc[~x.variant.isin(x1.variant), :]
@@ -192,7 +222,7 @@ rule annotate_imputed:
                         rec= omim[omim.Phenotype.str.contains('recessive', na= False)]
 			x= pd.merge(x, rec, on= 'EntrezID', how= 'left')
 			d= pd.merge(d, x, on= ['chr', 'pos', 'ref', 'eff'], how= 'left')
-			d= d[['chr', 'pos', 'ref', 'eff', 'n_meta', 'beta_meta', 'sd_meta', 'pvalue_meta', 'gene', 'EntrezID', 'Mim']]
+			d= d[['chr', 'pos', 'ref', 'eff', 'n', 'hom', 'beta', 'sd', 'pvalue', 'gene', 'EntrezID', 'Mim']]
 			d.to_csv(output[0], sep= '\t', header= True, index= False)
 
 rule download_GNOMAD:
