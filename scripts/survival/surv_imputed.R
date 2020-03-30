@@ -24,30 +24,12 @@ if (file.size(infile)==0) {
 d= data.frame()
 write(d, outfile)
 quit(status=0)
-}
+} else {
 
 
-if (grepl('harvest', phenofile)){
-pheno= mutate(pheno, spont= as.numeric(FSTART==1 & (is.na(KSNITT) | KSNITT>1) &
-                (is.na(KSNITT_PLANLAGT) | KSNITT_PLANLAGT==1) &
-                INDUKSJON_PROSTAGLANDIN==0 &
-                INDUKSJON_ANNET==0 &
-                INDUKSJON_OXYTOCIN==0 & 
-                INDUKSJON_AMNIOTOMI==0), 
-                PARITY0= as.numeric(PARITET_5==0))
-} else if (!grepl('harvest', phenofile)){
-pheno= mutate(pheno, spont= as.numeric((FSTART=='Spontan' | FSTART== '') & (KSNITT=='' | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
-                INDUKSJON_PROSTAGLANDIN=='Nei' &
-                INDUKSJON_ANNET=='Nei' &
-                INDUKSJON_OXYTOCIN=='Nei' &
-                INDUKSJON_AMNIOTOMI=='Nei'),
-                PARITY0= as.numeric(PARITET_5=='0 (førstegangsfødende)'))
-names(pheno)[names(pheno) == 'SentrixID'] <- 'SentrixID_1'
-}
 
-pheno= select(pheno, SentrixID_1, SVLEN_UL_DG, spont, PARITY0, PC1, PC2, PC3, PC4, PC5, PC6)
 
-pheno= pheno[!duplicated(pheno$SentrixID_1), ]
+pheno= pheno[!duplicated(pheno$IID), ]
 
 
 ids= readLines(snakemake@input[[3]])
@@ -82,10 +64,11 @@ funk= function(block.text){
 	dataChunk= dataChunk[,!apply(dataChunk, MARGIN = 2, function(x) max(x, na.rm = TRUE) == min(x, na.rm = TRUE))]
 	if (!is.data.frame(dataChunk)) return(NULL)
         dataChunk$id= gsub('X', '', rownames(dataChunk)) 
-        geno= inner_join(pheno, dataChunk, by= c('SentrixID_1' = 'id'))
+        geno= inner_join(pheno, dataChunk, by= c('IID' = 'id'))
 
         cox_coef= lapply(names(geno[,-c(1:ncol(pheno))]), function(snp){
 	mg= geno[, snp]
+	hom= sum(mg)
 	cox_coef= tryCatch(survreg(Surv(geno$SVLEN_UL_DG, geno$spont)~ mg + geno$PARITY0 + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6, na.action = na.omit, dist= 'weibull'), warning = function(cond) {NA}, error = function(cond) {NA})
         if (is.na(cox_coef)) {
         ref= NA
@@ -108,7 +91,7 @@ funk= function(block.text){
 #        correlation= zph$table[1, 1]
 #        corr_pvalue= zph$table[1, 3]
 }
-	txt = sprintf( "%s\t%s\t%s\t%e\t%e\t%e\t%e\n", snp, ref, eff, n, coef, sd, pvalue)
+	txt = sprintf( "%s\t%s\t%s\t%e\t%e\t%e\t%e\t%e\n", snp, ref, eff, n, hom, coef, sd, pvalue)
 cat(txt, file= outfile, append= T)
 }
 )
@@ -132,3 +115,4 @@ funk(block.text)
 }
 
 close(con)
+}
