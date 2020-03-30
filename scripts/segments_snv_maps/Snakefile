@@ -9,20 +9,20 @@ import statsmodels.stats.multitest as multi
 cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
 smpl_nms= ['maternal','paternal', 'fetal']
 batch_nms= ['m12', 'm24']
-CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
 
 # Other arguments:
 
-pruning_nms= ['none', 'soft', 'moderate', 'hard']
+pruning_nms= ['none', 'soft', 'moderate']
 
 dens_nms= [5]
-SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_nms= [0.0000001]
 het_nms= [0, 1]
 GAP_nms= [5]
 
 dens_bp= [5000]
-SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_bp= [0.0000001]
 het_bp= [0, 1]
 GAP_bp= [5000]
@@ -48,6 +48,16 @@ rule mapping_ROH_segments:
         script:
                 'segment_map_ROH.py'
 
+rule mapping_ROH_segments2:
+        'Obtain matrix (rows= segment, columns = subject), with all minimum segmental ROHs per subject (1= homozygous part of ROH).'
+        input:
+                expand('/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{{sample}}.hom', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{{sample}}.hom.indiv', cohort= cohort_nms)
+        output:
+                '/mnt/work/pol/ROH/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz'
+        script:
+                'segment_map_ROH2.py'
+
 
 rule UCSC_replace_bp_cm:
 	'Change UCSC physical position to genetic position.'
@@ -56,39 +66,126 @@ rule UCSC_replace_bp_cm:
 		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
 		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/genetic_map_chrX_nonPAR_combined_b37.txt'
 	output:
-		temp('/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt')
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt'
 	run:
 		d= pd.read_csv(input[0], sep= '\t', header= 0)
 		d['gene']= d.chr.map(str) + ':' + d.gene + ':' + d.EntrezID.map(str)
 		d= d[[ 'chr', 'gene', 'start', 'end']]
-		g= pd.read_csv(input[1], sep= ' ', header= 0)
-		g= g[['chr', 'Genetic_Map(cM)', 'position']]
-		g.columns= ['chr', 'Genetic_Map(cM)', 'pos']
-		x= pd.read_csv(input[2], sep= ' ', header= 0)
+		g= pd.read_csv(input[1], delim_whitespace= True, header= 0, names= ['chr', 'pos', 'rate', 'cM'])
+		g= g[['chr', 'cM', 'pos']]
+		x= pd.read_csv(input[2], delim_whitespace= True, header= 0, names= ['pos', 'rate', 'cM'])
 		x['chr']= 23
-		x= x[['chr', 'position', 'Genetic_Map(cM)']]
-		x.columns= ['chr', 'pos', 'Genetic_Map(cM)']
 		g= pd.concat([g, x])
 		newdf= pd.DataFrame()
 		for CHR in set(d.chr):
 			df_temp= d.loc[d.chr== CHR, :]
 			g_temp= g.loc[g.chr== CHR, :]
-			df_temp['pos1']= np.interp(df_temp['start'], g_temp['pos'], g_temp['Genetic_Map(cM)'])
-			df_temp['pos2']= np.interp(df_temp['end'], g_temp['pos'], g_temp['Genetic_Map(cM)'])
+			df_temp['pos1']= np.interp(df_temp['start'], g_temp['pos'], g_temp['cM'])
+			df_temp['pos2']= np.interp(df_temp['end'], g_temp['pos'], g_temp['cM'])
 			newdf= newdf.append(df_temp)
 		newdf['pos1']= (newdf.pos1*10**4).round() * 100
 		newdf['pos2']= (newdf.pos2*10**4).round() * 100
 		newdf= newdf[['chr', 'gene', 'pos1', 'pos2']]
 		newdf.to_csv(output[0], sep= '\t', header= True, index= False)
 
+rule concat_LOF_GNOMAD:
+	''
+	input:
+		expand('/mnt/work2/pol/refdata/GNOMAD/LOF_{CHR}.txt', CHR= CHR_nms),
+		'/mnt/work2/pol/refdata/GNOMAD/LOF_X.txt'
+	output:
+		'/mnt/work/pol/ROH/GNOMAD/LOF.txt'
+	shell:
+		'cat {input} > {output[0]}'
+
+rule LOF_replace_bp_cm:
+        'Change LOF physical position to genetic position.'
+        input:
+                '/mnt/work/pol/ROH/GNOMAD/LOF.txt',
+                '/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
+                '/mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/genetic_map_chrX_nonPAR_combined_b37.txt'
+        output:
+                temp('/mnt/work/pol/ROH/GNOMAD/LOF_genetic_distance.txt')
+        run:
+                d= pd.read_csv(input[0], sep= '\t', header= None, names= ['chr', 'pos', 'lof'])
+		d['chr']= d.chr.replace('X', '23')
+		d['chr']= pd.to_numeric(d.chr, errors= 'coerce')
+                g= pd.read_csv(input[1], delim_whitespace= True, header= 0, names= ['chr', 'pos', 'rate', 'cM'])
+                g= g[['chr', 'cM', 'pos']]
+                x= pd.read_csv(input[2], sep= ' ', header= 0, names= ['pos', 'rate', 'cM'])
+                x['chr']= 23
+                g= pd.concat([g, x])
+                newdf= pd.DataFrame()
+                for CHR in set(d.chr):
+                        df_temp= d.loc[d.chr== CHR, :]
+                        g_temp= g.loc[g.chr== CHR, :]
+                        df_temp['cM']= np.interp(df_temp['pos'], g_temp['pos'], g_temp['cM'])
+                        newdf= newdf.append(df_temp)
+                newdf['cM']= (newdf.cM*10**4).round() * 100
+                newdf= newdf[['chr', 'pos', 'cM', 'lof']]
+                newdf.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule filter_LOF_protein_coding_genes:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt',
+		'/mnt/work/pol/ROH/GNOMAD/LOF_genetic_distance.txt'
+	output:
+		temp('/mnt/work/pol/ROH/GNOMAD/LOF_coding.txt')
+	run:
+		d= pd.read_csv(input[0], header= 0, sep= '\t')
+		d= d.loc[(d.pos2 - d.pos1 > 0), :]
+		lof= pd.read_csv(input[1], header= 0, sep= '\t')
+		def merge_range(df_range, df_val):
+			a = df_val.cM.values
+			bh = df_range.pos2.values
+			bl = df_range.pos1.values
+			i, j = np.where((a[:, None] >= bl) & (a[:, None] <= bh))
+			stacked_df= pd.DataFrame(np.column_stack([df_val.values[i], df_range.values[j]]), columns= df_val.columns.append(df_range.columns))
+			stacked_df.drop_duplicates(subset= ['chr', 'cM'], keep= 'first')
+			stacked_df= stacked_df.loc[:, ['chr', 'cM', 'lof']]
+			return stacked_df
+		temp_list= list()
+		for CHR in set(d.chr):
+			temp_df= d.loc[d.chr== CHR, :]
+			lof_chr= lof.loc[lof.chr== CHR, :]
+			temp_list.append(merge_range(temp_df, lof_chr))
+		x= pd.concat(temp_list)
+		x= x.iloc[:, [0,2,3]]
+		x.to_csv(output[0], sep= '\t', header= True, index= False)
+		
+
 rule map_ROH_genes:
 	'Map ROH segments to genes.'
 	input:
 		'/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt',
-		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom',
-		'/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
-		expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.fam', pruning= pruning_nms)
+		'/mnt/work/pol/ROH/GNOMAD/LOF_coding.txt',
+		expand('/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{{sample}}.hom', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{{sample}}.hom.indiv', cohort= cohort_nms)
 	output:
-		temp('/mnt/work/pol/ROH/{cohort}/genotypes/maps/gene/{cohort}_{sample}_genemap.txt')
+		temp('/mnt/work/pol/ROH/genotypes/maps/gene/{sample}_genemap.txt')
 	script:
 		'gene_maps_ROH.py'
+
+rule top_segments:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt',
+		expand('/mnt/work/pol/ROH/genotypes/maps/{{sample}}/segments_maps_{{sample}}_chr{CHR}.txt.gz', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/genotypes/maps/{sample}/top_segments_{sample}.txt'
+	run:
+		if os.stat(input[0]).st_size == 0:
+			open(output[0], 'a').close()
+		else:
+			d= pd.read_csv(input[0], sep= '\t', header= 0)
+			df_list= list()
+			flist= [infile for infile in input if infile.endswith('.gz')]
+			for infile in flist:
+				x= pd.read_csv(infile, compression= 'gzip', header= 0, sep= '\t')
+				x= x.loc[(x.CHR.map(str) + ':' + x.segment).isin(d.segment), :]
+				df_list.append(x)
+			df= pd.concat(df_list)
+			df.to_csv(output[0], sep= '\t', header= True, index= False)
+
+
