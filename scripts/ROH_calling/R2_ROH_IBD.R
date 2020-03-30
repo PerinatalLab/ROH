@@ -1,5 +1,6 @@
 library(data.table)
 library(dplyr)
+library(caret)
 
 SelectRelated= function(kin, sample_list){
  kin= kin %>% filter(KINSHIP>0.0884)
@@ -40,7 +41,7 @@ names(fam_roh)= c('FID', 'IID', 'x1','x2', 'x3','x4')
 ibd= fread(snakemake@input[[4]])
 
 trio= fread(snakemake@input[[6]])
-trio= filter(trio, Child %in% fam_ibd$IID, Father %in% fam_ibd$IID, Mother %in% fam_ibd$IID)
+trio= filter(trio, Child %in% fam_roh$IID, Father %in% fam_ibd$IID, Mother %in% fam_ibd$IID)
 
 ibd= full_join(ibd, trio, by= c('Child', 'Mother', 'Father'))
 
@@ -58,7 +59,7 @@ flag= rename(flag, coreLMM = coreOK, phenoOK= phenotypesOK)
 link= select(link, PREG_ID_1724, SentrixID_1)
 mfr= inner_join(mfr, link, by= 'PREG_ID_1724')
 
-mfr= mutate(mfr, FLERFODSEL==0 , DODKAT<6 | DODKAT>10, !is.na(SVLEN_UL_DG), SVLEN_UL_DG<308, SVLEN_UL_DG>154, is.na(IVF),ABRUPTIOP==0, PLACENTA_PREVIA==0, FOSTERV_POLYHYDRAMNION==0, C00_MALF_ALL==0, FOSTERV_OLIGOHYDRAMNION== 0, FOSTERV_MISF_STINK_INFI== 0)
+mfr= mutate(mfr, FLERFODSEL==0 , DODKAT<6 | DODKAT>10, !is.na(SVLEN_UL_DG), SVLEN_UL_DG<308, SVLEN_UL_DG>154, is.na(IVF), FOSTERV_POLYHYDRAMNION==0, C00_MALF_ALL==0, FOSTERV_OLIGOHYDRAMNION== 0, VEKT>1500)
 
 flag= filter(flag, IID %in% mfr$SentrixID_1)
 
@@ -67,30 +68,22 @@ flag= filter(flag, IID %in% mfr$SentrixID_1)
 names(pca)= c('FID', 'IID', 'NMISS_ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10')
 link= select(link, PREG_ID_315, SentrixID)
 mfr= inner_join(mfr, link, by= 'PREG_ID_315')
-mfr= mutate(mfr, FLERFODSEL== 'Enkeltfødsel' , grepl('Levendefødt', DODKAT), !is.na(SVLEN_UL_DG),SVLEN_UL_DG<308, SVLEN_UL_DG>154, is.na(IVF) | IVF== '',ABRUPTIOP=='Nei', PLACENTA_PREVIA=='Nei', FOSTERV_POLYHYDRAMNION=='Nei', C00_MALF_ALL=='Nei', FOSTERV_OLIGOHYDRAMNION== 'Nei', FOSTERV_MISF_STINK_INFI== 'Nei')
+mfr= mutate(mfr, FLERFODSEL== 'Enkeltfødsel' , grepl('Levendefødt', DODKAT), !is.na(SVLEN_UL_DG),SVLEN_UL_DG<308, SVLEN_UL_DG>154, is.na(IVF) | IVF== '', FOSTERV_POLYHYDRAMNION=='Nei', C00_MALF_ALL=='Nei', FOSTERV_OLIGOHYDRAMNION== 'Nei', VEKT>1500)
 
 flag= filter(flag, IID %in% mfr$SentrixID)
 
 }
 
 
-flag= filter(flag, coreLMM== TRUE, genotypesOK== TRUE, phenoOK== TRUE)
+flag= filter(flag, genotypesOK== TRUE, phenoOK== TRUE)
 
 kin= fread(snakemake@input[[7]])
 
 trio= trio %>% filter(Mother %in% flag$IID, Father %in% flag$IID, Child %in% flag$IID)
 
-flag= flag %>% filter(!IID %in% SelectRelated(kin, trio$Mother))
-trio= trio %>% filter(Mother %in% flag$IID)
-flag= flag %>% filter(!IID %in% SelectRelated(kin, trio$Father))
-trio= trio %>% filter(Father %in% flag$IID)
-flag= flag %>% filter(!IID %in% SelectRelated(kin, trio$Child))
-trio= trio %>% filter(Child %in% flag$IID)
-
 infile= list()
 R2= list()
-
-
+aic_list= list()
 out_list= snakemake@input[grep('list_', snakemake@input)]
 flist= snakemake@input[grep('.hom.indiv', snakemake@input)]
 
@@ -112,18 +105,26 @@ for (f in flist) {
 		!(IID %in% pca_out$V2),
 		!(Father %in% pca_out$V2),
 		!(Mother %in% pca_out$V2))
+	d= filter(d, !Mother %in% SelectRelated(kin, d$Mother))
+	d= filter(d, !Father %in% SelectRelated(kin, d$Father))
+	d= filter(d, !IID %in% SelectRelated(kin, d$IID))
 	
 	d$cM= ifelse(is.na(d$cM), 0, d$cM)
 	d$KB= ifelse(is.na(d$KB), 0, d$KB)
-	
-	
-	r= (cor(d$cM, d$KB, use= 'complete'))^2
-	R2= c(r, R2)
+	d= inner_join(d, pca, by= 'IID')
+	train_control <- trainControl(method="cv", number=10)
+	d$rescM= lm(cM~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6, d)$resid
+	model <- train(rescM~ KB, data=d, trControl=train_control, method="lm", na.action= na.omit)
+#        r2= summary(lm(log1p(cM)~ log1p(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6, d))$r.squared - summary(lm(log1p(cM)~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6, d))$r.squared
+	r= mean(model$resample$Rsquared)
+	R2[[f]]= r
 }
+d= data.frame(do.call('rbind', R2))
+#d= do.call(rbind, Map(data.frame, R2= R2, file= infile))
+d$file= rownames(d)
+names(d)= c('R2', 'file')
 
-d= do.call(rbind, Map(data.frame, R2= R2, file= infile))
-
-write.table(d, snakemake@output[[1]], sep= '\t', row.names= T, col.names= FALSE, quote= FALSE)
+write.table(d, snakemake@output[[1]], sep= '\t', row.names= F, col.names= T, quote= FALSE)
 
 d= d[order(d$R2, decreasing=T), ]
 
