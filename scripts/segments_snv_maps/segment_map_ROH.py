@@ -1,49 +1,33 @@
 import pandas as pd
 import numpy as np
 
-d= pd.read_csv(snakemake.input[0], delim_whitespace= True, header= 0)
-
-x= [line.strip() for line in open(snakemake.input[1], 'r')]
-fam= [i for i in x if 'fam' in i]
-
-fam= pd.read_csv("".join(fam), delim_whitespace=True, header= None)
-
-d= d.loc[:, ['IID','CHR','POS1','POS2']]
-
-fam.columns= ['FID', 'IID', 'X1', 'X2', 'X3', 'X4']
-
 CHR= snakemake.wildcards.CHR
 
-chr_df= d.loc[d.CHR== int(float(CHR)),:]
-
 temp_list= list()
-input_files= [infile for infile in snakemake.input[1:] if '.hom' in infile]
+input_files= [infile for infile in snakemake.input if infile.endswith('.hom')]
 for infile in input_files:
 	temp_df= pd.read_csv(infile, delim_whitespace= True, header= 0)
-	temp_df= temp_df.loc[temp_df.CHR== int(float(CHR)),:]
-	temp_df= temp_df[['POS1', 'POS2']]
+	temp_df= temp_df.loc[temp_df['CHR']== int(float(CHR)),:]
 	temp_list.append(temp_df)
 
-temp_df= pd.concat(temp_list)
-a= pd.concat([temp_df.POS1, temp_df.POS2])
+chr_df= pd.concat(temp_list)
+
+a= pd.concat([chr_df.POS1, chr_df.POS2])
 a= np.unique(a)
 a= np.sort(a)
 
 df_list= list()
 
-for id in set(chr_df.IID):
-	temp_df= chr_df.loc[chr_df.IID== id, :]	
-	for index, row in temp_df.iterrows():
-		bh= row.POS2
-		bl= row.POS1
-		i, j = np.where((a[:, None] >= bl) & (a[:, None] <= bh))
-		x= pd.DataFrame(a[i], columns= ['start']).dropna()
-		x['end']= x.start.shift(-1)
-		x.dropna(inplace= True)
-		x['IID']= id
-		df_list.append(x.copy())
+bh= chr_df.POS2.values
+bl= chr_df.POS1.values
+i, j = np.where((a[:, None] >= bl) & (a[:, None] <= bh))
+df= pd.DataFrame(np.column_stack([a[i], chr_df.values[j]]), columns= ['pos'].append(chr_df.columns))
+df.columns= ['start'] + chr_df.columns.values.tolist()
 
-df= pd.concat(df_list)
+df.sort_values(['IID', 'start'], inplace= True)
+df['end']= df.groupby(['IID', 'POS1', 'POS2'])['start'].shift(-1)
+df= df[['IID', 'start', 'end']]
+df.dropna(inplace= True)
 df['Value']= 1
 df['segment']= df['start'].astype(str) + ':' + df['end'].astype(str)
 df= df.pivot(index= 'segment', columns= 'IID', values= 'Value')
@@ -53,7 +37,15 @@ df['CHR']= CHR
 cols = ['CHR', 'segment']  + [col for col in df if col not in 'CHR,segment']
 df= df[cols]
 
-o_ids= fam[~fam.IID.isin(df.columns)]['IID']
+input_files= [infile for infile in snakemake.input if infile.endswith('.hom.indiv')]
+for infile in input_files:
+        temp_df= pd.read_csv(infile, delim_whitespace= True, header= 0)
+        temp_list.append(temp_df)
+
+iid_df= pd.concat(temp_list)
+
+o_ids= iid_df.loc[~iid_df.IID.isin(df.columns)]['IID']
+
 df= pd.concat((df, pd.DataFrame(columns= o_ids, index= df.index)), axis= 1)
 
 df.fillna(0, inplace= True)
