@@ -33,7 +33,7 @@ d= select(d, Cohort, pruning, SNP, het, GAP)
 d$pruning= ifelse(d$pruning== 1, 'Soft', ifelse(d$pruning== 2, 'Moderate', 'None'))
 d$GAP= ifelse(d$GAP> 100, 'BP', 'cM')
 
-kable(d, align= c('l', 'c', 'c', 'c', 'c'), row.names= F, caption = "S2 Table: Optimal parameters used to call ROH in all family members.", booktabs = T, col.names= c('Sub-cohort', 'Pruning', 'Minimum number of SNPs', 'Heterozyougs calls allowed', 'Distance')) %>% kable_styling(latex_options= c('striped')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('cM, centiMorgans', 'Optimal were obtained by maximizing the parental genetic relatedness variance explained by offspring ROH. We used 108 different combinations of offspring ROH varying pruning thresholds, the minimum number of SNPs to detect a ROH, allowing or not heterozygous calls within segments and using physical vs genetic distance.'))
+kable(d, align= c('l', 'c', 'c', 'c', 'c'), row.names= F, caption = "S2 Table: Optimal parameters used to call ROH in all family members.", booktabs = T, col.names= c('Sub-cohort', 'Pruning', 'Minimum number of SNPs', 'Heterozyougs calls allowed', 'Distance')) %>% kable_styling(latex_options= c('striped')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('cM, centiMorgans', 'Optimal were obtained by maximizing the parental genetic relatedness variance explained by offspring ROH. We used 108 different combinations of offspring ROH varying pruning thresholds, the minimum number of SNPs to detect a ROH, allowing or not heterozygous calls within segments and using physical vs genetic distance.'), threeparttable= T)
 
 ```
 

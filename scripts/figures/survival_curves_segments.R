@@ -55,13 +55,14 @@ surv_list[[i]] = surv_covs
 x= do.call('rbind', surv_list)
  
 p1= ggplot(data= x, aes(x = time, y = est, colour =  ROH )) + 
-theme(legend.position = "below", 
+theme(legend.position = c(0, 225), 
 legend.background=element_blank(),
 legend.key=element_blank(),
+legend.title=element_blank(),
 strip.text = element_text(size= 12)) +  
 geom_line() +
   facet_wrap(~segment) +
-  scale_colour_manual(values= colors_2, name= 'Autozygous segment') +
+  scale_colour_manual(values= colors_2, breaks=c('0', '1'), labels=c('No autozygous segment', 'Autozygous segment')) +
   theme_cowplot(12, font_size= 12) + 
   xlab("Time to spontaneous delivery, days") + 
   ylab("Survival probability") +

@@ -3,7 +3,6 @@ library(dplyr)
 library(ggplot2)
 library(cowplot)
 library(Cairo)
-library(caret)
 
 colors_3= c('#FFBD01', '#00B25D', '#9C02A7')
 
@@ -124,11 +123,14 @@ d$KB= ifelse(is.na(d$KB), 0, d$KB)
 d= select(d, cM, KB, PC1, PC2, PC3, PC4, PC5, PC6)
 d$cohort= coh
 
-train_control <- trainControl(method="cv", number=10)
-d$rescM= lm(cM~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6, d)$resid
-model <- train(rescM~ KB, data=d, trControl=train_control, method="lm", na.action= na.omit)
+#train_control <- trainControl(method="cv", number=10)
+#d$rescM= lm(cM~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6, d)$resid
+#model <- train(rescM~ KB, data=d, trControl=train_control, method="lm", na.action= na.omit)
 
-r_list[[coh]]= mean(model$resample$Rsquared)
+#r_list[[coh]]= mean(model$resample$Rsquared)
+
+r= with(d, cor(d$cM, d$KB, use= 'complete', method= 'spearman'))
+R_list[[f]]= r
 
 df_list= c(df_list, list(d))
 }
@@ -157,11 +159,12 @@ print(lab)
 x1= ggplot(data= d, aes(x= cM, y= KB/10**6, colour= cohort)) +
 geom_point(size= 1.5) +
 theme_cowplot(12, font_size= 12) +
+scale_y_continuous(expand=c(0, 0)) +
+scale_x_contonuous(expand= c(0, 0)) +
 scale_colour_manual(name = "Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= c(colors_3, 'black', 'grey', 'cyan')) +
-#scale_shape_manual(name="Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= rep(15:16, 3)) +
 geom_smooth(method = "lm", se=FALSE, colour= "black", formula = y ~ x, size= 0.6, linetype = 'dashed') +
 facet_wrap(vars(cohort), ncol= 3) +
-geom_text(data=lab, aes(x= Inf, y= -Inf, label= paste0('R**2:  ', sprintf('%0.2f', round(R,2)))), hjust= 1, vjust= -1, parse= T, colour= 'black', show.legend = FALSE) +
+geom_text(data=lab, aes(x= Inf, y= -Inf, label= paste0('R: ', sprintf('%0.2f', round(R,2)))), hjust= 1, vjust= -1, parse= T, colour= 'black', show.legend = FALSE) +
 theme(strip.text = element_blank(),
           strip.background = element_blank()) +
 xlab('Parental genetic relatedness, total cM') +

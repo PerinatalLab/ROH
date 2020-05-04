@@ -32,7 +32,7 @@ d= data.frame(Distribution= c('Exponential', 'Weibull', 'Gamma', 'Log-normal', '
 
 colnames(d)= c('Dsitribution function', 'AIC')
 
-kable(d, align= c('c', 'c'), row.names= F, caption = "S2 Table: AIC scores obtained after fitting 5 different survival distributions to gestational age.", booktabs = T) %>% kable_styling(latex_options= c('striped')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('AIC, Akaike information criterion', 'Models were fitted using an accelerated failure time in all MoBa cohort (n= 79155, events= 63169) '))
+kable(d, align= c('c', 'c'), row.names= F, caption = "S6 Table: AIC scores obtained after fitting 5 different survival distributions to gestational age.", booktabs = T) %>% kable_styling(latex_options= c('striped')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('AIC, Akaike information criterion', 'Models were fitted using an accelerated failure time in all MoBa cohort (n= 79155, events= 63169) '), threeparttable= T)
 
 ```
 

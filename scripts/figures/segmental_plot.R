@@ -83,7 +83,7 @@ geno$rk= with(geno, rank(end - start))
 
 range01 <- function(x){(x-min(x))/(max(x)-min(x))}
 
-CHR== chrs
+CHR= chrs
 
 
 dff= filter(df, chr== CHR)

@@ -73,33 +73,11 @@ rule ROHfixed_params_Joshi:
                 expand('/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv', cohort= cohort_nms),
                 expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt', cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/fixed_params/list_Joshi_sUPD_fetal.txt', cohort= cohort_nms),
-		expand('/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_ROH.hom.indiv', cohort= cohort_nms)
+		expand('/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_fetal_ROH.hom.indiv', cohort= cohort_nms)
 	output:
 		'/mnt/work/pol/ROH/figures/fixed_params_Joshi.eps'
 	script:
 		'fixed_params_ROH.R'
-
-rule ROHfixed_params_Gazal:
-        ''
-        input:
-                expand('/mnt/work/pol/{cohort}/pca/{cohort}_pca.txt', cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/{cohort}/ibd/to_phase.fam', cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_fetal.fam', cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/{cohort}/ibd/parental_ibd.txt', cohort= cohort_nms),
-                expand('/mnt/work/pol/{cohort}/pheno/flag_list.txt', cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/{cohort}/pheno/{cohort}_trios.txt',cohort= cohort_nms),
-                expand('/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0', cohort= cohort_nms),
-                expand('/mnt/work/pol/{cohort}/pca/pca_exclude.txt', cohort= cohort_nms),
-                expand('/mnt/work/pol/{cohort}/pheno/{cohort}_mfr.csv', cohort= cohort_nms),
-                expand('/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv', cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/arguments/arg_R2_{cohort}.txt', cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/list_Gazal_sUPD_fetal.txt', cohort= cohort_nms),
-                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/Gazal_params_ROH.hom.indiv', cohort= cohort_nms)
-        output:
-                '/mnt/work/pol/ROH/figures/fixed_params_Gazal.eps'
-        script:
-                'fixed_params_ROH.R'
-
 
 rule ROH_calling_parameter_optimization_fig:
         ''
@@ -325,8 +303,7 @@ rule S1_figures:
 rule S2_figures:
 	''
 	input:
-		'/mnt/work/pol/ROH/figures/fixed_params_Joshi.eps',
-		'/mnt/work/pol/ROH/figures/fixed_params_Gazal.eps'
+		'/mnt/work/pol/ROH/figures/fixed_params_Joshi.eps'
 	output:
 		'/mnt/work/pol/ROH/figures/S2_Figure.pdf'
 	script:

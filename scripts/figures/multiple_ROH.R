@@ -53,12 +53,12 @@ df= inner_join(bp, cm, by= c('SNP', 'het', 'cohort', 'pruning'))
 p1= ggplot(x, aes(x= as.numeric(as.character(SNP)), y= R2, colour= as.factor(pruning))) +
 geom_point(size= 1) +
 geom_line() + 
-scale_x_continuous(breaks=c(0, 25, 400)) +
+scale_x_continuous(breaks=c(0, 25, 400), expand = c(0,0)) +
 theme_cowplot(12, font_size= 12) +
 scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= colors_4) +
 facet_grid(het ~ bp_cm, labeller = labeller(het= as_labeller(c('0'= 'No het. allowed', '1'= 'One het. allowed')),
 bp_cm= as_labeller(c('BP'='Physical distance', 'cM'='Genetic distance')))) +
-scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6)) +
+scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6), expand = c(0,0)) +
  theme(legend.position = "bottom") +
         xlab('Number of genetic variants included') +
         ylab(expression(paste('Correlation coefficient between offspring ROH and parental genetic relatedness'))) +
@@ -66,6 +66,8 @@ scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6)) +
 
 p2= ggplot(df, aes(x= R2_bp, y= R2_cm, colour= cohort, shape= cohort)) +
 geom_point(size= 2) +
+scale_x_continuous(expand = c(0,0)) +
+scale_y_continuous(expand = c(0,0)) +
 geom_rug(col="grey", alpha=0.1, size=1.5)+
 geom_abline(intercept = 0, slope = 1) +
 theme_cowplot(12, font_size= 12) +
@@ -93,10 +95,10 @@ save_plot(snakemake@output[[2]], p2, base_width=297, base_height=210, units="mm"
 s1B= ggplot(filter(d, bp_cm== 'cM', het== 0), aes(x= as.numeric(as.character(SNP)), y= R2, colour= as.factor(pruning))) +
 geom_point(size= 1) +
 geom_line() +
-scale_x_continuous(breaks=c(0, 200, 400)) +
-scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6)) +
+scale_x_continuous(breaks= c(0, 25, 400), expand = c(0,0)) +
+scale_y_continuous(breaks= seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6), expand = c(0,0)) +
 theme_cowplot(12, font_size= 12) +
-scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= colors_4) +
+scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5'), values= colors_4) +
 facet_wrap(~cohort, labeller = labeller(cohort= as_labeller(c('harvestm12'='Cohort1', 'harvestm24'='Cohort2', 'rotterdam1'='Cohort3', 'rotterdam2'='Cohort4', 'normentfeb'='Cohort5', 'normentmay'='Cohort6'))), nrow=2, ncol=3) +
  theme(legend.position = "bottom") +
         xlab('Number of genetic variants included') +
@@ -106,10 +108,10 @@ facet_wrap(~cohort, labeller = labeller(cohort= as_labeller(c('harvestm12'='Coho
 s1A= ggplot(filter(d, bp_cm== 'cM', het== 1), aes(x= as.numeric(as.character(SNP)), y= R2, colour= as.factor(pruning))) +
 geom_point(size= 1) +
 geom_line() +
-scale_x_continuous(breaks=c(0, 200, 400)) +
-scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6)) +
+scale_x_continuous(breaks=c(0, 25, 400), expand = c(0,0)) +
+scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6), expand = c(0,0)) +
 theme_cowplot(12, font_size= 12) +
-scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= colors_4) +
+scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5'), values= colors_4) +
 facet_wrap(~cohort, labeller = labeller(cohort= as_labeller(c('harvestm12'='Cohort1', 'harvestm24'='Cohort2', 'rotterdam1'='Cohort3', 'rotterdam2'='Cohort4', 'normentfeb'='Cohort5', 'normentmay'='Cohort6'))), ncol= 3, nrow= 2) +
  theme(legend.position = "bottom") +
         xlab('Number of genetic variants included') +

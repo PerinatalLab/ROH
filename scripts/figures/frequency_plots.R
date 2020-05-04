@@ -9,8 +9,6 @@ colors_3= c('#FFBD01', '#00B25D', '#9C02A7')
 
 x= fread(snakemake@input[[1]], h=T)
 
-#x= separate(x, segment, into= c('cM1', 'cM2'), sep= ':')
-#x= mutate(x, cM1= as.numeric(cM1), cM2= as.numeric(cM2))
 
 x$mcM= (x$cM1 + x$cM2) / 2
 
@@ -32,20 +30,17 @@ mom= ggplot(don1) +
     geom_point(aes(x=BPcum, y= freq, colour= as.factor(chr)), size=0.1) +   # Show all points
 theme_cowplot(12, font_size= 12) + 
 scale_color_manual(values = rep(c(colors_3[1], '#00CCB5'), 23)) +
-#scale_colour_viridis_d(option='D', direction = -1) + 
 scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
+scale_y_continuous(expand(0, 0)) +
     theme( text = element_text(size= 12),
            legend.position="none") +
          xlab('Chromosome') +
     ylab('Frequency') +
 ggtitle('Mothers')
 
-#return(mom)
 
 x= fread(snakemake@input[[2]], h=T)
 
-#x= separate(x, segment, into= c('cM1', 'cM2'), sep= ':')
-#x= mutate(x, cM1= as.numeric(cM1), cM2= as.numeric(cM2))
 
 x$mcM= (x$cM1 + x$cM2) / 2
 
@@ -67,8 +62,8 @@ dad= ggplot(don1) +
     geom_point(aes(x=BPcum, y= freq, colour= as.factor(chr)), size=0.1) +   # Show all points
 theme_cowplot(12, font_size= 12) + 
 scale_color_manual(values = rep(c('#EE3377','#DC125C'), 23)) +
-#scale_colour_viridis_d(option='D', direction = -1) + 
 scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
+scale_y_continous(expand= c(0, 0)) +
     theme( text = element_text(size= 12),
            legend.position="none") +
          xlab('Chromosome') +
@@ -79,8 +74,6 @@ ggtitle('Fathers')
 
 x= fread(snakemake@input[[3]], h=T)
 
-#x= separate(x, segment, into= c('cM1', 'cM2'), sep= ':')
-#x= mutate(x, cM1= as.numeric(cM1), cM2= as.numeric(cM2))
 
 x$mcM= (x$cM1 + x$cM2) / 2
 
@@ -101,8 +94,8 @@ fet= ggplot(don1) +
     geom_point(aes(x=BPcum, y= freq, colour= as.factor(chr)), size=0.1) +   # Show all points
 theme_cowplot(12, font_size= 12) +
 scale_color_manual(values = rep(c('#c39a15','#E7B924'), 23)) +
-#scale_colour_viridis_d(option='D', direction = -1) + 
 scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
+scale_y_contonuous(expand= c(0, 0)) +
     theme( text = element_text(size= 12),
            legend.position="none") +
          xlab('Chromosome') +
