@@ -59,18 +59,15 @@ df= inner_join(bp, cm, by= c('SNP', 'het', 'cohort', 'pruning'))
 
 p1= ggplot(x, aes(x= as.numeric(as.character(SNP)), y= R2, colour= as.factor(pruning))) +
 geom_point(size= 1) +
-#geom_line(aes(linetype= as.factor(pruning))) +
 geom_line() + 
 scale_x_continuous(breaks=c(0, 200, 400)) +
 theme_cowplot(12, font_size= 12) +
-#scale_colour_viridis_d(name = "Pruning", labels = c("None", "0.9", "0.5", '0.1')) +
 scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= colors_4) +
-#scale_linetype_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= c('solid', 'solid','dashed', 'dashed')) +
 facet_grid(het ~ bp_cm, labeller = labeller(het= as_labeller(c('0'= 'No het. allowed', '1'= 'One het. allowed')),
 bp_cm= as_labeller(c('BP'='Physical distance', 'cM'='Genetic distance')))) +
  theme(legend.position = "bottom") +
         xlab('Number of genetic variants included') +
-        ylab(expression(paste(R^2, 'between offspring ROH and parental genetic relatedness'))) +
+        ylab(expression(paste('Correlation coefficient between offspring ROH and parental genetic relatedness'))) +
   theme(strip.background = element_rect(colour="white", fill="white"))
 
 p2= ggplot(df, aes(x= R2_bp, y= R2_cm, colour= cohort, shape= cohort)) +
@@ -78,12 +75,11 @@ geom_point(size= 2) +
 geom_rug(col="grey", alpha=0.1, size=1.5)+
 geom_abline(intercept = 0, slope = 1) +
 theme_cowplot(12, font_size= 12) +
-#scale_colour_viridis_d(name = "Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6')) +
 scale_colour_manual(name="Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= rep(colors_3,2)) +
 scale_shape_manual(name="Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= rep(15:16, 3)) +
  theme(strip.text= element_text()) +
- xlab(expression(paste(R^2, ' between offspring ROH and parental genetic relatedness using physical distance'))) +
-        ylab(expression(paste(R^2, ' between offspring ROH and parental genetic relatedness using genetic distance')))
+ xlab(expression(paste('Correlation coefficient between offspring ROH and parental genetic relatedness using physical distance'))) +
+        ylab(expression(paste('Correlation coefficient between offspring ROH and parental genetic relatedness using genetic distance')))
 
 
 
@@ -102,35 +98,28 @@ save_plot(snakemake@output[[2]], p2, base_width=297, base_height=210, units="mm"
 
 s1B= ggplot(filter(d, bp_cm== 'cM', het== 0), aes(x= as.numeric(as.character(SNP)), y= R2, colour= as.factor(pruning))) +
 geom_point(size= 1) +
-#geom_line(aes(linetype= as.factor(pruning))) +
 geom_line() +
 scale_x_continuous(breaks=c(0, 200, 400)) +
 theme_cowplot(12, font_size= 12) +
-#scale_colour_viridis_d(name = "Pruning", labels = c("None", "0.9", "0.5", '0.1')) +
 scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= colors_4) +
 facet_wrap(~cohort, labeller = labeller(cohort= as_labeller(c('harvestm12'='Cohort1', 'harvestm24'='Cohort2', 'rotterdam1'='Cohort3', 'rotterdam2'='Cohort4', 'normentfeb'='Cohort5', 'normentmay'='Cohort6'))), nrow=2, ncol=3) +
-#scale_linetype_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= c('solid', 'solid', 'dashed', 'dashed')) +
  theme(legend.position = "bottom") +
         xlab('Number of genetic variants included') +
-        ylab(expression(paste(R^2, ' between offspring ROH and parental genetic relatedness'))) +
+        ylab(expression(paste('Correlation coefficient between offspring ROH and parental genetic relatedness'))) +
   theme(strip.background = element_rect(colour="white", fill="white"))
 
 s1A= ggplot(filter(d, bp_cm== 'cM', het== 1), aes(x= as.numeric(as.character(SNP)), y= R2, colour= as.factor(pruning))) +
 geom_point(size= 1) +
-#geom_line(aes(linetype= as.factor(pruning))) +
 geom_line() +
 scale_x_continuous(breaks=c(0, 200, 400)) +
 theme_cowplot(12, font_size= 12) +
-#scale_colour_viridis_d(name = "Pruning", labels = c("None", "0.9", "0.5", '0.1')) +
 scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= colors_4) +
 facet_wrap(~cohort, labeller = labeller(cohort= as_labeller(c('harvestm12'='Cohort1', 'harvestm24'='Cohort2', 'rotterdam1'='Cohort3', 'rotterdam2'='Cohort4', 'normentfeb'='Cohort5', 'normentmay'='Cohort6'))), ncol= 3, nrow= 2) +
-#scale_linetype_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= c('solid', 'solid', 'dashed', 'dashed')) +
  theme(legend.position = "bottom") +
         xlab('Number of genetic variants included') +
-        ylab(expression(paste(R^2, ' between offspring ROH and parental genetic relatedness'))) +
+        ylab(expression(paste('Correlation coefficient between offspring ROH and parental genetic relatedness'))) +
   theme(strip.background = element_rect(colour="white", fill="white"))
 
 
-#ggsave(snakemake@output[[1]], grid.draw(g), device= 'eps', dpi= 'retina', width= 12, height= 8, units= 'cm')
 save_plot(snakemake@output[[3]], plot= s1A, base_width=297, base_height=210, units="mm", device= cairo_ps)
 save_plot(snakemake@output[[4]], plot= s1B, base_width=297, base_height=210, units="mm", device= cairo_ps)
