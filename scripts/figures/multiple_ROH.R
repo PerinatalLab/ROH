@@ -8,15 +8,8 @@ library(cowplot)
 
 cohorts= c('harvestm12', 'harvestm24', 'rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay')
 
-
-#colors_6= c('#DDAA33', '#DDAA33', '#BB5566', '#BB5566', '#004488', '#004488')
-#colors_4= c('#DDAA33', '#BB5566', '#004488', '#000000')
-
 colors_3= c('#FFBD01', '#00B25D', '#9C02A7')
 colors_4= c('#FFBD01', '#00B25D', '#9C02A7', '#000000')
-
-#colors_6= c('#4477AA', '#66CCEE', '#228833', '#CCBB44', '#EE6677', '#AA3377')
-#colors_4= c('#4477AA', '#228833', '#EE6677', '#AA3377')
 
 df_list= list()
 
@@ -60,11 +53,12 @@ df= inner_join(bp, cm, by= c('SNP', 'het', 'cohort', 'pruning'))
 p1= ggplot(x, aes(x= as.numeric(as.character(SNP)), y= R2, colour= as.factor(pruning))) +
 geom_point(size= 1) +
 geom_line() + 
-scale_x_continuous(breaks=c(0, 200, 400)) +
+scale_x_continuous(breaks=c(0, 25, 400)) +
 theme_cowplot(12, font_size= 12) +
 scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= colors_4) +
 facet_grid(het ~ bp_cm, labeller = labeller(het= as_labeller(c('0'= 'No het. allowed', '1'= 'One het. allowed')),
 bp_cm= as_labeller(c('BP'='Physical distance', 'cM'='Genetic distance')))) +
+scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6)) +
  theme(legend.position = "bottom") +
         xlab('Number of genetic variants included') +
         ylab(expression(paste('Correlation coefficient between offspring ROH and parental genetic relatedness'))) +
@@ -100,6 +94,7 @@ s1B= ggplot(filter(d, bp_cm== 'cM', het== 0), aes(x= as.numeric(as.character(SNP
 geom_point(size= 1) +
 geom_line() +
 scale_x_continuous(breaks=c(0, 200, 400)) +
+scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6)) +
 theme_cowplot(12, font_size= 12) +
 scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= colors_4) +
 facet_wrap(~cohort, labeller = labeller(cohort= as_labeller(c('harvestm12'='Cohort1', 'harvestm24'='Cohort2', 'rotterdam1'='Cohort3', 'rotterdam2'='Cohort4', 'normentfeb'='Cohort5', 'normentmay'='Cohort6'))), nrow=2, ncol=3) +
@@ -112,6 +107,7 @@ s1A= ggplot(filter(d, bp_cm== 'cM', het== 1), aes(x= as.numeric(as.character(SNP
 geom_point(size= 1) +
 geom_line() +
 scale_x_continuous(breaks=c(0, 200, 400)) +
+scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6)) +
 theme_cowplot(12, font_size= 12) +
 scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= colors_4) +
 facet_wrap(~cohort, labeller = labeller(cohort= as_labeller(c('harvestm12'='Cohort1', 'harvestm24'='Cohort2', 'rotterdam1'='Cohort3', 'rotterdam2'='Cohort4', 'normentfeb'='Cohort5', 'normentmay'='Cohort6'))), ncol= 3, nrow= 2) +
