@@ -30,9 +30,9 @@ opts_chunk$set(dpi=300)
 
 d= fread(snakemake@input[[1]], h=F)
 colnames(d)= c('Sub-cohort', 'Median', 'P25', 'P75')
-d$Median= paste0(d$Median, ' (', d$P25, ', ', d$P75, ')')
+d$Median= paste0(round(d$Median, 1), ' (', round(d$P25, 1), ', ', round(d$P75, 1), ')')
 d= d[,c('Sub-cohort', 'Median')]
-kable(d, align= c('l', 'c'), row.names= T, caption = "S1 Table: Total parental identical-by-descent sharing, in cM.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('cM, centiMorgans', 'Germline was used to identify identical-by-descent segments with a minimum detection of 2 cM.'))
+kable(d, align= c('l', 'c'), row.names= F, caption = "S1 Table: Total parental identical-by-descent sharing, in cM.", col.names=c('Sub-cohort', 'Median (IQR)'), booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('cM, centiMorgans', 'Germline was used to identify identical-by-descent segments with a minimum detection of 2 cM.'), threeparttable=T)
 
 ```
 
