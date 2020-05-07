@@ -31,7 +31,7 @@ mom= ggplot(don1) +
 theme_cowplot(12, font_size= 12) + 
 scale_color_manual(values = rep(c(colors_3[1], '#00CCB5'), 23)) +
 scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
-scale_y_continuous(expand(0, 0)) +
+scale_y_continuous(expand= c(0, 0)) +
     theme( text = element_text(size= 12),
            legend.position="none") +
          xlab('Chromosome') +
@@ -63,7 +63,7 @@ dad= ggplot(don1) +
 theme_cowplot(12, font_size= 12) + 
 scale_color_manual(values = rep(c('#EE3377','#DC125C'), 23)) +
 scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
-scale_y_continous(expand= c(0, 0)) +
+scale_y_continuous(expand= c(0, 0)) +
     theme( text = element_text(size= 12),
            legend.position="none") +
          xlab('Chromosome') +
@@ -95,7 +95,7 @@ fet= ggplot(don1) +
 theme_cowplot(12, font_size= 12) +
 scale_color_manual(values = rep(c('#c39a15','#E7B924'), 23)) +
 scale_x_continuous(label = axisdf$chr, breaks= axisdf$center, expand=c(0,0) ) + # custom X axis
-scale_y_contonuous(expand= c(0, 0)) +
+scale_y_continuous(expand= c(0, 0)) +
     theme( text = element_text(size= 12),
            legend.position="none") +
          xlab('Chromosome') +
