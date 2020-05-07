@@ -13,7 +13,7 @@ names(fhom)= c('IID', 'FHOM', 'cohort')
 
 
 df= full_join(df, fhom, by= c('cohort', 'IID'))
-
+df= filter(df, FKBA>0)
 df$KBAVG= df$KBAVG / 10**6 * 1000
 df$tmrca= 100 / (2 * df$KBAVG)
 df$tmrca= ifelse(df$tmrca== Inf, NA, df$tmrca)
