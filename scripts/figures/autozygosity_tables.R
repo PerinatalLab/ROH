@@ -13,7 +13,6 @@ names(fhom)= c('IID', 'FHOM', 'cohort')
 
 
 df= full_join(df, fhom, by= c('cohort', 'IID'))
-df= filter(df, FKBA>0)
 df$KBAVG= df$KBAVG / 10**6 * 1000
 df$tmrca= 100 / (2 * df$KBAVG)
 df$tmrca= ifelse(df$tmrca== Inf, NA, df$tmrca)
@@ -32,6 +31,17 @@ mom= df_struct('maternal')
 dad= df_struct('paternal')
 fet= df_struct('fetal')
 
+nmom= mom %>% group_by(cohort) %>% summarize(perc_ROH_m= mean(FKB>0, na.rm= T), n_ROH_m= sum(FKB>0, na.rm=T))
+ndad= dad %>% group_by(cohort) %>% summarize(perc_ROH_m= mean(FKB>0, na.rm= T), n_ROH_m= sum(FKB>0, na.rm=T))
+nfet= fet %>% group_by(cohort) %>% summarize(perc_ROH_m= mean(FKB>0, na.rm= T), n_ROH_m= sum(FKB>0, na.rm=T))
+
+d= rbind(mom, dad, fet)
+nall= d %>% group_by(fam) %>% summarize(perc_ROH_m= mean(FKB>0, na.rm= T), n_ROH_m= sum(FKB>0, na.rm=T))
+
+
+mom= filter(mom, FKBA>0)
+dad= filter(dad, FKBA>0)
+fet= filter(fet, FKBA>0)
 sum_mom= mom %>% group_by(cohort) %>% summarize(
 FKB_m= median(FKB, na.rm= T), FKB_25= quantile(FKB, probs= 0.25, na.rm=T), FKB_75= quantile(FKB, probs= 0.75, na.rm=T),
 NSEG_m= median(NSEG, na.rm= T), NSEG_25= quantile(NSEG, probs= 0.25, na.rm=T), NSEG_75= quantile(NSEG, probs= 0.75, na.rm=T),
@@ -66,6 +76,11 @@ FHOM_m= median(FHOM, na.rm= T), FHOM_25= quantile(FHOM, probs= 0.25, na.rm=T), F
 KBAVG_m= median(KBAVG, na.rm= T), KBAVG_25= quantile(KBAVG, probs= 0.25, na.rm=T), KBAVG_75= quantile(KBAVG, probs= 0.75, na.rm=T),
 tmrca_m= median(tmrca, na.rm= T), tmrca_25= quantile(tmrca, probs= 0.25, na.rm=T), tmrca_75= quantile(tmrca, probs= 0.75, na.rm=T)
 )
+
+sum_mom= inner_join(sum_mom, nmom, by= 'cohort')
+sum_dad= inner_join(sum_dad, ndad, by= 'cohort')
+sum_fet= inner_join(sum_fet, nfet, by= 'cohort')
+sum_all= inner_join(sum_all, nall, by= 'fam')
 
 write.table(sum_mom, snakemake@output[[1]], col.names= T, row.names= F, sep= '\t', quote=F)
 write.table(sum_dad, snakemake@output[[2]], col.names= T, row.names= F, sep= '\t', quote=F)
