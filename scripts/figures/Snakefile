@@ -94,7 +94,9 @@ rule ROH_calling_parameter_optimization_fig:
 rule manhattan_fig:
         ''
         input:
-                '/mnt/work/pol/ROH/results/surv_spont_{sample}'
+                '/mnt/work/pol/ROH/results/surv_spont_{sample}',
+		'/mnt/work/pol/ROH/results/{sample}/eff_ROH.txt',
+		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt'
         output:
                 '/mnt/work/pol/ROH/figures/zscore_mht_{sample}.eps'
         script:

@@ -130,7 +130,7 @@ d$cohort= coh
 #r_list[[coh]]= mean(model$resample$Rsquared)
 
 r= with(d, cor(d$cM, d$KB, use= 'complete', method= 'spearman'))
-R_list[[f]]= r
+r_list[[coh]]= r
 
 df_list= c(df_list, list(d))
 }
@@ -143,9 +143,6 @@ d= do.call(bind_rows, df_list)
 d$cohort2= ifelse((d$cohort== 'harvestm12' | d$cohort== 'harvestm24' | d$cohort== 'rotterdam1'), 0, 1)
 
 d$cohort= factor(d$cohort, levels= c('harvestm12', 'harvestm24', 'rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay'))
-
-#d$cM= ifelse(d$cM==0, 10**-6, d$cM)
-
 
 
 lab= as.data.frame(do.call('rbind', r_list))
@@ -160,7 +157,7 @@ x1= ggplot(data= d, aes(x= cM, y= KB/10**6, colour= cohort)) +
 geom_point(size= 1.5) +
 theme_cowplot(12, font_size= 12) +
 scale_y_continuous(expand=c(0, 0)) +
-scale_x_contonuous(expand= c(0, 0)) +
+scale_x_continuous(expand= c(0, 0)) +
 scale_colour_manual(name = "Sub-cohorts", labels = c("Cohort1", "Cohort2", "Cohort3", 'Cohort4', 'Cohort5', 'Cohort6'), values= c(colors_3, 'black', 'grey', 'cyan')) +
 geom_smooth(method = "lm", se=FALSE, colour= "black", formula = y ~ x, size= 0.6, linetype = 'dashed') +
 facet_wrap(vars(cohort), ncol= 3) +

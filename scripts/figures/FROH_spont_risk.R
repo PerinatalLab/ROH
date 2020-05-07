@@ -114,7 +114,7 @@ moms_res= as.data.frame(do.call('rbind', df_l))
 moms_res$exposure= rownames(moms_res)
 names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','exposure')
 
-moms_res$sample= 'Mothers'
+moms_res$sample= 'Maternal'
 moms_res$model= 'crude'
 
 
@@ -128,7 +128,7 @@ dads_res$exposure= rownames(dads_res)
 names(dads_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','exposure')
 
 
-dads_res$sample= 'Fathers'
+dads_res$sample= 'Paternal'
 dads_res$model= 'crude'
 
 df_l= lapply(setNames(exposure, exposure), function(expo){
@@ -141,7 +141,7 @@ fets_res$exposure= rownames(fets_res)
 names(fets_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','exposure')
 
 
-fets_res$sample= 'Fetuses'
+fets_res$sample= 'Fetal'
 fets_res$model= 'crude'
 
 res_crude= do.call('rbind', list(moms_res, dads_res, fets_res))
@@ -157,7 +157,7 @@ moms_res$exposure= rownames(moms_res)
 names(moms_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','exposure')
 
 
-moms_res$sample= 'Mothers'
+moms_res$sample= 'Maternal'
 moms_res$model= 'adjusted'
 
 
@@ -171,7 +171,7 @@ dads_res$exposure= rownames(dads_res)
 names(dads_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','exposure')
 
 
-dads_res$sample= 'Fathers'
+dads_res$sample= 'Paternal'
 dads_res$model= 'adjusted'
 
 df_l= lapply(setNames(exposure, exposure), function(expo){
@@ -184,7 +184,7 @@ fets_res$exposure= rownames(fets_res)
 names(fets_res)= c('beta', 'se', 'z', 'pvalue', 'n',  'event','exposure')
 
 
-fets_res$sample= 'Fetuses'
+fets_res$sample= 'Fetal'
 fets_res$model= 'adjusted'
 
 res_adjusted= do.call('rbind', list(moms_res, dads_res, fets_res))

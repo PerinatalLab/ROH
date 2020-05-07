@@ -53,6 +53,8 @@ surv_list[[i]] = surv_covs
 }
   
 x= do.call('rbind', surv_list)
+
+x= filter(x, segment== cols[1])
  
 p1= ggplot(data= x, aes(x = time, y = est, colour =  ROH )) + 
 theme(legend.position = c(0, 225), 
