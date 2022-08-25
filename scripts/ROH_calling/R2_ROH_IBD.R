@@ -6,7 +6,7 @@ SelectRelated= function(kin, sample_list){
  kin= kin %>% filter(KINSHIP>0.0884)
  kin= kin %>% filter(ID1 %in% sample_list, ID2 %in% sample_list)
 if (nrow(kin) > 0){
- kin= kin %>% select(ID1, ID2, KINSHIP)
+ kin= kin %>% dplyr::select(ID1, ID2, KINSHIP)
   kin_temp= kin
   colnames(kin_temp)= c("ID2", "ID1", "KINSHIP")
   kin_temp= rbind(kin_temp, kin)
@@ -22,7 +22,7 @@ if (nrow(kin) > 0){
     else
       to_keep[[i]] <- kin_temp[["ID1"]][i]
   }
-  to_remove= kin_temp %>% filter(!(ID1 %in% unlist(to_keep))) %>% select(ID1)
+  to_remove= kin_temp %>% filter(!(ID1 %in% unlist(to_keep))) %>% dplyr::select(ID1)
   to_remove= to_remove[!duplicated(to_remove$ID1),] 
 
   return(unlist(to_remove[,1]))
@@ -49,26 +49,29 @@ flag= fread(snakemake@input[[5]])
 
 mfr= fread(snakemake@input[[9]])
 
-link= fread(snakemake@input[[10]])
+link= fread(snakemake@input[[10]], h=T)
 
 pca_out= fread(snakemake@input[[8]], h=F)
 
 if (grepl('harvest', snakemake@input[[1]])) {
 names(pca)= c('FID', 'IID', 'NMISS_ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10')
 flag= rename(flag, coreLMM = coreOK, phenoOK= phenotypesOK)
-link= select(link, PREG_ID_1724, SentrixID_1)
+link= dplyr::select(link, PREG_ID_1724, SentrixID_1)
 mfr= inner_join(mfr, link, by= 'PREG_ID_1724')
 
-mfr= mutate(mfr, FLERFODSEL==0 , DODKAT<6 | DODKAT>10, !is.na(SVLEN_UL_DG), SVLEN_UL_DG<308, SVLEN_UL_DG>154, is.na(IVF), FOSTERV_POLYHYDRAMNION==0, C00_MALF_ALL==0, FOSTERV_OLIGOHYDRAMNION== 0, VEKT>1500)
+mfr= mutate(mfr, FLERFODSEL==0 , DODKAT<6 | DODKAT>10, !is.na(SVLEN_UL_DG), SVLEN_UL_DG<308, SVLEN_UL_DG>154, is.na(IVF), FOSTERV_POLYHYDRAMNION==0, C00_MALF_ALL==0, FOSTERV_OLIGOHYDRAMNION== 0, VEKT>1500, !is.na(DIABETES_MELLITUS), HYPERTENSJON_KRONISK==0, HYPERTENSJON_ALENE==0, !is.na(PREEKL))
 
 flag= filter(flag, IID %in% mfr$SentrixID_1)
 
 
 } else {
 names(pca)= c('FID', 'IID', 'NMISS_ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10')
-link= select(link, PREG_ID_315, SentrixID)
+print(names(link))
+link= dplyr::select(link, PREG_ID_315, SentrixID)
+
 mfr= inner_join(mfr, link, by= 'PREG_ID_315')
-mfr= mutate(mfr, FLERFODSEL== 'Enkeltfødsel' , grepl('Levendefødt', DODKAT), !is.na(SVLEN_UL_DG),SVLEN_UL_DG<308, SVLEN_UL_DG>154, is.na(IVF) | IVF== '', FOSTERV_POLYHYDRAMNION=='Nei', C00_MALF_ALL=='Nei', FOSTERV_OLIGOHYDRAMNION== 'Nei', VEKT>1500)
+
+mfr= mutate(mfr, FLERFODSEL== 'Enkeltfødsel' , grepl('Levendefødt', DODKAT), !is.na(SVLEN_UL_DG),SVLEN_UL_DG<308, SVLEN_UL_DG>154, is.na(IVF) | IVF== '', FOSTERV_POLYHYDRAMNION=='Nei', C00_MALF_ALL=='Nei', FOSTERV_OLIGOHYDRAMNION== 'Nei', VEKT>1500, !is.na(DIABETES_MELLITUS), HYPERTENSJON_KRONISK==0, HYPERTENSJON_ALENE==0, !is.na(PREEKL))
 
 flag= filter(flag, IID %in% mfr$SentrixID)
 
@@ -78,8 +81,7 @@ flag= filter(flag, IID %in% mfr$SentrixID)
 flag= filter(flag, genotypesOK== TRUE, phenoOK== TRUE)
 
 kin= fread(snakemake@input[[7]])
-
-trio= trio %>% filter(Mother %in% flag$IID, Father %in% flag$IID, Child %in% flag$IID)
+ibd= ibd %>% filter(Mother %in% flag$IID, Father %in% flag$IID, Child %in% flag$IID)
 
 infile= list()
 R2= list()
@@ -96,8 +98,7 @@ for (f in flist) {
 	infile= c(f, infile)
 	d= fread(f)
 	d= filter(d, !(IID %in% x))
-	d= full_join(d, fam_roh, by= c('IID'))
-	d= inner_join(d, ibd, by= c('IID'= 'Child'))
+	d= full_join(d, ibd, by= c('IID'= 'Child'))
 
 	d= filter(d, Mother %in% flag$IID,
                 Father %in% flag$IID, 
@@ -112,15 +113,16 @@ for (f in flist) {
 	d$cM= ifelse(is.na(d$cM), 0, d$cM)
 	d$KB= ifelse(is.na(d$KB), 0, d$KB)
 	d= inner_join(d, pca, by= 'IID')
-	train_control <- trainControl(method="cv", number=10)
-	d$rescM= lm(cM~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6, d)$resid
-	model <- train(rescM~ KB, data=d, trControl=train_control, method="lm", na.action= na.omit)
-#        r2= summary(lm(log1p(cM)~ log1p(KB) + PC1 + PC2 + PC3 + PC4 + PC5 + PC6, d))$r.squared - summary(lm(log1p(cM)~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6, d))$r.squared
-	r= mean(model$resample$Rsquared)
+#	set.seed(0)
+#	train_control <- trainControl(method="repeatedcv", number=10, repeats= 100)
+#	d$rescM= lm(cM~ PC1 + PC2 + PC3 + PC4 + PC5 + PC6, d)$resid
+#	model <- train(rescM~ KB, data=d, trControl=train_control, method="lm", na.action= na.omit)
+#	r= summary(lm(cM~ KB, data=d, na.action= na.omit))$r.squared
+#	r= mean(model$resample$Rsquared, na.rm= T)
+	r= with(d, cor(d$cM, d$KB, use= 'complete', method= 'spearman'))
 	R2[[f]]= r
 }
 d= data.frame(do.call('rbind', R2))
-#d= do.call(rbind, Map(data.frame, R2= R2, file= infile))
 d$file= rownames(d)
 names(d)= c('R2', 'file')
 

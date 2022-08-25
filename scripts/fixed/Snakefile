@@ -1,0 +1,394 @@
+import pandas as pd
+import numpy as np
+import os
+import gzip
+from functools import reduce
+
+cohort_nms= ['harvestm12', 'harvestm24','rotterdam1', 'rotterdam2', 'normentfeb', 'normentmay']
+smpl_nms= ['maternal','paternal', 'fetal']
+batch_nms= ['m12', 'm24']
+CHR_nms= [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,12 ,13 ,14 ,15 ,16 ,17 ,18 ,19 ,20 ,21 ,22]
+
+# Other arguments:
+
+pruning_nms= ['none', 'soft', 'moderate']
+
+dens_nms= [5]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 300, 400]
+length_nms= [0.0000001]
+het_nms= [0, 1]
+GAP_nms= [5]
+
+dens_bp= [5000]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 300, 400]
+length_bp= [0.0000001]
+het_bp= [0, 1]
+GAP_bp= [5000]
+
+# Functions
+
+def absOverlap(start0, end0, start1, end1):
+        return (np.maximum(0, np.minimum(end0, end1) - np.maximum(start0, start1)))
+
+rule ROH_calling_fixed_params_Joshi:
+        ''
+        input:
+                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_{sample}.bed',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/none/cm_pruned{cohort}_{sample}.bim',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_{sample}.fam'
+        output:
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/fixed_params/tmp_{{sample}}_Joshi_params_ROH.{ext}', ext= ['log', 'hom.summary', 'hom.indiv', 'hom'])),
+		'/mnt/work/pol/ROH/{cohort}/fixed_params/runs/{sample}_input_ROH_geno.txt'
+        params:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/tmp_{sample}_Joshi_params_ROH'
+
+        run:
+                shell("/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[1]} --fam {input[2]} --homozyg --homozyg-window-snp 50 --homozyg-snp 50 --homozyg-kb 1500 --homozyg-gap 1000 --homozyg-density 50 --homozyg-window-missing 5 --homozyg-window-het 1 --out {params[0]}")
+		l= list(["".join(input[0]), "".join(input[1]), "".join(input[2])])
+                with open(output[4], 'w') as f:
+                        f.writelines( "%s\n" % item for item in l)
+
+rule filter_sUPD_ROH_opt_bp_Joshi:
+        ''
+        input:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/tmp_{sample}_Joshi_params_ROH.hom',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/none/cm_pruned{cohort}_{sample}.bim',
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/tmp_{sample}_Joshi_params_ROH.hom.indiv'
+        output:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/list_Joshi_sUPD_{sample}.txt'
+        run:
+                d_cm= pd.read_csv(input[0], delim_whitespace= True, header= 0)
+                d_cm= d_cm.groupby(['IID', 'CHR'])['KB'].agg('sum').reset_index()
+                CHROM= pd.read_csv(input[1], header= None, delim_whitespace= True, names= ['CHR', 'snp', 'X', 'cM', 'A1', 'A2'], usecols= ['CHR', 'cM'])
+                CHROM['cMd']= CHROM.groupby('CHR')['cM'].diff(1)
+                CHROM= CHROM.groupby('CHR')['cMd'].agg('sum').reset_index()
+                d_cm= pd.merge(d_cm, CHROM, on= ['CHR'])
+                d_cm= d_cm.loc[((d_cm.KB * 1000) / d_cm.cMd) > 0.70, :]
+                cM= sum(CHROM.cMd)
+                x= pd.read_csv(input[2], header= 0, delim_whitespace= True)
+                x['FKB']= (x['KB'] * 1000) / cM
+                x= x.loc[x.FKB>= 0.08, :]
+                d_cm= pd.concat([d_cm[['IID', 'KB']], x[['IID', 'KB']]])
+                d_cm.to_csv(output[0], sep= '\t', header= False, index= False, columns= ['IID'])
+
+rule gap_ROH_Joshi:
+        ''
+        input:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/tmp_{sample}_Joshi_params_ROH.hom',
+                '/mnt/work/pol/ROH/1KG/cm_UCSC_gap.txt',
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/tmp_{sample}_Joshi_params_ROH.hom.indiv',
+		'/mnt/work/pol/ROH/{cohort}/fixed_params/list_Joshi_sUPD_{sample}.txt'
+        output:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_{sample}_ROH.hom',
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_{sample}_ROH.hom.indiv'
+	run:
+		df= pd.read_csv(input[1], header= 0, sep= '\t')
+		df_list= list()
+		for d in pd.read_csv(input[0], header= 0, delim_whitespace= True, chunksize= 10**5, iterator= True):
+			for chrom in set(d.CHR):
+				temp_d= d.loc[d.CHR== chrom, :]
+				temp_df= df.loc[df.chr== chrom, :]
+				temp_d= pd.merge(temp_d, temp_df, left_on= 'CHR', right_on= 'chr')
+				temp_d= temp_d.loc[(temp_d.POS1 > temp_d.cM2 * 10**6) | (temp_d.POS2< temp_d.cM1 * 10**6), :]
+				temp_d.drop_duplicates(subset= ['IID', 'CHR', 'POS1', 'POS2'], inplace=True, keep= 'first')
+				temp_d= temp_d[['IID', 'CHR', 'POS1', 'POS2', 'KB']]
+				df_list.append(temp_d)
+		d= pd.concat(df_list)
+		with open(input[3]) as f:
+			outsUPD= [line.strip() for line in f]
+		d= d.loc[~d.IID.isin(outsUPD), :]
+		d.to_csv(output[0], index= False, header= True, sep= '\t')
+		df= d.groupby('IID')['KB'].agg(['mean', 'sum', 'count']).reset_index()
+		df.columns= ['IID', 'KBAVG', 'KB', 'NSEG']
+		x= pd.read_csv(input[2], header= 0, delim_whitespace= True, usecols= ['IID'])
+		df= pd.merge(df, x, on= 'IID', how= 'outer')
+		df.fillna(0, inplace= True)
+		df.to_csv(output[1], sep= '\t', header= True, index=False)
+
+rule estimate_ROH_chrX_Joshi:
+        '''
+        Obtain ROH estimates using PLINK 1.9.
+        Configuration according to file "/mnt/work/pol/ROH/arguments/max_R2.txt"
+        '''
+        input:
+                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/chrX/none/pruned{{cohort}}.{ext}', ext= ['bed', 'fam']),
+		'/mnt/work/pol/ROH/{cohort}/fixed_params/runs/maternal_input_ROH_geno.txt',
+		'/mnt/work/pol/ROH/{cohort}/genotypes/chrX/none/chrX_cm_pruned{cohort}.bim'
+        output:
+                temp(expand('/mnt/work/pol/ROH/{{cohort}}/fixed_params/runs/chrX/chrX_tmp_{{cohort}}.{ext}', ext= ['hom', 'hom.indiv', 'log', 'hom.summary']))
+        params:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/runs/chrX/chrX_tmp_{cohort}'
+	run:
+		shell('/home/pol.sole.navais/soft/plink --bed {input[0]} --bim {input[3]} --fam {input[1]} --homozyg --homozyg-window-snp 50 --homozyg-snp 50 --homozyg-kb 1500 --homozyg-gap 1000 --homozyg-density 50 --homozyg-window-missing 5 --homozyg-window-het 1 --out {params[0]}')
+
+rule gap_ROH_Joshi_chrX:
+        ''
+        input:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/runs/chrX/chrX_tmp_{cohort}.hom',
+                '/mnt/work/pol/ROH/1KG/cm_UCSC_gap.txt',
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/runs/chrX/chrX_tmp_{cohort}.hom.indiv',
+		'/mnt/work/pol/ROH/{cohort}/fixed_params/list_Joshi_sUPD_maternal.txt'
+        output:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/runs/chrX/{cohort}.hom',
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/runs/chrX/{cohort}.hom.indiv'
+	run:
+		df= pd.read_csv(input[1], header= 0, sep= '\t', names=['chr', 'start', 'end', 'size', 'type'])
+		df_list= list()
+                for d in pd.read_csv(input[0], header= 0, delim_whitespace= True, chunksize= 10**5, iterator= True):
+			temp_d= pd.merge(d, df, left_on= 'CHR', right_on= 'chr')
+			temp_d= temp_d.loc[(temp_d.POS1 > temp_d.cM2 * 10**6) | (temp_d.POS2< temp_d.cM1 * 10**6), :]
+			temp_d.drop_duplicates(subset= ['IID', 'CHR', 'POS1', 'POS2'], inplace=True, keep= 'first')
+			temp_d= temp_d[['IID', 'CHR', 'POS1', 'POS2', 'KB']]
+			df_list.append(temp_d)
+		d= pd.concat(df_list)
+		with open(input[3]) as f:
+			outsUPD= [line.strip() for line in f]
+		d= d.loc[~d.IID.isin(outsUPD), :]
+                d.to_csv(output[0], index= False, header= True, sep= '\t')
+                df= d.groupby('IID')['KB'].agg(['mean', 'sum', 'count']).reset_index()
+                df.columns= ['IID', 'KBAVG', 'KB', 'NSEG']
+                x= pd.read_csv(input[2], header= 0, delim_whitespace= True, usecols= ['IID'])
+                df= pd.merge(df, x, on= 'IID', how= 'outer')
+                df.fillna(0, inplace= True)
+                df.to_csv(output[1], sep= '\t', header= True, index=False)
+
+rule phenofile_Joshi:
+        'Merge all data necessary to create a phenotype file with ROH.'
+        input:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_{sample}_ROH.hom',
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_{sample}_ROH.hom.indiv',
+                '/mnt/work/pol/{cohort}/pheno/{cohort}_mfr.csv',
+                '/mnt/work/pol/{cohort}/pheno/{cohort}_linkage.csv',
+                '/mnt/work/pol/{cohort}/pca/{cohort}_pca.txt',
+                '/mnt/work/pol/{cohort}/relatedness/all_{cohort}.kin0',
+                '/mnt/archive/HARVEST/delivery-fhi/data/genotyped/m12/m12-genotyped.fam',
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/runs/{sample}_input_ROH_geno.txt',
+                '/mnt/work/pol/{cohort}/pheno/flag_list.txt',
+                '/mnt/work/pol/{cohort}/pca/pca_exclude.txt',
+                '/mnt/work/pol/ROH/{cohort}/runs/sUPD_{cohort}_{sample}.txt',
+                '/mnt/work/pol/ROH/{cohort}/genotypes/none/pruned{cohort}_{sample}.bim'
+        output:
+                '/mnt/work/pol/ROH/{cohort}/fixed_params/pheno/runs_mfr_{sample}.txt'
+        script:
+                '../pheno_file.py'
+
+rule overlap_ROHs:
+	''
+	input:
+		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom',
+		'/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_{sample}_ROH.hom'
+	output:
+		temp('/mnt/work/pol/ROH/{cohort}/fixed_params/overlap_Joshi_params_{sample}_ROH.txt')
+	run:
+		d= pd.read_csv(input[0], header= 0, sep= '\t')
+		jos= pd.read_csv(input[1], header= 0, sep= '\t')
+		jos.columns= jos.columns + '_jos'
+		df= pd.merge(d, jos, left_on= ['CHR', 'IID'], right_on= ['CHR_jos', 'IID_jos'], how= 'left')
+		df['overlap']= absOverlap(df.POS1, df.POS2, df.POS1_jos, df.POS2_jos)
+		df= df.groupby('IID')['overlap'].sum().reset_index()
+		d['dist']= d.POS2 - d.POS1
+		d= d.groupby('IID')['dist'].sum().reset_index()
+		d= pd.merge(d, df, on= 'IID', how= 'left')
+		d['overlap']= np.where(d.overlap== np.nan, 0, d.overlap)
+		d['rel_overlap']= d.overlap / d.dist
+		d['cohort']= wildcards.cohort
+		d.to_csv(output[0], header= True, index= False, sep= '\t')
+
+rule concat_overlap:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/{cohort}/fixed_params/overlap_Joshi_params_{{sample}}_ROH.txt', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/fixed_params/overlap_Joshi_params_{sample}_ROH.txt'
+	run:
+		df_list= list()
+		for infile in input:
+			d= pd.read_csv(infile, sep= '\t', header=0)
+			df_list.append(d)
+		d= pd.concat(df_list)
+		d.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule concat_phenos_PCA_Joshi:
+        'Concat pheno files, and add PCA.'
+        input:
+                '/mnt/archive/MOBAGENETICS/genotypes-base/aux/pca/mobagen-total/mobagen-total-proj-pc',
+                '/mnt/archive/MOBAGENETICS/genotypes-base/aux/pedigree/mobagen-ethnic-core-samples.kin0',
+                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/pheno/runs_mfr_{{sample}}.txt', cohort= cohort_nms)
+        output:
+                '/mnt/work/pol/ROH/fixed_params/pheno/runs_mfr_{sample}.txt'
+        run:
+                def selectUnrelated(df, x):
+                        kin= pd.read_csv(input[1], header= 0, sep= '\t')
+                        kin= kin.loc[kin.Kinship > 0.0884, :]
+                        kin= kin.loc[kin.ID1.isin(x.values)]
+                        kin= kin.loc[kin.ID2.isin(x.values)]
+                        kin= kin.loc[:, ['ID1','ID2','Kinship']]
+                        kin_temp= kin.copy()
+                        kin_temp.columns= ['ID2', 'ID1', 'Kinship']
+                        kin_temp= kin_temp.append(kin)
+                        kin_temp['n']= kin_temp.groupby('ID1')['ID1'].transform('count')
+                        kin_temp['nn']= kin_temp.groupby('ID2')['ID2'].transform('count')
+                        kin_temp.sort_values(by=['n', 'nn'], inplace= True)
+                        to_keep= list()
+                        for i in range(0, len(kin_temp.index)):
+                                if kin_temp.iloc[i, 0] in kin_temp.iloc[0:i, 1].values:
+                                        kin_temp.iloc[i, 1]= "X"
+                                else:
+                                        to_keep.append(kin_temp.iloc[i, 0])
+                        to_remove= [i for i in kin_temp.ID1 if i not in to_keep]
+                        to_remove= list(set(to_remove))
+                        remove= pd.DataFrame({'FID': to_remove})
+                        remove['IID']= remove.FID
+                        return remove
+                df_list= list()
+                flist= [infile for infile in input if 'pheno' in infile]
+                for infile in flist:
+                        x= pd.read_csv(infile, sep= '\t', header= 0)
+                        df_list.append(x)
+                d= pd.concat(df_list)
+                pca= pd.read_csv(input[0], header= 0, sep= '\t')
+                remove= selectUnrelated(d, d.IID)
+                d= d[~d.IID.isin(remove)]
+                d= pd.merge(d, pca, how= 'left', on= 'IID')
+                d.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule mapping_ROH_segments_Joshi:
+        'Obtain matrix (rows= segment, columns = subject), with all minimum segmental ROHs per subject (1= homozygous part of ROH).'
+        input:
+                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_{{sample}}_ROH.hom', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_{{sample}}_ROH.hom.indiv', cohort= cohort_nms)
+        output:
+                '/mnt/work/pol/ROH/fixed_params/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz'
+        script:
+                '../segments_snv_maps/segment_map_ROH.py'
+
+rule mapping_ROH_segments_chrX_Joshi:
+        'Obtain matrix (rows= segment, columns = subject), with all minimum segmental ROHs per subject (1= homozygous part of ROH).'
+        input:
+                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/runs/chrX/{cohort}.hom', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/runs/chrX/{cohort}.hom.indiv', cohort= cohort_nms)
+        output:
+                temp('/mnt/work/pol/ROH/fixed_params/genotypes/chrX/maps/maps.txt.gz')
+        script:
+                '../chrX/segment_map_ROH.py'
+
+
+rule surv_analysis_Joshi:
+        'AFT analysis analyis on bined ROH calls.'
+        input:
+                '/mnt/work/pol/ROH/fixed_params/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz',
+                '/mnt/work/pol/ROH/fixed_params/pheno/runs_mfr_{sample}.txt'
+        output:
+                temp('/mnt/work/pol/ROH/fixed_params/results/{sample}/surv_spont_{sample}_chr{CHR}'),
+                '/mnt/work/pol/ROH/fixed_params/results/{sample}/eff_ROH_{CHR}.txt'
+        script:
+                '../survival/surv_segments.R'
+
+rule aft_analysis_chrX_Joshi:
+        'Cox proportional hazard analyis on bined ROH calls.'
+        input:
+                '/mnt/work/pol/ROH/fixed_params/genotypes/chrX/maps/maps.txt.gz',
+                '/mnt/work/pol/ROH/fixed_params/pheno/runs_mfr_maternal.txt'
+        output:
+                temp('/mnt/work/pol/ROH/fixed_params/results/chrX/maps_surv/surv_spont_temp'),
+                '/mnt/work/pol/ROH/fixed_params/results/maternal/eff_ROHX.txt'
+        script:
+                '../survival/surv_segments.R'
+
+rule concat_surv_Joshi:
+	'Concat surv results from multiple chromosomes.'
+	input:
+		'/mnt/work/pol/ROH/fixed_params/results/chrX/chrX_surv_spont',
+		expand('/mnt/work/pol/ROH/fixed_params/results/{{sample}}/surv_spont_{{sample}}_chr{CHR}', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/fixed_params/results/Joshi_surv_spont_{sample}'
+	run:
+		infiles= input[1:]
+		if wildcards.sample== 'maternal':
+			shell('cat {input} > {output[0]}')
+		if wildcards.sample!= 'maternal':
+			shell('cat {infiles} > {output[0]}')
+
+rule concat_eff_Joshi:
+        'Concat effective number of ROHs.'
+        input:
+                '/mnt/work/pol/ROH/fixed_params/results/maternal/eff_ROHX.txt',
+                expand('/mnt/work/pol/ROH/fixed_params/results/{{sample}}/eff_ROH_{CHR}.txt', CHR= CHR_nms)
+        output:
+                '/mnt/work/pol/ROH/fixed_params/results/{sample}/Joshi_eff_ROH.txt'
+        run:
+                infiles= input[1:]
+                if wildcards.sample== 'maternal':
+                        shell('cat {input} > {output[0]}')
+                if wildcards.sample!= 'maternal':
+                        shell('cat {infiles} > {output[0]}')
+
+
+rule map_ROH_genes_Joshi:
+	'Map ROH segments to genes.'
+	input:
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_bp.txt',
+		expand('/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_{{sample}}_ROH.hom', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/fixed_params/Joshi_params_{{sample}}_ROH.hom.indiv', cohort= cohort_nms)
+	output:
+		temp('/mnt/work/pol/ROH/fixed_params/genotypes/maps/gene/{sample}_genemap_CHR{CHR}.txt')
+	script:
+		'../segments_snv_maps/gene_maps_ROH.py'
+
+rule map_gene_chrX_Joshi:
+        ''
+        input:
+                '/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt',
+                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/runs/chrX/{cohort}.hom', cohort= cohort_nms),
+                expand('/mnt/work/pol/ROH/{cohort}/fixed_params/runs/chrX/{cohort}.hom.indiv', cohort= cohort_nms)
+        output:
+                temp('/mnt/work/pol/ROH/fixed_params/genotypes/chrX/maps/gene_burden_maps.txt.gz')
+        script:
+                '../chrX/gene_maps_ROH.py'
+
+rule aft_gene_chrX_Joshi:
+        ''
+        input:
+                '/mnt/work/pol/ROH/fixed_params/genotypes/chrX/maps/gene_burden_maps.txt.gz',
+                '/mnt/work/pol/ROH/fixed_params/pheno/runs_mfr_maternal.txt'
+        output:
+                temp('/mnt/work/pol/ROH/fixed_params/results/chrX/maps_surv/temp_burden_surv_spont_temp'),
+                temp('/mnt/work/pol/ROH/fixed_params/results/maternal/gene_burden_eff_ROHX.txt')
+        script:
+                '../survival/aft_genes.R'
+
+rule gene_burden_Joshi:
+        ''
+        input:
+                '/mnt/work/pol/ROH/fixed_params/genotypes/maps/gene/{sample}_genemap_CHR{CHR}.txt',
+                '/mnt/work/pol/ROH/fixed_params/pheno/runs_mfr_{sample}.txt'
+        output:
+                temp('/mnt/work/pol/ROH/fixed_params/results/temp_burden_survival_{sample}_CHR{CHR}.txt'),
+                temp('/mnt/work/pol/ROH/fixed_params/results/{sample}/gene_burden_eff_ROH_CHR{CHR}.txt')
+        script:
+                '../survival/aft_genes.R'
+
+rule concat_gene_Joshi:
+        ''
+        input:
+                '/mnt/work/pol/ROH/fixed_params/results/chrX/maps_surv/temp_burden_surv_spont_temp',
+                expand('/mnt/work/pol/ROH/fixed_params/results/temp_burden_survival_{{sample}}_CHR{CHR}.txt', CHR= CHR_nms)
+        output:
+                '/mnt/work/pol/ROH/fixed_params/results/Joshi_burden_survival_{sample}.txt'
+        run:
+                if wildcards.sample== 'maternal': shell('cat {input} > {output[0]}')
+                input_non_maternal= input[1:]
+                if wildcards.sample!= 'maternal': shell('cat {input_non_maternal} > {output[0]}')
+
+rule concat_eff_gene_Joshi:
+        ''
+        input:
+                '/mnt/work/pol/ROH/fixed_params/results/maternal/gene_burden_eff_ROHX.txt',
+                expand('/mnt/work/pol/ROH/fixed_params/results/{{sample}}/gene_burden_eff_ROH_CHR{CHR}.txt', CHR= CHR_nms)
+        output:
+                '/mnt/work/pol/ROH/fixed_params/results/{sample}/Joshi_gene_burden_eff_ROH.txt'
+        run:
+                if wildcards.sample== 'maternal': shell('cat {input} > {output[0]}')
+                input_non_maternal= input[1:]
+                if wildcards.sample!= 'maternal': shell('cat {input_non_maternal} > {output[0]}')
+

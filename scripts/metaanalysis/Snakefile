@@ -16,16 +16,16 @@ rep_nms= ['normentjan', 'normentjun']
 
 # Other arguments:
 
-pruning_nms= ['none', 'soft', 'moderate', 'hard']
+pruning_nms= ['none', 'soft', 'moderate']
 
 dens_nms= [5]
-SNP_nms= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_nms= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_nms= [0.0000001]
 het_nms= [0, 1]
 GAP_nms= [5]
 
 dens_bp= [5000]
-SNP_bp= [15, 25, 50, 75, 100, 150, 200, 350, 500]
+SNP_bp= [15, 25, 50, 75, 100, 150, 200, 300, 400]
 length_bp= [0.0000001]
 het_bp= [0, 1]
 GAP_bp= [5000]
@@ -53,7 +53,7 @@ def IVW(df):
 rule high_conf_segments:
 	'Obtain a set of high confidence intervals with an FDR< 0.05 and <0.1.'
 	input:
-		'/mnt/work/pol/ROH/results/eff_num_{sample}.txt',
+		'/mnt/work/pol/ROH/results/ROH_frequency_{sample}.txt',
 		expand('/mnt/work/pol/ROH/{cohort}/results/surv_spont_{{sample}}', cohort= cohort_nms)
 	output:
 		'/mnt/work/pol/ROH/results/HC_{sample}_surv_spont',
@@ -61,14 +61,14 @@ rule high_conf_segments:
 		'/mnt/work/pol/ROH/results/NC_{sample}_surv_spont',
 		'/mnt/work/pol/ROH/results/meta_{sample}_surv_spont'
 	run:
-		bon= pd.read_csv(input[0], sep= '\t', header= 0)
-		if wildcards.sample != 'maternal': bon= bon.loc[bon.chr != 23, :]
-		bon= bon.groupby('chr')['eff_num'].max().sum()
+		df_freq= pd.read_csv(input[0], sep= '\t', header= None, names= ['cM', 'chr', 'freq', 'n'])
+		df_freq= df_freq.loc[df_freq.n> 25, :]
+		df_freq['segment']= df_freq.chr.map(str) + ':' + df_freq.cM
 		i= 0
 		df_list= list()
 		for infile in input[1:]:
 			d= pd.read_csv(infile, sep= '\t', header= 0)
-			d['segment']= d.chr.map(str) + ':' + d.cM1.map(str) + ':' + d.cM2.map(str)
+#			d= d.loc[d.segment.isin(df_freq.segment.values.tolist()), :]
 			d['sd']= np.where(d.beta.isnull(), np.NaN, d.sd)
 			d['n']= np.where(d.beta.isnull(), np.NaN, d.n)
 			d.rename(columns={'beta': 'beta'+str(i), 'sd': 'sd'+ str(i), 'pos1': 'pos1'+ str(i), 'pos2': 'pos2'+ str(i), 'n': 'n_' + str(i)}, inplace=True)
@@ -84,7 +84,7 @@ rule high_conf_segments:
 		df= pd.concat([df, meta_df], axis=1, ignore_index= True)
 		df.columns= cols_df + ['beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta']
 		df['n_meta']= df[n_cols].sum(axis=1)
-		df= df.loc[df.n_meta>= 10000, :]
+#		df= df.loc[df.n_meta>= 10000, :]
 		df['pos1']= np.where(pd.notna(df.pos10), df.pos10, np.where(pd.notna(df.pos11), df.pos11, np.where(pd.notna(df.pos12), df.pos12, np.where(pd.notna(df.pos13), df.pos13, np.where(pd.notna(df.pos14), df.pos14,  df.pos15)))))
 		df['pos2']= np.where(pd.notna(df.pos20), df.pos20, np.where(pd.notna(df.pos21), df.pos21, np.where(pd.notna(df.pos22), df.pos22, np.where(pd.notna(df.pos23), df.pos23, np.where(pd.notna(df.pos24), df.pos24,  df.pos25)))))
 		df.dropna(subset= ['pvalue_meta'], inplace= True)
@@ -94,17 +94,18 @@ rule high_conf_segments:
 		dfLC.sort_values(by=['pvalue_meta'], inplace= True, ascending= True)
 		dfLC= dfLC.iloc[len(dfHC.index):, :]
 		dfNC= df.loc[df.pvalue_meta>= 0.1/ df.shape[0], :]
+		df['conf']= np.where(df.pvalue_meta< 0.05/ df.shape[0], 'HC', np.where(df.pvalue_meta< 0.1/ df.shape[0], 'LC', 'NC'))
                 dfHC.to_csv(output[0], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
                 dfLC.to_csv(output[1], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
                 dfNC.to_csv(output[2], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
-		df.to_csv(output[3], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
+		df.to_csv(output[3], sep= '\t', header= True, index= False, columns= ['segment', 'pos1', 'pos2', 'conf', 'n_meta', 'beta_meta', 'sd_meta', 'z_meta', 'pvalue_meta'])
 
 rule meta_analysis_imputed:
 	'Meta-analysis of imputed variants using inverse variance weighted meta-analysis.'
 	input:
-		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_surv_spont_{{sample}}', cohort= cohort_nms)
+#		expand('/mnt/work/pol/ROH/{cohort}/results/imputed/imputed_surv_spont_{{sample}}', cohort= cohort_nms)
 	output:
-		'/mnt/work/pol/ROH/results/imputed/surv_imputed_{sample}.txt'
+#		'/mnt/work/pol/ROH/results/imputed/surv_imputed_{sample}.txt'
 	run:
 		i= 0
 		df_list= list()
@@ -132,9 +133,9 @@ rule meta_analysis_imputed:
 rule meta_analysis_replication:
 	'IVW of imputed variants.'
 	input:
-		expand('/mnt/work/pol/ROH/replication/results/imputed_surv_spont_moms_{rep}', rep= rep_nms)
+#		expand('/mnt/work/pol/ROH/replication/results/imputed_surv_spont_moms_{rep}', rep= rep_nms)
 	output:
-		'/mnt/work/pol/ROH/results/imputed/replication/surv_moms.txt'
+#		'/mnt/work/pol/ROH/results/imputed/replication/surv_moms.txt'
 	run:
 		i= 0
                 df_list= list()

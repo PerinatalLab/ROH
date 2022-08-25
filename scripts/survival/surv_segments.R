@@ -21,39 +21,29 @@ options(stringsAsFactors=FALSE)
 
 pheno= fread(phenofile)
 
-if (grepl('harvest', phenofile)){
-#pheno= mutate(pheno, spont= as.numeric(FSTART==1 & (is.na(KSNITT) | KSNITT>1) &
-#                (is.na(KSNITT_PLANLAGT) | KSNITT_PLANLAGT==1) &
-#                INDUKSJON_PROSTAGLANDIN==0 & 
-#		INDUKSJON_ANNET==0 &
-#                INDUKSJON_OXYTOCIN==0 & 
-#		INDUKSJON_AMNIOTOMI==0), 
-#		PARITY0= as.numeric(PARITET_5==0))
-} else if (!grepl('harvest', phenofile)){
-#pheno= mutate(pheno, spont= as.numeric((FSTART=='Spontan' | FSTART== '') & (KSNITT=='' | KSNITT== 'Uspesifisert' | KSNITT== 'Akutt keisersnitt') &
-#                INDUKSJON_PROSTAGLANDIN=='Nei' & 
-#                INDUKSJON_ANNET=='Nei' &
-#                INDUKSJON_OXYTOCIN=='Nei' & 
-#                INDUKSJON_AMNIOTOMI=='Nei'), 
-#                PARITY0= as.numeric(PARITET_5=='0 (førstegangsfødende)'))
-
-#names(pheno)[names(pheno) == 'SentrixID'] <- 'SentrixID_1'
-}
 
 pheno= pheno[!duplicated(pheno$IID), ]
 
-# read pheno file; each row is one participant, and column represents one variable
 
 dataChunk= fread(infile, header= T)
-        genvars= paste(dataChunk$CHR, dataChunk$segment, sep=':')
+if (nrow(dataChunk)==0){
+cat(NULL, file= snakemake@output[[1]])
+cat(0, file= snakemake@output[[2]])
+} else {
+	dataChunk= dataChunk[rowSums(dataChunk[, 3:ncol(dataChunk)])>20, ]
+        if (nrow(dataChunk)==0){
+	cat(NULL, file= snakemake@output[[1]])
+cat(0, file= snakemake@output[[2]])
+} else {
+	genvars= paste(dataChunk$CHR, dataChunk$segment, sep=':')
 	dataChunk= subset( dataChunk, select = -c(CHR,segment))
-
-
+	
         dataChunk= as.data.frame(t(dataChunk))
+	
         dataChunk$id= gsub('X','',rownames(dataChunk))
 	names(dataChunk)[1:length(genvars)]= genvars
         geno= inner_join(pheno, dataChunk, by= c('IID' = 'id'))
-	df_list= lapply(names(geno[,-c(1:dim(pheno)[2])]), function(snp){cox_coef= survreg(Surv( geno$SVLEN_UL_DG, geno$spont)~ geno[,snp] + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6 + geno$PC7 + geno$PC8 + geno$PC9 + geno$PC10 + geno$cohort + geno$PARITY0, na.action = na.omit, dist= 'weibull')
+	df_list= lapply(names(geno[,-c(1:dim(pheno)[2])]), function(snp){cox_coef= survreg(Surv( geno$SVLEN_UL_DG, geno$spont)~ geno[,snp] + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6 + geno$PC7 + geno$PC8 + geno$PC9 + geno$PC10 + geno$cohort + geno$PARITY0 + geno$FKB, na.action = na.omit, dist= 'weibull')
 	n= summary(cox_coef)$n
        coef = summary(cox_coef)$table[2, 1]
 	freq= mean(geno[, snp], na.rm=T)
@@ -63,6 +53,7 @@ dataChunk= fread(infile, header= T)
 #	txt = sprintf( "%s\t%e\t%e\t%e\t%e\t%e\n", snp, n, coef, sd, pvalue, loglikF)
 #cat(txt, file= outfile, append= T)
 	return(list(snp, n, freq, coef, sd, pvalue, loglikF))
+
 }
 )
 
@@ -77,4 +68,5 @@ pca.fit= prcomp(geno, scale=TRUE, center= TRUE)
 eff= sum(summary(pca.fit)$importance[3,]<0.995)
 
 cat(eff, file= snakemake@output[[2]],sep= '\n')
-
+}
+}

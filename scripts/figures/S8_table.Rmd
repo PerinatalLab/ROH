@@ -1,0 +1,38 @@
+---
+output:
+    pdf_document:
+        dev: cairo_pdf
+        latex_engine: xelatex
+        fig_caption: yes
+header-includes:
+- \usepackage{titling}
+- \setlength{\droptitle}{10em}
+- \renewcommand{\caption}{}
+- \usepackage[font=bf]{caption}
+- \pagenumbering{gobble}
+---
+
+```{r dependencies, include=FALSE}
+library("ggplot2")
+library(cowplot)
+library("dplyr")
+library("survival")
+library("knitr")
+library("gridExtra")
+library("tidyr")
+library("kableExtra")
+library("data.table")
+options(warn=-1)
+opts_chunk$set(dpi=300)
+```
+
+```{r echo= F}
+
+d= data.frame(Distribution= c('Exponential', 'Weibull', 'Gamma', 'Log-normal', 'Log-logistic'), AIC= c(866572.5, 494809.6, 509919.8, 512008.7, 496528.5))
+
+colnames(d)= c('Dsitribution function', 'AIC')
+
+kable(d, align= c('c', 'c'), row.names= F, caption = "S8 Table: AIC scores obtained after fitting 5 different survival distributions to gestational age.", booktabs = T) %>% kable_styling(latex_options= c('striped')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('AIC, Akaike information criterion', 'Models were fitted using an accelerated failure time in all MoBa cohort (n= 79155, events= 63169) '), threeparttable= T)
+
+```
+

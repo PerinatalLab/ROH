@@ -27,7 +27,10 @@ def pheno():
 	d= d[(d.FOSTERV_POLYHYDRAMNION=='Nei')]
 	d= d[(d.FOSTERV_OLIGOHYDRAMNION== 'Nei')]
 	d= d[(d.C00_MALF_ALL=='Nei')]
-	
+	d= d[d.DIABETES_MELLITUS.isna()]
+        d= d[(d.HYPERTENSJON_KRONISK=='Nei')]
+        d= d[(d.HYPERTENSJON_ALENE=='Nei')]
+        d= d[d.PREEKL.isna()]
 	flag= pd.read_csv(snakemake.input[5], sep= '\t', header= 0)
 	flag= flag[(flag['genotypesOK']== True) & (flag['phenoOK']== True)]
 	d= d.loc[d.SentrixID.isin(flag.IID), :]

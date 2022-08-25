@@ -25,9 +25,8 @@ options(warn=-1)
 opts_chunk$set(dpi=300)
 ```
 
-```{r fig.align="center", fig.cap=" S3 Figure: Quantile-quantile plot for the p-values obtained by autozygosity mapping in mothers (n segments= 60391), fathers (n segments= 58742) and fetuses (n segments= 44741).", echo=FALSE}
+```{r fig.align="center", fig.cap=" S8 Figure: Associations between offspring ROHs called using Joshi parameters and total parental genetic relatedness (cM) in each sub-cohort. ROH calling parameters were fixed. Sample size: 5024, 3240, 4533, 2566, 1221, 3957, respectively for cohort1 to cohort6, in order.", echo=FALSE}
 
 knitr::include_graphics(snakemake@input[[1]])
 
 ```
-

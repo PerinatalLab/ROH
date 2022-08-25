@@ -53,12 +53,12 @@ df= inner_join(bp, cm, by= c('SNP', 'het', 'cohort', 'pruning'))
 p1= ggplot(x, aes(x= as.numeric(as.character(SNP)), y= R2, colour= as.factor(pruning))) +
 geom_point(size= 1) +
 geom_line() + 
-scale_x_continuous(breaks=c(0, 400, 25), expand = c(0,0)) +
+scale_x_continuous(breaks=seq(0, 400, 50), expand = c(0,0)) +
 theme_cowplot(12, font_size= 12) +
 scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5', '0.1'), values= colors_4) +
 facet_grid(het ~ bp_cm, labeller = labeller(het= as_labeller(c('0'= 'No het. allowed', '1'= 'One het. allowed')),
 bp_cm= as_labeller(c('BP'='Physical distance', 'cM'='Genetic distance')))) +
-scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.2, 0.6), expand = c(0,0)) +
+scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.6, 0.2), expand = c(0,0)) +
  theme(legend.position = "bottom") +
         xlab('Number of genetic variants included') +
         ylab(expression(paste('Correlation coefficient between offspring ROH and parental genetic relatedness'))) +
@@ -95,7 +95,7 @@ save_plot(snakemake@output[[2]], p2, base_width=297, base_height=210, units="mm"
 s1B= ggplot(filter(d, bp_cm== 'cM', het== 0), aes(x= as.numeric(as.character(SNP)), y= R2, colour= as.factor(pruning))) +
 geom_point(size= 1) +
 geom_line() +
-scale_x_continuous(breaks= c(0, 400, 25), expand = c(0,0)) +
+scale_x_continuous(breaks= seq(0, 400, 50), expand = c(0,0)) +
 scale_y_continuous(breaks= seq(round(min(x$R2, na.rm= T), 1), 0.6, 0.2), expand = c(0,0)) +
 theme_cowplot(12, font_size= 12) +
 scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5'), values= colors_4) +
@@ -108,7 +108,7 @@ facet_wrap(~cohort, labeller = labeller(cohort= as_labeller(c('harvestm12'='Coho
 s1A= ggplot(filter(d, bp_cm== 'cM', het== 1), aes(x= as.numeric(as.character(SNP)), y= R2, colour= as.factor(pruning))) +
 geom_point(size= 1) +
 geom_line() +
-scale_x_continuous(breaks=c(0, 400, 25), expand = c(0,0)) +
+scale_x_continuous(breaks=seq(0, 400, 50), expand = c(0,0)) +
 scale_y_continuous(breaks=seq(round(min(x$R2, na.rm= T), 1), 0.6, 0.2), expand = c(0,0)) +
 theme_cowplot(12, font_size= 12) +
 scale_colour_manual(name= expression(paste('Pruning ', R^2, ' threshold')), labels= c('None', '0.9', '0.5'), values= colors_4) +

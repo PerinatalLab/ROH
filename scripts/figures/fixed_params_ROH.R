@@ -167,5 +167,5 @@ theme(strip.text = element_blank(),
 xlab('Parental genetic relatedness, total cM') +
     ylab('Offspring ROH length, cM')
 
-save_plot(snakemake@output[[1]], plot= x1, base_width=297, base_height=210, units="mm", device= cairo_ps)
+save_plot(snakemake@output[[1]], plot= x1, base_width=297, base_height=210, units="mm")
 

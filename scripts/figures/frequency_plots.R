@@ -36,7 +36,7 @@ scale_y_continuous(expand= c(0, 0)) +
            legend.position="none") +
          xlab('Chromosome') +
     ylab('Frequency') +
-ggtitle('Mothers')
+ggtitle('Maternal')
 
 
 x= fread(snakemake@input[[2]], h=T)
@@ -68,7 +68,7 @@ scale_y_continuous(expand= c(0, 0)) +
            legend.position="none") +
          xlab('Chromosome') +
     ylab('Frequency') +
-ggtitle('Fathers')
+ggtitle('Paternal')
 #return(dad)
 
 
@@ -100,7 +100,7 @@ scale_y_continuous(expand= c(0, 0)) +
            legend.position="none") +
          xlab('Chromosome') +
     ylab('Frequency') +
-ggtitle('Offspring')
+ggtitle('Fetus')
 
 plot1= plot_grid(mom, dad, fet, ncol= 1, labels= 'AUTO', align= 'v')
 

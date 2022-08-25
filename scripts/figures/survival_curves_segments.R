@@ -32,6 +32,7 @@ names(df)= cols
 
 pvals= pvals[match(sub('X', '', cols), gsub(':', '_', pvals$segment)),]
 pvals= separate(pvals, segment, into= c('chr', 'cM1', 'cM2'), sep= ':')
+pvals= pvals[order(pvals$pvalue, decreasing=F),]
 labels= paste(pvals$chr, pvals$pos1, pvals$pos2, sep=':')
 df= as.data.frame(lapply(df, factor))
 df$IID= ids
@@ -54,10 +55,10 @@ surv_list[[i]] = surv_covs
   
 x= do.call('rbind', surv_list)
 
-x= filter(x, segment== cols[1])
+x= filter(x, segment== labels[1])
  
 p1= ggplot(data= x, aes(x = time, y = est, colour =  ROH )) + 
-theme(legend.position = c(0, 225), 
+theme(
 legend.background=element_blank(),
 legend.key=element_blank(),
 legend.title=element_blank(),
@@ -71,7 +72,8 @@ geom_line() +
   geom_ribbon(data= x, aes(ymin= lcl, ymax= ucl, fill= ROH), linetype=2, alpha=0.1, size= 0.4, show.legend= FALSE) +
   xlim(c(min(x$time), 308)) +
   geom_vline(xintercept= 260, linetype= 2, size= 0.4, colour= 'black', alpha= 0.6) +
-theme(strip.background = element_blank()) 
+theme(strip.background = element_blank(),
+legend.position = 'bottom') 
 
 
 save_plot(snakemake@output[[1]], plot= p1, base_width=297, base_height=210, units="mm", device= cairo_ps)

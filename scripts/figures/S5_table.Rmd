@@ -29,37 +29,22 @@ opts_chunk$set(dpi=300)
 ```{r echo= F}
 
 d= fread(snakemake@input[[1]], h=T)
-d$spont= with(d, paste0(spont_n, ' (', spont_frac, ')'))
-d$ga= with(d, paste0(ga_mean, ' (', ga_sd, ')'))
-d$parity= with(d, paste0(parity_n, ' (', parity_frac, ')'))
-#d$bw= with(d, paste0(bw_mean, ' (', bw_sd, ')'))
-d$age= with(d, paste0(age_mean, ' (', age_sd, ')'))
-d$inc1= with(d, paste0(inc1_n, ' (', inc1_frac, ')'))
-d$inc2= with(d, paste0(inc2_n, ' (', inc2_frac, ')'))
-d$inc3= with(d, paste0(inc3_n, ' (', inc3_frac, ')'))
-d$edu1= with(d, paste0(edu1_n, ' (', edu1_frac, ')'))
-d$edu2= with(d, paste0(edu2_n, ' (', edu2_frac, ')'))
-d$edu3= with(d, paste0(edu3_n, ' (', edu3_frac, ')'))
+x= sum(as.numeric(readLines(snakemake@input[[2]])))
 
-pval= fread(snakemake@input[[2]], h=T)
+d= filter(d, pvalue< 0.05/x)
 
+d= d[order(d$pvalue, decreasing=F),]
 
-d= select(d, cohort, total_n, spont, ga, parity, age, inc1, inc2, inc3, edu1, edu2, edu3)
-df= as.data.frame(t(d[,-1]))
-colnames(df)= d$cohort
+d$Estimate= round((exp(d$beta)- 1) * 100, 1)
+d$lowerci= round((exp(d$beta - 1.96 * d$sd) -1) * 100, 1)
+d$upperci= round((exp(d$beta + 1.96 * d$sd) -1) * 100, 1)
+d$beta= round(d$beta,3)
+d$sd= round(d$sd, 3)
+d$pos= as.integer(d$pos)
+d$chr= as.integer(d$chr)
+d$variant= paste(d$chr, d$pos, d$REF, d$EFF, sep= ':')
+d$Estimate= paste0(d$Estimate, ' (', d$lowerci, ', ', d$upperci, ')')
 
-pval= formatC(pval$pvalue, format = "e", digits = 2)
+d= select(d, variant, n, het, hom, beta, sd, Estimate, pvalue, gene, Mim)
 
-df= cbind(df, c('', pval[1], pval[2], pval[3], pval[4], '', pval[5], '', '', pval[6], ''))
-
-colnames(df)= c('Cohort1',   'Cohort2',   'Cohort3',   'Cohort4',   'Cohort5',   'Cohort6', 'P-value')
-
-rownames(df)= c('Total n', 'Spontaneous delivery, n', 'Gestational duration, days', 'Nulliparous, n', 'Maternal age, years',  'Inc. 0 parents >300.000 kr', 'Inc. 1 parent >300.000 kr', 'Inc. 2 parents > 300.000 kr', 'Education ≤12 years', 'Education 13 to 16 years', 'Education ≥17 years')
-
-#kable(df, row.names= T, booktabs = T, caption = "S1 Table: ", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down'), stripe_index= c(4:6, 8, 11)) %>% column_spec(1, bold = T, color = "black", background = "white")
-
-kable(df, align= rep('c', 7), row.names= T, caption = "S5 Table: Descriptive characteristics of pregnancies in all sub-cohorts.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down'), stripe_index= c(4:6, 8, 11)) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Inc, income.','Spontaneous delivery was defined as a delivery not initiated by cesarean section nor induction. All data was obtained from the Medical Birth Registry of Norway, except household income and maternal educational attainment, which were obtained from a questionnaire filled by the mother in early pregnancy. P-values were obtianed using ANOVA and Chi² for continuous and categorical data, respectively.'), threeparttable= T) %>%   landscape()
-
-```
-
-
+kable(d, align= c('l', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c'), row.names= F, col.names=c('Chr:pos:REF:EFF', 'n', 'n heterozygous', 'n homozygous', 'Beta', 'Standard Error', 'Estimate (95% CI)', 'P-value', 'Gene', 'OMIM'), caption = "S5 Table: Maternal genetic variants within high and low confidence segments associated with time-to-spontaneous onset of delivery under a recessive model.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Only genetic variants passing a relaxed Bonferroni correction (0.05/ 580 tested variants) are shown. For each segment, the closest protein-coding gene is also shown, and for this gene, the Mim phenotype number for a phenotype with recessive inheritance. The total number of genetic variants tested was 580. AFT model was adjusted for sub-cohort, the first 10 PC, parity, and autozygosity (FROH).', 'The effect size reflects the effect of the autozygous segment on time-to-spontaneous onset of delivery, representing the percent difference in time-to-spontaneous onset of delivery between subjects affected by an autozygous segment in the region vs those not affected. '), threeparttable= T)

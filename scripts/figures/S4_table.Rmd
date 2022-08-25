@@ -41,7 +41,7 @@ d= select(d, sample, exposure, model, n, event, beta, se, Estimate, pvalue)
 
 d= arrange(d, sample, exposure, desc(model))
 
-kable(d, align= c('l', 'c', 'c', 'c', 'c', 'c', 'c', 'c'), row.names= F, col.names=c('Sample', 'Exposure', 'Model', 'N', 'Events', 'Beta', 'Standard Error', 'Estimate (95% CI)', 'P-value'), caption = "S4 Table: Autozygosity in mothers, fathers and fetuses and risk of spontaneous onset of delivery.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('FHOM, excess homozygosity; FROH, proportion of the genome covered by autozygous segments', 'Crude model was adjusted by sub-cohort, and the adjusted model was adjusted for sub-cohort, the first 6 PC, parity, educational attainment and household income.'), threeparttable= T)
+kable(d, align= c('l', 'c', 'c', 'c', 'c', 'c', 'c', 'c'), row.names= F, col.names=c('Sample', 'Exposure', 'Model', 'N', 'Events', 'Beta', 'Standard Error', 'Estimate (95% CI)', 'P-value'), caption = "S4 Table: Autozygosity in mothers, fathers and fetuses and risk of spontaneous onset of delivery.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('FHOM, excess homozygosity; FROH, proportion of the genome covered by autozygous segments', 'Crude model was adjusted by sub-cohort, and the adjusted model was adjusted for sub-cohort, the first 10 PC, parity, educational attainment and household income.'), threeparttable= T)
 
 ```
 

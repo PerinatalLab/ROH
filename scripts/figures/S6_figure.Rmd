@@ -25,7 +25,7 @@ options(warn=-1)
 opts_chunk$set(dpi=300)
 ```
 
-```{r fig.align="center", fig.cap=" S3 Figure: Quantile-quantile plot for the p-values obtained by autozygosity mapping in mothers (n segments= 60391), fathers (n segments= 58742) and fetuses (n segments= 44741).", echo=FALSE}
+```{r fig.align="center", fig.cap=" S6 Figure: Quantile-quantile plot for the p-values obtained in the long segment gene burden analysis in mothers (n genes= 18675), fathers (n genes= 17931) and fetuses (n genes= 17621).", echo=FALSE}
 
 knitr::include_graphics(snakemake@input[[1]])
 

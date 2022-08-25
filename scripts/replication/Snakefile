@@ -49,8 +49,8 @@ rule ids_rep:
 		x_m= x.dropna(subset= ['Mother'])
 		x_f= x.dropna(subset= ['Father'])
 		if wildcards.sample_rep == 'maternal': x_m.to_csv(output[0], header= None, columns= ['FID', 'Mother'], index= False, sep= '\t')
-		if wildcards.sample_rep == 'fetal': x_c.to_csv(output[2], header= None, columns= ['FID', 'Child'], index= False, sep= '\t')
-		if wildcards.sample_rep == 'paternal': x_f.to_csv(output[1], header= None, columns= ['FID', 'Father'], index= False, sep= '\t')
+		if wildcards.sample_rep == 'fetal': x_c.to_csv(output[0], header= None, columns= ['FID', 'Child'], index= False, sep= '\t')
+		if wildcards.sample_rep == 'paternal': x_f.to_csv(output[0], header= None, columns= ['FID', 'Father'], index= False, sep= '\t')
 
 
 rule exclude_non_biallelic_rep:
@@ -183,10 +183,10 @@ rule estimate_ROH_rep:
 		expand('/mnt/work/pol/ROH/replication/{{rep}}/genotypes_rep/{pruning}/pruned{{rep}}_{{sample_rep}}.{ext}', pruning= pruning_nms, ext= ['bed', 'fam']),
 		expand('/mnt/work/pol/ROH/replication/{{rep}}/genotypes_rep/{pruning}/cm_pruned{{rep}}_{{sample_rep}}.bim', pruning= pruning_nms)
 	output:
-		'/mnt/work/pol/ROH/replication/{rep}/runs/{rep}_{sample_rep}.hom.indiv',
-		'/mnt/work/pol/ROH/replication/{rep}/runs/{rep}_{sample_rep}.hom',
+		'/mnt/work/pol/ROH/replication/{rep}/runs/tmp_{rep}_{sample_rep}.hom.indiv',
+		'/mnt/work/pol/ROH/replication/{rep}/runs/tmp_{rep}_{sample_rep}.hom',
 		'/mnt/work/pol/ROH/replication/{rep}/runs/{sample_rep}_input_ROH_geno.txt',
-		temp(expand('/mnt/work/pol/ROH/replication/{{rep}}/runs/{{rep}}_{{sample_rep}}.{ext}', ext= ['log', 'hom.summary']))
+		temp(expand('/mnt/work/pol/ROH/replication/tmp_{{rep}}/runs/{{rep}}_{{sample_rep}}.{ext}', ext= ['log', 'hom.summary']))
 	params:
 		'/mnt/work/pol/ROH/replication/{rep}/runs/{rep}_{sample_rep}'
 	run:
@@ -195,12 +195,42 @@ rule estimate_ROH_rep:
 		fam= [fam for fam in input if prun in fam and 'fam' in fam]
 		bim= [bim for bim in input if prun in bim and 'bim' in bim and 'cm' in bim]
 		GAP= round(5 * 1000)
-		SNPwm= round(150 * 0.05)
+		SNPwm= round(125 * 0.05)
 		dens= round(5 * 1000)
-		shell("/home/pol.sole.navais/soft/plink --bed {bed} --bim {bim} --fam {fam} --homozyg-window-snp 150 --homozyg-snp 150 --homozyg-kb 0.0000001 --homozyg-gap {GAP} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het 0 --homozyg-density {dens} --out {params}")
+		shell("/home/pol.sole.navais/soft/plink --bed {bed} --bim {bim} --fam {fam} --homozyg-window-snp 125 --homozyg-snp 125 --homozyg-kb 0.0000001 --homozyg-gap {GAP} --homozyg-window-missing {SNPwm} --homozyg-window-threshold 0.0005 --homozyg-window-het 0 --homozyg-density {dens} --out {params}")
 		l= list(["".join(bed), "".join(bim), "".join(fam)])
 		with open(output[2], 'w') as f:
 			f.writelines( "%s\n" % item for item in l)
+
+rule gap_ROH_rep:
+        ''
+        input:
+                '/mnt/work/pol/ROH/replication/{rep}/runs/tmp_{rep}_{sample_rep}.hom',
+                '/mnt/work/pol/ROH/1KG/cm_UCSC_gap.txt',
+                '/mnt/work/pol/ROH/replication/{rep}/runs/tmp_{rep}_{sample_rep}.hom.indiv'
+        output:
+                '/mnt/work/pol/ROH/replication/{rep}/runs/{rep}_{sample_rep}.hom',
+                '/mnt/work/pol/ROH/replication/{rep}/runs/{rep}_{sample_rep}.hom.indiv'
+        run:
+                df= pd.read_csv(input[1], header= 0, sep= '\t')
+                df_list= list()
+                for d in pd.read_csv(input[0], header= 0, delim_whitespace= True, chunksize= 10**5, iterator= True):
+                        for chrom in set(d.CHR):
+                                temp_d= d.loc[d.CHR== chrom, :]
+                                temp_df= df.loc[df.chr==chrom, :]
+                                temp_d= pd.merge(temp_d, temp_df, left_on= 'CHR', right_on= 'chr')
+                                temp_d= temp_d.loc[(temp_d.POS1 > temp_d.cM2 * 10**8) | (temp_d.POS2< temp_d.cM1 * 10**6), :]
+                                temp_d.drop_duplicates(subset= ['IID', 'CHR', 'POS1', 'POS2'], inplace=True, keep= 'first')
+                                temp_d= temp_d[['IID', 'CHR', 'POS1', 'POS2', 'KB']]
+                                df_list.append(temp_d)
+                d= pd.concat(df_list)
+                d.to_csv(output[0], index= False, header= True, sep= '\t')
+                df= d.groupby('IID')['KB'].agg(['mean', 'sum', 'count']).reset_index()
+                df.columns= ['IID', 'KBAVG', 'KB', 'NSEG']
+                x= pd.read_csv(input[2], header= 0, delim_whitespace= True, usecols= ['IID'])
+                df= pd.merge(df, x, on= 'IID', how= 'outer')
+                df.fillna(0, inplace= True)
+                df.to_csv(output[1], sep= '\t', header= True, index=False)
 
 rule list_sUPD_ROH_rep:
         ''
@@ -293,7 +323,7 @@ rule mapping_ROH_segments2_rep:
 	output:
 		'/mnt/work/pol/ROH/replication/genotypes/maps/{sample_rep}/segments_maps_{sample_rep}_chr{CHR}.txt.gz'
 	script:
-		'../segments_snv_maps/segment_map_ROH2.py'
+		'../segments_snv_maps/segment_map_ROH.py'
 
 rule surv_analysis_rep:
 	'AFT analysis analyis on bined ROH calls.'
@@ -347,98 +377,111 @@ rule surv_cM_to_bp_rep:
                 d.drop(['cM_x', 'cM_y'], axis= 1, inplace= True)
                 d.to_csv(output[0], sep= '\t', header= True, index= False)
 
+rule GMM_rep:
+        ''
+        input:
+                '/mnt/work/pol/ROH/replication/{rep}/runs/{rep}_{sample_rep}.hom'
+        output:
+                '/mnt/work/pol/ROH/replication/{rep}/runs/classBC_{rep}_{sample_rep}.hom',
+                '/mnt/work/pol/ROH/replication/{rep}/runs/classBC_{rep}_{sample_rep}_sizes.txt'
+        script:
+                '../segments_snv_maps/GMM_ROH.R'
+
 rule map_ROH_genes_rep:
 	'Map ROH segments to genes.'
 	input:
 		'/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt',
-		'/mnt/work/pol/ROH/GNOMAD/LOF_coding.txt',
-		expand('/mnt/work/pol/ROH/replication/{rep}/runs/{rep}_{{sample_rep}}.hom', rep= rep_nms),
+		expand('/mnt/work/pol/ROH/replication/{rep}/runs/classBC_{rep}_{{sample_rep}}.hom', rep= rep_nms),
 		expand('/mnt/work/pol/ROH/replication/{rep}/runs/{rep}_{{sample_rep}}.hom.indiv', rep= rep_nms)
 	output:
-		temp('/mnt/work/pol/ROH/replication/genotypes/maps/gene/{sample_rep}_genemap.txt')
+		temp('/mnt/work/pol/ROH/replication/genotypes/maps/gene/{sample_rep}_genemap_{CHR}.txt')
 	script:
 		'../segments_snv_maps/gene_maps_ROH.py'
 
 rule gene_burden_rep:
 	''
 	input:
-		'/mnt/work/pol/ROH/replication/genotypes/maps/gene/{sample_rep}_genemap.txt',
+		'/mnt/work/pol/ROH/replication/genotypes/maps/gene/{sample_rep}_genemap_{CHR}.txt',
 		'/mnt/work/pol/ROH/replication/pheno/runs_mfr_{sample_rep}.txt'
 	output:
-		'/mnt/work/pol/ROH/replication/results/burden_survival_{sample_rep}.txt'
+		temp('/mnt/work/pol/ROH/replication/results/burden_survival_{sample_rep}_{CHR}.txt'),
+		temp('/mnt/work/pol/ROH/replication/results/eff_burden_survival_{sample_rep}_{CHR}.txt')
 	script:
 		'../survival/aft_genes.R'
 
 
-rule extract_vcf_sample_reps_rep:
-        'Extract sample_reps id included in the VCF file, for each batch.'
-        input:
-                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jan15/1.vcf.gz',
-                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jun15/1.vcf.gz'
-        output:
-                temp('/mnt/work/pol/ROH/replication/genotypes_rep/vcf_ids_maternal{rep}')
-        run:
-                if 'normentjan' == wildcards.rep: vcf= input[0]
-                if 'normentjun' == wildcards.rep: vcf= input[1]
-                shell("set +o pipefail; zgrep -v '##' {vcf} | head -1 | cut -f10- | sed 's/\\t/\\n/g'  > {output[0]} ")
+rule concat_gene_rep:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/replication/results/burden_survival_{{sample_rep}}_{CHR}.txt', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/replication/results/burden_survival_{sample_rep}.txt'
+	shell:
+		'cat {input} > {output[0]}'
+
+
+rule concat_eff_gene_rep:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/replication/results/eff_burden_survival_{{sample_rep}}_{CHR}.txt', CHR= CHR_nms)
+	output:
+		'/mnt/work/pol/ROH/results/replication/results/{sample_rep}/gene_burden_eff.txt'
+	shell:
+		'cat {input} > {output[0]}'
+
 
 rule extract_sample_reps_rep:
 	'Samples for filtering VCF files.'
 	input:
-		'/mnt/work/pol/{rep}/pheno/{rep}_linkage.csv',
-		'/mnt/work/pol/ROH/replication/genotypes_rep/vcf_ids_maternal{rep}'
+		'/mnt/work/pol/ROH/replication/pheno/runs_mfr_{sample_rep}.txt',
+		'/mnt/work/pol/ROH/genotypes/imputed/vcf_ids'
 	output:
-		temp('/mnt/work/pol/ROH/replication/genotypes_rep/ids_toextract_maternal_{rep}')
+		temp('/mnt/work/pol/ROH/replication/genotypes_rep/imputed/{sample_rep}_ids_toextract')
 	run:
-		d= pd.read_csv(input[0], delim_whitespace= True, header= 0)
-		Sentrix= 'SentrixID'
-		d= d.loc[d.Role=='Mother', :]
 		x= [line.strip() for line in open(input[1], 'r')]
-		d= d.loc[d[Sentrix].isin(x)]
-		d.drop_duplicates(subset= [Sentrix], inplace= True)
-		d.to_csv(output[0], header= False, columns= [Sentrix], index= False, sep= '\t')
+                d= pd.read_csv(input[0], sep= '\t', header= 0)
+                d= d.loc[d['IID'].isin(x)]
+                d.drop_duplicates(subset= ['IID'], inplace= True)
+                d.to_csv(output[0], header= False, columns= ['IID'], index= False, sep= '\t')
 
 rule extract_GT_rep:
-        'Extract genotype for HC segments.'
-        input:
-                '/mnt/work/pol/ROH/results/misc/HC_toextract_maternal',
-                '/mnt/work/pol/ROH/replication/genotypes_rep/ids_toextract_maternal_{rep}',
-                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jan15/{CHR}.vcf.gz',
-                '/mnt/archive/NORMENT1/delivery-fhi/data/imputed/jun15/{CHR}.vcf.gz'
-        output:
-                temp('/mnt/work/pol/ROH/replication/genotypes_rep/GT/gt{CHR}_HC_maternal_{rep}')
-        run:
-                if 'normentjan' in wildcards.rep: vcf= input[2]
-                if 'normentjun' in wildcards.rep: vcf= input[3]
-                if os.stat(input[0]).st_size > 0: shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {vcf} -o {output[0]}")
-                if os.stat(input[0]).st_size == 0: open(output[0], 'a').close()
+	'Extract genotype for HC segments.'
+	input:
+		'/mnt/work/pol/ROH/results/misc/HC_toextract_{sample_rep}',
+		'/mnt/work/pol/ROH/replication/genotypes_rep/imputed/{sample_rep}_ids_toextract',
+		'/mnt/archive/MOBAGENETICS/genotypes-base/imputed/all/vcf/{CHR}.vcf.gz'
+	output:
+		temp('/mnt/work/pol/ROH/replication/genotypes_rep/GT/gt{CHR}_HC_{sample_rep}')
+	run:
+		if os.stat(input[0]).st_size > 0: shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[0]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {input[2]} -o {output[0]}")
+		if os.stat(input[0]).st_size == 0: open(output[0], 'a').close()
 
 rule concat_GT_rep:
         'Concat GT form all chromosomes.'
         input:
-                expand('/mnt/work/pol/ROH/replication/genotypes_rep/GT/gt{CHR}_HC_moms_{{rep}}', CHR= CHR_nms)
+                expand('/mnt/work/pol/ROH/replication/genotypes_rep/GT/gt{CHR}_HC_{{sample_rep}}', CHR= CHR_nms)
         output:
-                temp('/mnt/work/pol/ROH/replication/genotypes_rep/GT/moms_HC_temp_{rep}')
+                temp('/mnt/work/pol/ROH/replication/genotypes_rep/GT/{sample_rep}_HC_temp')
         shell:
                 'cat {input} > {output[0]}'
 
 rule surv_imputed_rep:
 	'Cox regression for imputed variants within HC segments.'
 	input:
-		'/mnt/work/pol/ROH/replication/genotypes_rep/GT/moms_HC_temp_{rep}',
-		'/mnt/work/pol/ROH/replication/pheno/{rep}_pheno_mfr_mothers.txt',
-		'/mnt/work/pol/ROH/replication/genotypes_rep/ids_toextract_moms_{rep}'
+		'/mnt/work/pol/ROH/replication/genotypes_rep/GT/{sample_rep}_HC_temp',
+		'/mnt/work/pol/ROH/replication/pheno/runs_mfr_{sample_rep}.txt',
+		'/mnt/work/pol/ROH/replication/genotypes_rep/imputed/{sample_rep}_ids_toextract'
 	output:
-		temp('/mnt/work/pol/ROH/replication/results/imputed_surv_spont_moms_{rep}_temp')
+		temp('/mnt/work/pol/ROH/replication/results/tmp_imputed_surv_spont_{sample_rep}')
 	script:
 		'../survival/surv_imputed.R'
 
 rule concat_surv_imputed_rep:
 	''
 	input:
-		'/mnt/work/pol/ROH/replication/results/imputed_surv_spont_moms_{rep}_temp',
-		'/mnt/work/pol/ROH/replication/results/imputed_surv_spont_moms_chrX_{rep}_temp'
+		'/mnt/work/pol/ROH/replication/results/tmp_imputed_surv_spont_{sample_rep}',
+		'/mnt/work/pol/ROH/replication/results/tmp_imputed_surv_spont_{sample_rep}_chrX'
 	output:
-		'/mnt/work/pol/ROH/replication/results/imputed_surv_spont_moms_{rep}'
+		'/mnt/work/pol/ROH/replication/results/imputed_surv_spont_{sample_rep}'
 	shell:
 		'cat {input} > {output[0]}'

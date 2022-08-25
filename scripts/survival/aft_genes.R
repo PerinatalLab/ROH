@@ -31,7 +31,7 @@ dataChunk= fread(infile, sep= "\t")
         dataChunk$id= gsub('X','',rownames(dataChunk))
         names(dataChunk)[1:length(genes)]= genes
         geno= inner_join(pheno, dataChunk, by= c('IID' = 'id'))
-        cox_coef= lapply(names(geno[,-c(1:dim(pheno)[2])]), function(snp){cox_coef= survreg(Surv( geno$SVLEN_UL_DG, geno$spont)~ geno[, snp] + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6 + geno$PC7 + geno$PC8 + geno$PC9 + geno$PC10 + geno$cohort + geno$PARITY0, na.action = na.omit, dist= 'weibull')
+        cox_coef= lapply(names(geno[,-c(1:dim(pheno)[2]), drop=F]), function(snp){cox_coef= survreg(Surv( geno$SVLEN_UL_DG, geno$spont)~ geno[, snp] + geno$PC1 + geno$PC2 + geno$PC3 + geno$PC4 + geno$PC5 + geno$PC6 + geno$PC7 + geno$PC8 + geno$PC9 + geno$PC10 + geno$cohort + geno$PARITY0 + geno$FKB, na.action = na.omit, dist= 'weibull')
        n= summary(cox_coef)$n
        coef = summary( cox_coef)$coefficients[2]
 	loglikF= cox_coef$loglik[2]
@@ -42,4 +42,18 @@ dataChunk= fread(infile, sep= "\t")
 cat(txt, file= outfile, append= T)
 }
 )
+
+geno= geno[,-c(1:dim(pheno)[2])]
+
+if (is.vector(geno)){
+eff= 1
+} else {
+geno= geno[,!apply(geno, MARGIN = 2, function(x) max(x, na.rm = TRUE) == min(x, na.rm = TRUE))]
+pca.fit= tryCatch(prcomp(geno, scale=TRUE, center= TRUE), warning = function(w) {print('Warning')}, error = function(e) { prcomp(geno, scale=FALSE, center= TRUE)})
+
+eff= sum(summary(pca.fit)$importance[3,]<0.995)
+}
+
+cat(eff, file= snakemake@output[[2]],sep= '\n')
+
 

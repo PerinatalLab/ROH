@@ -1,0 +1,370 @@
+---
+title: "Supplementary Tables"
+subtitle: "\\vspace{2cm} Autozygosity mapping and time-to-spontaneous delivery in  \nNorwegian parent-offspring trios\\vspace{4cm}"
+author: "Sole-Navais P, Bacelis J, Helgeland O, Modzelewska D, Vaudel M, Flatley C, Andreassen O, Njølstad PR, Muglia LJ, Johansson S, Zhang G, Jacobsson B"
+output:
+    pdf_document:
+        dev: cairo_pdf
+        latex_engine: xelatex
+        fig_caption: yes
+header-includes:
+- \usepackage{titling}
+- \setlength{\droptitle}{10em}
+- \renewcommand{\caption}{}
+- \usepackage{float}
+- \floatplacement{figure}{H}
+- \usepackage{caption}
+---
+
+\captionsetup[table]{labelformat=empty}
+
+\newpage
+
+\tableofcontents
+
+
+```{r dependencies, include=FALSE}
+library("ggplot2")
+library(cowplot)
+library("dplyr")
+library("survival")
+library("knitr")
+library("gridExtra")
+library("tidyr")
+library("kableExtra")
+library("data.table")
+options(warn=-1)
+opts_chunk$set(dpi=300)
+```
+
+\newpage
+
+
+# S1 Table
+
+```{r echo= F}
+
+d= fread(snakemake@input[[1]], h=F)
+colnames(d)= c('Sub-cohort', 'Median', 'P25', 'P75')
+d$Median= paste0(round(d$Median, 1), ' (', round(d$P25, 1), ', ', round(d$P75, 1), ')')
+d= d[,c('Sub-cohort', 'Median')]
+kable(d, align= c('l', 'c'), row.names= F, format="pandoc", caption = "S1 Table: Total parental identical-by-descent sharing, in cM.", col.names=c('Sub-cohort', 'Median (IQR)'), booktabs = T) %>% kable_styling(latex_options= c('striped', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('cM, centiMorgans', 'Germline was used to identify identical-by-descent segments with a minimum detection of 2 cM.'), threeparttable=T)
+
+```
+
+\newpage
+
+
+# S2 Table
+
+
+```{r echo= F}
+
+d= fread(snakemake@input[[2]], h=T)
+d= select(d, Cohort, pruning, SNP, het, GAP)
+d$pruning= ifelse(d$pruning== 1, 'Soft', ifelse(d$pruning== 2, 'Moderate', 'None'))
+d$GAP= ifelse(d$GAP> 100, 'BP', 'cM')
+
+kable(d, align= c('l', 'c', 'c', 'c', 'c'), row.names= F, caption = "S2 Table: Optimal parameters used to call ROH in all family members.", booktabs = T, col.names= c('Sub-cohort', 'Pruning', 'Minimum number of SNPs', 'Heterozyougs calls allowed', 'Distance')) %>% kable_styling(latex_options= c('striped', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('cM, centiMorgans', 'Optimal were obtained by maximizing the parental genetic relatedness variance explained by offspring ROH. We used 108 different combinations of offspring ROH varying pruning thresholds, the minimum number of SNPs to detect a ROH, allowing or not heterozygous calls within segments and using physical vs genetic distance.'), threeparttable= T)
+
+```
+
+\newpage
+
+
+# S3 Tables
+
+```{r echo= F}
+d= fread(snakemake@input[[3]], h= T)
+d= as.data.frame(d)
+d$fam= factor(d$fam, labels= c('Fetal', 'Maternal', 'Paternal'))
+
+rownames(d)= d$fam #c('Fetal', 'Maternal', 'Paternal')
+
+d$FKB_m= round(d$FKB_m * 100, 1)
+d$FKB_25= round(d$FKB_25 * 100, 1)
+d$FKB_75= round(d$FKB_75 * 100, 1)
+
+d$FHOM_m= round(d$FHOM_m, 3)
+d$FHOM_25= round(d$FHOM_25, 3)
+d$FHOM_75= round(d$FHOM_75, 3)
+
+d$KBAVG_m= round(d$KBAVG_m, 1)
+d$KBAVG_25= round(d$KBAVG_25, 1)
+d$KBAVG_75= round(d$KBAVG_75, 1)
+
+d$tmrca_m= round(d$tmrca_m, 1)
+d$tmrca_25= round(d$tmrca_25, 1)
+d$tmrca_75= round(d$tmrca_75, 1)
+
+d$perc_ROH_m= round(d$perc_ROH_m*100, 1)
+
+d$Per= with(d, paste0(perc_ROH_m, ' (', n_ROH_m, ')'))
+d$FKB= with(d, paste0(FKB_m, ' (', FKB_25, ', ', FKB_75 , ')'))
+d$FHOM= with(d, paste0(FHOM_m, ' (', FHOM_25, ', ', FHOM_75 , ')'))
+d$NSEG= with(d, paste0(NSEG_m, ' (', NSEG_25, ', ', NSEG_75 , ')'))
+d$KBAVG= with(d, paste0(KBAVG_m, ' (', KBAVG_25, ', ', KBAVG_75 , ')'))
+d$tmrca= with(d, paste0(tmrca_m, ' (', tmrca_25, ', ', tmrca_75 , ')'))
+
+d= select(d, Per, FKB, KBAVG, NSEG, FHOM, tmrca)
+
+colnames(d)= c('ROH', 'FROH', 'Avg. seg. length', 'N seg.', 'FHOM', 'TMRCA')
+
+kable(d, align=  rep('c', 6), row.names= T, caption = "S3A Table: Description of autozygosity measures in Norwegian parent-offspring trios in all sub-cohorts.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Avg, average; FHOM, excess homozygosity; FROH, fraction of genome covered by autozygous segments; seg, segment; tmrca, time to most recent common ancestor.', 'Percentage (n) for ROH and median (percentile 25, percentile 75) are shown for different autozygosity measures. Autozygosity in each sub-cohort was estimated using different optimized parameters. See S3B, S3C and S4C Tables for additional information on sub-cohort-specific values.'), threeparttable= T)
+
+```
+
+\newpage
+
+```{r echo= F}
+d= fread(snakemake@input[[4]], h= T)
+d= as.data.frame(d)
+
+row.names(d)= c('Cohort1', 'Cohort2', 'Cohort3', 'Cohort4', 'Cohort5', 'Cohort6')
+
+d$perc_ROH_m= round(d$perc_ROH_m*100, 1)
+d$FKB_m= round(d$FKB_m * 100, 1)
+d$FKB_25= round(d$FKB_25 * 100, 1)
+d$FKB_75= round(d$FKB_75 * 100, 1)
+
+d$FHOM_m= round(d$FHOM_m, 3)
+d$FHOM_25= round(d$FHOM_25, 3)
+d$FHOM_75= round(d$FHOM_75, 3)
+
+d$KBAVG_m= round(d$KBAVG_m, 3)
+d$KBAVG_25= round(d$KBAVG_25, 3)
+d$KBAVG_75= round(d$KBAVG_75, 3)
+
+d$tmrca_m= round(d$tmrca_m, 1)
+d$tmrca_25= round(d$tmrca_25, 1)
+d$tmrca_75= round(d$tmrca_75, 1)
+
+d$Per= with(d, paste0(perc_ROH_m, ' (', n_ROH_m, ')'))
+d$FKB= with(d, paste0(FKB_m, ' (', FKB_25, ', ', FKB_75 , ')'))
+d$FHOM= with(d, paste0(FHOM_m, ' (', FHOM_25, ', ', FHOM_75 , ')'))
+d$NSEG= with(d, paste0(NSEG_m, ' (', NSEG_25, ', ', NSEG_75 , ')'))
+d$KBAVG= with(d, paste0(KBAVG_m, ' (', KBAVG_25, ', ', KBAVG_75 , ')'))
+d$tmrca= with(d, paste0(tmrca_m, ' (', tmrca_25, ', ', tmrca_75 , ')'))
+
+
+d= select(d, Per, FKB, KBAVG, NSEG, FHOM, tmrca)
+colnames(d)= c('Samples with ROH', 'FROH', 'Avg. seg. length', 'N seg.', 'FHOM', 'TMRCA')
+kable(d, align= rep('c', 6), row.names= T, caption = "S3B Table: Description of autozygosity measures in Norwegian mothers in each sub-cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Avg, average; seg, segment; TMRCA, time to most recent common ancestor.','Percentage (n) for ROH and median (percentile 25, percentile 75) are shown for different autozygosity measures. Autozygosity was estimated using different parameters, according to the optimized parameteres, which are sub-cohort specific.'), threeparttable= T)
+```
+
+```{r echo= F}
+d= fread(snakemake@input[[5]], h= T)
+d= as.data.frame(d)
+
+row.names(d)= c('Cohort1', 'Cohort2', 'Cohort3', 'Cohort4', 'Cohort5', 'Cohort6')
+
+d$perc_ROH_m= round(d$perc_ROH_m*100, 1)
+d$FKB_m= round(d$FKB_m * 100, 1)
+d$FKB_25= round(d$FKB_25 * 100, 1)
+d$FKB_75= round(d$FKB_75 * 100, 1)
+
+
+d$FHOM_m= round(d$FHOM_m, 3)
+d$FHOM_25= round(d$FHOM_25, 3)
+d$FHOM_75= round(d$FHOM_75, 3)
+
+d$KBAVG_m= round(d$KBAVG_m, 3)
+d$KBAVG_25= round(d$KBAVG_25, 3)
+d$KBAVG_75= round(d$KBAVG_75, 3)
+
+d$tmrca_m= round(d$tmrca_m, 1)
+d$tmrca_25= round(d$tmrca_25, 1)
+d$tmrca_75= round(d$tmrca_75, 1)
+
+d$Per= with(d, paste0(perc_ROH_m, ' (', n_ROH_m, ')'))
+d$FKB= with(d, paste0(FKB_m, ' (', FKB_25, ', ', FKB_75 , ')'))
+d$FHOM= with(d, paste0(FHOM_m, ' (', FHOM_25, ', ', FHOM_75 , ')'))
+d$NSEG= with(d, paste0(NSEG_m, ' (', NSEG_25, ', ', NSEG_75 , ')'))
+d$KBAVG= with(d, paste0(KBAVG_m, ' (', KBAVG_25, ', ', KBAVG_75 , ')'))
+d$tmrca= with(d, paste0(tmrca_m, ' (', tmrca_25, ', ', tmrca_75 , ')'))
+
+
+d= select(d, Per, FKB, KBAVG, NSEG, FHOM, tmrca)
+colnames(d)= c('Samples with ROH', 'FROH', 'Avg. seg. length', 'N seg.', 'FHOM', 'TMRCA')
+
+kable(d,align= rep('c', 6), row.names= T, caption = "S3C Table: Description of autozygosity measures in Norwegian fathers in each sub-cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Avg, average; FHOM, excess homozygosity; FROH, fraction of genome covered by autozygous segments; seg, segment; TMRCA, time to most recent common ancestor.', 'Percentage (n) for ROH and median (percentile 25, percentile 75) are shown for different autozygosity measures. Autozygosity was estimated using different parameters, according to the optimized parameteres, which are sub-cohort specific.'), threeparttable= T)
+```
+
+```{r echo= F}
+d= fread(snakemake@input[[6]], h= T)
+d= as.data.frame(d)
+
+row.names(d)= c('Cohort1', 'Cohort2', 'Cohort3', 'Cohort4', 'Cohort5', 'Cohort6')
+
+d$perc_ROH_m= round(d$perc_ROH_m*100, 1)
+d$FKB_m= round(d$FKB_m * 100, 1)
+d$FKB_25= round(d$FKB_25 * 100, 1)
+d$FKB_75= round(d$FKB_75 * 100, 1)
+
+d$FHOM_m= round(d$FHOM_m, 3)
+d$FHOM_25= round(d$FHOM_25, 3)
+d$FHOM_75= round(d$FHOM_75, 3)
+
+d$KBAVG_m= round(d$KBAVG_m, 3)
+d$KBAVG_25= round(d$KBAVG_25, 3)
+d$KBAVG_75= round(d$KBAVG_75, 3)
+
+d$tmrca_m= round(d$tmrca_m, 1)
+d$tmrca_25= round(d$tmrca_25, 1)
+d$tmrca_75= round(d$tmrca_75, 1)
+
+d$Per= with(d, paste0(perc_ROH_m, ' (', n_ROH_m, ')'))
+d$FKB= with(d, paste0(FKB_m, ' (', FKB_25, ', ', FKB_75 , ')'))
+d$FHOM= with(d, paste0(FHOM_m, ' (', FHOM_25, ', ', FHOM_75 , ')'))
+d$NSEG= with(d, paste0(NSEG_m, ' (', NSEG_25, ', ', NSEG_75 , ')'))
+d$KBAVG= with(d, paste0(KBAVG_m, ' (', KBAVG_25, ', ', KBAVG_75 , ')'))
+d$tmrca= with(d, paste0(tmrca_m, ' (', tmrca_25, ', ', tmrca_75 , ')'))
+
+
+d= select(d, Per, FKB, KBAVG, NSEG, FHOM)
+colnames(d)= c('Samples with ROH', 'FROH', 'Avg. seg. length', 'N seg.', 'FHOM')
+
+kable(d,align= rep('c', 6), row.names= T, caption = "S3D Table: Description of autozygosity measures in Norwegian fetuses in each sub-cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Avg, average; FHOM, excess homozygosity; FROH, fraction of genome covered by autozygous segments; seg, segment; TMRCA, time to most recent common ancestor.', 'Percentage (n) for ROH and median (percentile 25, percentile 75) are shown for different autozygosity measures. Autozygosity was estimated using different parameters, according to the optimized parameteres, which are sub-cohort specific.'), threeparttable= T)
+```
+
+\newpage
+
+# S4 Table
+
+```{r echo= F}
+
+d= fread(snakemake@input[[7]], h=T)
+
+d$beta= round(d$beta, 3)
+d$se= round(d$se, 3)
+d$exposure= ifelse(d$exposure== 'FKB', 'FROH', ifelse(d$exposure== 'KBAVG', 'Average segment length', ifelse(d$exposure== 'tmrca', 'TMRCA', ifelse(d$exposure== 'NSEG', 'N segments', d$exposure))))
+
+
+d$Estimate= paste0(round(d$HR, 3), ' (', round(d$lowerci,3), ', ', round(d$upperci,3), ')')
+
+d= select(d, sample, exposure, model, n, event, beta, se, Estimate, pvalue)
+
+d= arrange(d, sample, exposure, desc(model))
+
+kable(d, align= c('l', 'c', 'c', 'c', 'c', 'c', 'c', 'c'), row.names= F, col.names=c('Sample', 'Exposure', 'Model', 'N', 'Events', 'Beta', 'Standard Error', 'Estimate (95% CI)', 'P-value'), caption = "S4 Table: Autozygosity in mothers, fathers and fetuses and risk of spontaneous onset of delivery.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('FHOM, excess homozygosity; FROH, proportion of the genome covered by autozygous segments', 'Crude model was adjusted by sub-cohort, and the adjusted model was adjusted for sub-cohort, the first 10 PC, parity, educational attainment and household income.'), threeparttable= T)
+
+```
+
+\newpage
+
+# S5 Table
+
+```{r echo= F}
+
+d= fread(snakemake@input[[8]], h=T)
+x= sum(as.numeric(readLines(snakemake@input[[9]])))
+
+d= filter(d, pvalue< 0.05/x)
+
+d= d[order(d$pvalue, decreasing=F),]
+
+d$Estimate= round((exp(d$beta)- 1) * 100, 1)
+d$lowerci= round((exp(d$beta - 1.96 * d$sd) -1) * 100, 1)
+d$upperci= round((exp(d$beta + 1.96 * d$sd) -1) * 100, 1)
+d$beta= round(d$beta,3)
+d$sd= round(d$sd, 3)
+d$pos= as.integer(d$pos)
+d$chr= as.integer(d$chr)
+d$variant= paste(d$chr, d$pos, d$REF, d$EFF, sep= ':')
+d$Estimate= paste0(d$Estimate, ' (', d$lowerci, ', ', d$upperci, ')')
+
+d= select(d, variant, n, het, hom, beta, sd, Estimate, pvalue, gene, Mim)
+
+kable(d, align= c('l', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c'), row.names= F, col.names=c('Chr:pos:REF:EFF', 'n', 'n heterozygous', 'n homozygous', 'Beta', 'Standard Error', 'Estimate (95% CI)', 'P-value', 'Gene', 'OMIM'), caption = "S5 Table: Maternal genetic variants within high and low confidence segments associated with time-to-spontaneous onset of delivery under a recessive model.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Only genetic variants passing a relaxed Bonferroni correction (0.05/ 580 tested variants) are shown. For each segment, the closest protein-coding gene is also shown, and for this gene, the Mim phenotype number for a phenotype with recessive inheritance. The total number of genetic variants tested was 580. AFT model was adjusted for sub-cohort, the first 10 PC, parity, and autozygosity (FROH).', 'The effect size reflects the effect of the autozygous segment on time-to-spontaneous onset of delivery, representing the percent difference in time-to-spontaneous onset of delivery between subjects affected by an autozygous segment in the region vs those not affected. '), threeparttable= T)
+```
+
+\newpage
+
+# S6 Table
+
+```{r echo= F}
+
+d= fread(snakemake@input[[10]], h=T)
+d$spont= with(d, paste0(spont_n, ' (', spont_frac, ')'))
+d$ga= with(d, paste0(ga_mean, ' (', ga_sd, ')'))
+d$parity= with(d, paste0(parity_n, ' (', parity_frac, ')'))
+#d$bw= with(d, paste0(bw_mean, ' (', bw_sd, ')'))
+d$age= with(d, paste0(age_mean, ' (', age_sd, ')'))
+d$inc1= with(d, paste0(inc1_n, ' (', inc1_frac, ')'))
+d$inc2= with(d, paste0(inc2_n, ' (', inc2_frac, ')'))
+d$inc3= with(d, paste0(inc3_n, ' (', inc3_frac, ')'))
+d$edu1= with(d, paste0(edu1_n, ' (', edu1_frac, ')'))
+d$edu2= with(d, paste0(edu2_n, ' (', edu2_frac, ')'))
+d$edu3= with(d, paste0(edu3_n, ' (', edu3_frac, ')'))
+
+pval= fread(snakemake@input[[11]], h=T)
+
+
+d= select(d, cohort, total_n, spont, ga, parity, age, inc1, inc2, inc3, edu1, edu2, edu3)
+df= as.data.frame(t(d[,-1]))
+colnames(df)= d$cohort
+
+pval= formatC(pval$pvalue, format = "e", digits = 2)
+
+df= cbind(df, c('', pval[1], pval[2], pval[3], pval[4], '', pval[5], '', '', pval[6], ''))
+
+colnames(df)= c('Cohort1',   'Cohort2',   'Cohort3',   'Cohort4',   'Cohort5',   'Cohort6', 'P-value')
+
+rownames(df)= c('Total n', 'Spontaneous delivery, n', 'Gestational duration, days', 'Nulliparous, n', 'Maternal age, years',  'Inc. 0 parents >300.000 kr', 'Inc. 1 parent >300.000 kr', 'Inc. 2 parents > 300.000 kr', 'Education ≤12 years', 'Education 13 to 16 years', 'Education ≥17 years')
+
+
+kable(df, align= rep('c', 7), row.names= T, caption = "S6 Table: Descriptive characteristics of pregnancies in all sub-cohorts.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'scale_down', 'HOLD_position'), stripe_index= c(4:6, 8, 11)) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Inc, income.','Spontaneous delivery was defined as a delivery not initiated by cesarean section nor induction. All data was obtained from the Medical Birth Registry of Norway, except household income and maternal educational attainment, which were obtained from a questionnaire filled by the mother in early pregnancy. P-values were obtianed using ANOVA and Chi² for continuous and categorical data, respectively.'), threeparttable= T) %>%   landscape()
+
+```
+
+
+\newpage
+
+# S7 Tables
+
+```{r echo= F}
+
+d= fread(snakemake@input[[12]], h=T)
+d= mutate(d, cohort= ifelse(cohort =='harvestm12', 'Cohort1', ifelse(cohort== 'harvestm24', 'Cohort2', ifelse(cohort== 'rotterdam1', 'Cohort3', ifelse(cohort== 'rotterdam2', 'Cohort4', ifelse(cohort== 'normentfeb', 'Cohort5', 'Cohort6'))))))
+d= filter(d, ROH_class== 3)
+d= d %>% select( cohort, min_distance)
+d= d%>% mutate(min_distance= round(min_distance/ 1000, 1))
+
+
+d1= fread(snakemake@input[[13]], h=T)
+d1= mutate(d1, cohort= ifelse(cohort =='harvestm12', 'Cohort1', ifelse(cohort== 'harvestm24', 'Cohort2', ifelse(cohort== 'rotterdam1', 'Cohort3', ifelse(cohort== 'rotterdam2', 'Cohort4', ifelse(cohort== 'normentfeb', 'Cohort5', 'Cohort6'))))))
+d1= filter(d1, ROH_class== 3)
+d1=d1 %>% select(cohort, min_distance)
+d1= d1 %>% mutate(min_distance= round(min_distance/ 1000, 1))
+
+
+d2= fread(snakemake@input[[14]], h=T)
+
+d2= mutate(d2, cohort=  ifelse(cohort =='harvestm12', 'Cohort1', ifelse(cohort== 'harvestm24', 'Cohort2', ifelse(cohort== 'rotterdam1', 'Cohort3', ifelse(cohort== 'rotterdam2', 'Cohort4', ifelse(cohort== 'normentfeb', 'Cohort5', 'Cohort6'))))))
+
+d2= filter(d2, ROH_class== 3)
+d2= d2 %>% select(cohort, min_distance)
+d2= d2 %>% mutate(min_distance= round(min_distance/ 1000, 1))
+
+kable(d, align= c('l', 'c'), row.names= F, col.names=c('Sub-cohort', 'Minimum length, cM'), caption = "S7A Table: Maternal long autozygous segment boundaries for each cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Boundaries were obtained using unsupervised three-component Gaussian fitting of autozygous segment length distribution.'), threeparttable= T)
+
+kable(d1, align= c('l', 'c'), row.names= F, col.names=c('Sub-cohort', 'Minimum length, cM'), caption = "S7B Table: Paternal long autozygous segment boundaries for each cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Boundaries were obtained using unsupervised three-component Gaussian fitting of autozygous segment length distribution.'), threeparttable= T)
+
+kable(d2, align= c('l', 'c'), row.names= F, col.names=c('Sub-cohort', 'Minimum length, cM'), caption = "S7C Table: Fetal long autozygous segment boundaries for each cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Boundaries were obtained using unsupervised three-component Gaussian fitting of autozygous segment length distribution.'), threeparttable= T)
+
+```
+
+
+\newpage
+
+# S8 Table
+
+```{r echo= F}
+
+d= data.frame(Distribution= c('Exponential', 'Weibull', 'Gamma', 'Log-normal', 'Log-logistic'), AIC= c(866572.5, 494809.6, 509919.8, 512008.7, 496528.5))
+
+colnames(d)= c('Dsitribution function', 'AIC')
+
+kable(d, align= c('c', 'c'), row.names= F, caption = "S8 Table: AIC scores obtained after fitting 5 different survival distributions to gestational age.", booktabs = T) %>% kable_styling(latex_options= c('striped', 'HOLD_position')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('AIC, Akaike information criterion', 'Models were fitted using an accelerated failure time in all MoBa cohort (n= 79155, events= 63169) '), threeparttable= T)
+
+```

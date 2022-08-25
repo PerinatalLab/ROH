@@ -297,7 +297,7 @@ maxarg= fread(maxarg)
 maxarg$flags= c('Pruning', 'density', 'SNP', 'length', 'het', 'GAP')
 
 
-flag= filter(flag, genotypesOK== TRUE, coreLMM== TRUE, phenoOK== TRUE)
+flag= filter(flag, genotypesOK== TRUE, phenoOK== TRUE)
 
 ```
 

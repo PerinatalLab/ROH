@@ -25,8 +25,9 @@ options(warn=-1)
 opts_chunk$set(dpi=300)
 ```
 
-```{r fig.align="center", fig.cap=" S2 Figure: Associations between offspring ROHs called using Joshi parameters and total parental genetic relatedness (cM) in each sub-cohort. ROH calling parameters were fixed. Sample size: 5024, 3240, 4533, 2566, 1221, 3957, respectively for cohort1 to cohort6, in order.", echo=FALSE}
+```{r fig.align="center", fig.cap=" S2 Figure: Frequency of autozygous segments in mothers, fathers and fetuses in all sub-cohorts. For each family member, segments were split into non-overlapping segments. Segments shared across sub-cohorts or unique to each sub-cohort are shown.", echo=FALSE}
 
 knitr::include_graphics(snakemake@input[[1]])
 
 ```
+

@@ -41,23 +41,30 @@ rule extract_HC:
 	'List of variants for extracting genotype.'
 	input:
 		'/mnt/work/pol/ROH/results/surv_spont_{sample}',
-                '/mnt/work/pol/ROH/results/{sample}/eff_ROH.txt'
+                '/mnt/work/pol/ROH/results/{sample}/eff_ROH.txt',
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_transcription.txt'
 	output:
 		'/mnt/work/pol/ROH/results/misc/HC_toextract_{sample}'
 	run:
 		d= pd.read_csv(input[0], sep= '\t', header= 0)
 		with open(input[1]) as f:
 			eff= sum([int(line.strip()) for line in f])
+		d= d.loc[d.pvalue< 0.05/ eff, :]
 		if d.shape[0]== 0:
 			open(output[0], 'a').close()
 		else:
-			d['chr']= d.chr.astype(int)
-			d= d.loc[d.pvalue< 0.05/ eff, :]
-			d= d[['chr', 'pos1', 'pos2']]
-			d= d.applymap(np.int64)
-			d['chr']= d.chr.astype(str)
-			d['chr']= np.where(d.chr== '23', 'X', d.chr)
+			geno= pd.read_csv(input[2], sep= '\t', header= 0)
+#			geno['gene']= geno.chr.map(int).map(str) + ':' + geno.gene + ':' + geno.EntrezID.map(int).map(str)
+#			geno['start']= geno.start - 10000
+#			geno['end']= geno.end + 10000
+#			geno= geno.loc[geno.gene.isin(d.gene.values.tolist()), :]
+#			geno= geno[['chr', 'start', 'end']]
+#			geno= geno.applymap(np.int64)
+#			geno['chr']= geno.chr.astype(str)
+#			geno['chr']= np.where(geno.chr== '23', 'X', geno.chr)
 			d.sort_values(['chr', 'pos1'], inplace= True)
+			d['chr'] = d.chr.astype(int)
+			d= d[['chr', 'pos1', 'pos2']]
 			d.to_csv(output[0], sep= '\t', index= False, header= False)
 
 rule extract_vcf_samples:
@@ -65,9 +72,9 @@ rule extract_vcf_samples:
         input:
 		'/mnt/archive/MOBAGENETICS/genotypes-base/imputed/all/vcf/1.vcf.gz'
 	output:
-                temp('/mnt/work/pol/ROH/genotypes/imputed/vcf_ids')
+                '/mnt/work/pol/ROH/genotypes/imputed/vcf_ids'
 	run:
-                shell("set +o pipefail; zgrep -v '##' {input[0]} | head -1 | cut -f10- | sed 's/\\t/\\n/g'  > {output[0]} ")
+                shell("zgrep -v '##' {input[0]} | head -1 | cut -f10- | sed 's/\\t/\\n/g'  > {output[0]} ")
 
 rule extract_samples:
         'Samples for filtering VCF files.'
@@ -138,8 +145,8 @@ rule extract_GT_missense:
 	output:
 		temp('/mnt/work/pol/ROH/genotypes/lof/geno/temp_top_missense_{sample}_{CHR}.txt')
 	run:
-		if os.stat(input[1]).st_size > 0: shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[2]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {input[0]} -o {output[0]}")
-		if os.stat(input[1]).st_size == 0: open(output[0], 'a').close()
+		if os.stat(input[2]).st_size > 0: shell("~/soft/bcftools-1.9/bin/bcftools query -S {input[1]} -R {input[2]} -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' {input[0]} -o {output[0]}")
+		if os.stat(input[2]).st_size == 0: open(output[0], 'a').close()
 
 rule concat_missenes_GT:
 	''

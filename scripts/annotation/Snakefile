@@ -129,7 +129,7 @@ rule map_genes_segments:
 			df_HC['overlap']= getOverlap(df_HC.pos1, df_HC.pos2, df_HC.start, df_HC.end)
 			df_HC['bp_diff']= np.where((df_HC.pos1 - df_HC.end) > 0, df_HC.pos1 - df_HC.end, df_HC.start - df_HC.pos2)
 			df_HC['min_bp']= df_HC['bp_diff'].groupby(df_HC['segment']).transform('min')
-			df_HC= df_HC.sort_values('min_bp').groupby('segment').head(1)
+			df_HC= df_HC.loc[df_HC.bp_diff== df_HC.min_bp,:]
 			df_HC= df_HC[['segment', 'gene', 'EntrezID', 'n', 'freq', 'beta', 'sd', 'pvalue', 'loglik', 'pos1', 'pos2']]
 			x= pd.concat([df_HC, x])
 			x.to_csv(output[0], sep= '\t', header= True, index= False)
@@ -169,6 +169,7 @@ rule select_independent_HC:
 			with open(input[1]) as f:
 				eff= sum([int(line.strip()) for line in f])
 			df= pd.read_csv(input[0], sep= '\t', header= 0)
+#			eff= df.drop_duplicates(subset= ['segment']).shape[0]
 			df= df.loc[df.pvalue< (0.05 / eff), :]
 			if df.shape[0]== 0:
 				open(output[0], 'a').close()
@@ -181,7 +182,8 @@ rule select_independent_HC:
 				df['cMdif']= (df['cMdif']>0.5)*1
 				df['clump']= df.groupby('chr')['cMdif'].cumsum()
 				df.sort_values(by= ['pvalue'], inplace= True)
-				df= df.groupby(['chr', 'clump']).head(1)
+				df['min_pvalue']= df.groupby(['chr','clump'])['pvalue'].transform('min')
+				df= df.loc[df.pvalue== df.min_pvalue, :]
 				df= df[['segment', 'n', 'freq', 'beta', 'sd', 'pvalue', 'pos1', 'pos2', 'gene', 'EntrezID', 'cyto', 'Mim']]
 				df.to_csv(output[0], sep= '\t', index= False, header= True)
 
@@ -194,10 +196,11 @@ rule annotate_imputed:
 	output:
 		'/mnt/work/pol/ROH/annotation/genes_imputed_{sample}.txt'
 	run:
-		d= pd.read_csv(input[0], sep= '\t', header= None, names= ['variant', 'REF', 'EFF', 'n', 'hom', 'beta', 'sd', 'pvalue'] )
+		d= pd.read_csv(input[0], sep= '\t', header= None, names= ['variant', 'REF', 'EFF', 'model', 'n', 'het', 'hom', 'beta', 'sd', 'pvalue'] )
 		if d.shape[0] == 0:
                         open(output[0], 'a').close()
 		else:
+			d= d.loc[d.model== 'recessive', :]
                         d[['chr', 'pos', 'ref', 'eff']]= d.variant.str.split(':', expand= True)
                         d[['chr', 'pos']]= d[['chr', 'pos']].apply(lambda x: x.astype('float'))
                         gene= pd.read_csv(input[1], sep= '\t', header= 0)
@@ -211,8 +214,8 @@ rule annotate_imputed:
 			x['bp_diff']= np.where(abs(x.pos - x.start) < abs(x.pos - x.end), abs(x.start - x.pos), abs(x.end - x.pos))
 			x['min_bp']= x['bp_diff'].groupby(x['variant']).transform('min')
                         x= x.sort_values('min_bp').groupby('variant').head(1)
-			x= x[['chr', 'pos', 'ref', 'eff', 'gene', 'EntrezID']]
-			x1= x1[['chr', 'pos', 'ref', 'eff', 'gene', 'EntrezID']]
+			x= x[['chr', 'pos', 'REF', 'EFF', 'gene', 'EntrezID']]
+			x1= x1[['chr', 'pos', 'REF', 'EFF', 'gene', 'EntrezID']]
 			x= pd.concat([x, x1])
 			omim= pd.read_csv(input[2], sep= '\t', header= 0)
                         omim['chr']= pd.to_numeric(omim.chr.str.replace('chr', ''), errors= 'coerce')
@@ -221,8 +224,8 @@ rule annotate_imputed:
                         omim.dropna(subset= ['Phenotype'], inplace= True)
                         rec= omim[omim.Phenotype.str.contains('recessive', na= False)]
 			x= pd.merge(x, rec, on= 'EntrezID', how= 'left')
-			d= pd.merge(d, x, on= ['chr', 'pos', 'ref', 'eff'], how= 'left')
-			d= d[['chr', 'pos', 'ref', 'eff', 'n', 'hom', 'beta', 'sd', 'pvalue', 'gene', 'EntrezID', 'Mim']]
+			d= pd.merge(d, x, on= ['chr', 'pos', 'REF', 'EFF'], how= 'left')
+			d= d[['chr', 'pos', 'REF', 'EFF', 'n', 'het', 'hom', 'beta', 'sd', 'pvalue', 'gene', 'EntrezID', 'Mim']]
 			d.to_csv(output[0], sep= '\t', header= True, index= False)
 
 rule download_GNOMAD:
@@ -291,4 +294,73 @@ rule concat_VEP:
 	shell:
 		'cat {input} > {output[0]}'
 
+rule annotate_gene_burden:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_transcription.txt',
+		'/mnt/work/pol/ROH/results/burden_survival_{sample}.txt',
+		'/mnt/work/pol/refdata/OMIM/hg19/genemap2_hg19.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/burden_gene_{sample}.txt'
+	run:
+		g= pd.read_csv(input[0], sep= '\t', header= 0)
+		d= pd.read_csv(input[1], sep= '\t', header= None, names= ['ID', 'n', 'freq', 'beta', 'se', 'pvalue', 'loglik'])
+		d[['chr', 'gene', 'EntrezID']]= d.ID.str.split(':', expand= True)
+		d= pd.merge(d, g[['gene', 'start', 'end']], on= 'gene')
+		df= pd.read_csv(input[2], sep= '\t', header= 0)
+                df['chr']= pd.to_numeric(df.chr.str.replace('chr', ''), errors= 'coerce')
+                df.dropna(subset= ['chr'], inplace= True)
+                df= df[['cyto', 'Mim', 'GeneSymbol', 'EntrezID', 'Phenotype', 'Comments']]
+                df.dropna(subset= ['Phenotype'], inplace= True)
+                rec= df[df.Phenotype.str.contains('recessive', na= False)]
+                d= pd.merge(d, rec, left_on= 'gene', right_on= 'GeneSymbol', how= 'left')
+		d.to_csv(output[0], index= False, header= True, sep= '\t')
+
+rule format_gene_map_cds:
+        'Format gene map from UCSC cds.'
+        input:
+                '/mnt/work/pol/refdata/UCSC_gene_cds.txt',
+                '/mnt/work/pol/refdata/Pseudogenes_UCSC.txt'
+        output:
+                '/mnt/work/pol/ROH/annotation/UCSC_gene_cds.txt'
+        run:
+                d= pd.read_csv(input[0], sep= '\t', header= 0)
+                x= pd.read_csv(input[1], sep= '\t', header= 0)
+                d= d.loc[~d.geneSymbol.isin(x.name2), :]
+                d['chrom']= d.chrom.replace(' ', '', regex= True)
+                d['chrom']= d.chrom.replace('chr', '', regex= True)
+                d['chrom']= d.chrom.replace('X', '23', regex= True)
+                d['chrom']= pd.to_numeric(d.chrom, errors= 'coerce')
+                d= d.loc[~d.EntrezID.isnull(), :]
+                d= d.loc[d.cdsStart != d.cdsEnd,:]
+                d.dropna(subset= ['chrom'], inplace= True)
+                x= d.groupby(['chrom', 'geneSymbol', 'EntrezID', 'strand'])['cdsStart'].min().reset_index()
+                x1= d.groupby(['chrom', 'geneSymbol', 'EntrezID', 'strand'])['cdsEnd'].max().reset_index()
+                df= pd.merge(x, x1, on= ['chrom', 'geneSymbol', 'EntrezID', 'strand'])
+                df.columns= ['chr', 'gene', 'EntrezID', 'strand', 'cdsstart', 'cdsend']
+                df.to_csv(output[0], sep= '\t', header= True, index= False)
+
+rule cds_map_bp_to_cM:
+        ''
+        input:
+                '/mnt/work/pol/ROH/annotation/UCSC_gene_cds.txt',
+                '/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
+                '/mnt/work/pol/ROH/1KG/1000GP_Phase3/chrX/genetic_map_chrX_nonPAR_combined_b37.txt'
+        output:
+                '/mnt/work/pol/ROH/annotation/cM_gene_cds.txt'
+        run:
+                d= pd.read_csv(input[0], delim_whitespace=True, header= 0)
+                gm= pd.read_csv(input[1], delim_whitespace=True, header= 0, names= ['chr', 'pos', 'rate', 'cM'])
+                gx= pd.read_csv(input[2], delim_whitespace=True, header= 0, names= ['pos', 'rate', 'cM'])
+                gx['chr']= 23
+                gm= pd.concat([gm,gx])
+                df_list= list()
+                for CHR in set(d.chr):
+                        temp_d= d.loc[d.chr== CHR, :]
+                        temp_gm= gm.loc[gm.chr== CHR, :]
+                        temp_d['cdcM1']= np.interp(temp_d.cdsstart, temp_gm['pos'], temp_gm['cM'])
+                        temp_d['cdcM2']= np.interp(temp_d.cdsend, temp_gm['pos'], temp_gm['cM'])
+                        df_list.append(temp_d)
+                x= pd.concat(df_list)
+                x.to_csv(output[0], sep= '\t', header= True, index= False)
 

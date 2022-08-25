@@ -39,9 +39,9 @@ d= rbind(mom, dad, fet)
 nall= d %>% group_by(fam) %>% summarize(perc_ROH_m= mean(FKB>0, na.rm= T), n_ROH_m= sum(FKB>0, na.rm=T))
 
 
-mom= filter(mom, FKBA>0)
-dad= filter(dad, FKBA>0)
-fet= filter(fet, FKBA>0)
+mom= filter(mom, FKB>0)
+dad= filter(dad, FKB>0)
+fet= filter(fet, FKB>0)
 sum_mom= mom %>% group_by(cohort) %>% summarize(
 FKB_m= median(FKB, na.rm= T), FKB_25= quantile(FKB, probs= 0.25, na.rm=T), FKB_75= quantile(FKB, probs= 0.75, na.rm=T),
 NSEG_m= median(NSEG, na.rm= T), NSEG_25= quantile(NSEG, probs= 0.25, na.rm=T), NSEG_75= quantile(NSEG, probs= 0.75, na.rm=T),

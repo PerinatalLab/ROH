@@ -38,6 +38,10 @@ def pheno_harvest():
 	d= d[(d.FOSTERV_POLYHYDRAMNION==0)]
 	d= d[(d.FOSTERV_OLIGOHYDRAMNION== 0)]
 	d= d[(d.C00_MALF_ALL==0)]
+	d= d[d.DIABETES_MELLITUS.isna()]
+	d= d[(d.HYPERTENSJON_KRONISK==0)]
+	d= d[(d.HYPERTENSJON_ALENE==0)]
+	d= d[d.PREEKL.isna()]
 	d= d.sample(frac=1)
 	flag= pd.read_csv(snakemake.input[8], sep= '\t', header= 0)
 	flag= flag[(flag['genotypesOK']== True) & (flag['phenotypesOK']== True)]
@@ -89,6 +93,10 @@ def pheno_rotterdam():
 	d= d[(d.FOSTERV_POLYHYDRAMNION=='Nei')]
 	d= d[(d.FOSTERV_OLIGOHYDRAMNION== 'Nei')]
 	d= d[(d.C00_MALF_ALL=='Nei')]
+	d= d[d.DIABETES_MELLITUS.isna()]
+	d= d[(d.HYPERTENSJON_KRONISK=='Nei')]
+	d= d[(d.HYPERTENSJON_ALENE=='Nei')]
+	d= d[d.PREEKL.isna()]
 	flag= pd.read_csv(snakemake.input[8], sep= '\t', header= 0)
 	flag= flag[(flag['genotypesOK']== True) & (flag['phenoOK']== True)]
 	d= d.loc[d.IID.isin(flag.IID), :]

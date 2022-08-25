@@ -36,18 +36,6 @@ def isfloat(str):
     except ValueError:
         return False
 
-rule mapping_ROH_segments:
-        'Obtain matrix (rows= segment, columns = subject), with all minimum segmental ROHs per subject (1= homozygous part of ROH).'
-        input:
-                '/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom',
-                '/mnt/work/pol/ROH/{cohort}/runs/{sample}_input_ROH_geno.txt',
-                expand('/mnt/work/pol/ROH/{{cohort}}/genotypes/{pruning}/pruned{{cohort}}_{{sample}}.fam', pruning= pruning_nms),
-		expand('/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{{sample}}.hom', cohort= cohort_nms)
-        output:
-                '/mnt/work/pol/ROH/{cohort}/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz'
-        script:
-                'segment_map_ROH.py'
-
 rule mapping_ROH_segments2:
         'Obtain matrix (rows= segment, columns = subject), with all minimum segmental ROHs per subject (1= homozygous part of ROH).'
         input:
@@ -56,8 +44,7 @@ rule mapping_ROH_segments2:
         output:
                 '/mnt/work/pol/ROH/genotypes/maps/{sample}/segments_maps_{sample}_chr{CHR}.txt.gz'
         script:
-                'segment_map_ROH2.py'
-
+                'segment_map_ROH.py'
 
 rule UCSC_replace_bp_cm:
 	'Change UCSC physical position to genetic position.'
@@ -71,6 +58,8 @@ rule UCSC_replace_bp_cm:
 		d= pd.read_csv(input[0], sep= '\t', header= 0)
 		d['gene']= d.chr.map(str) + ':' + d.gene + ':' + d.EntrezID.map(str)
 		d= d[[ 'chr', 'gene', 'start', 'end']]
+#		d['start']= d.start - 10000
+#		d['end']= d.end + 10000
 		g= pd.read_csv(input[1], delim_whitespace= True, header= 0, names= ['chr', 'pos', 'rate', 'cM'])
 		g= g[['chr', 'cM', 'pos']]
 		x= pd.read_csv(input[2], delim_whitespace= True, header= 0, names= ['pos', 'rate', 'cM'])
@@ -87,6 +76,22 @@ rule UCSC_replace_bp_cm:
 		newdf['pos2']= (newdf.pos2*10**4).round() * 100
 		newdf= newdf[['chr', 'gene', 'pos1', 'pos2']]
 		newdf.to_csv(output[0], sep= '\t', header= True, index= False)
+
+
+rule UCSC_bp:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_transcription.txt'
+	output:
+		'/mnt/work/pol/ROH/annotation/UCSC_gene_bp.txt'
+	run:
+		d= pd.read_csv(input[0], sep= '\t', header= 0)
+                d['gene']= d.chr.map(str) + ':' + d.gene + ':' + d.EntrezID.map(str)
+                d= d[[ 'chr', 'gene', 'start', 'end']]
+                d['start']= d.start - 10000
+                d['end']= d.end + 10000
+		d.columns= ['chr', 'gene', 'pos1', 'pos2']
+		d.to_csv(output[0], sep= '\t', header= True, index= False)
 
 rule concat_LOF_GNOMAD:
 	''
@@ -110,6 +115,7 @@ rule LOF_replace_bp_cm:
                 d= pd.read_csv(input[0], sep= '\t', header= None, names= ['chr', 'pos', 'lof'])
 		d['chr']= d.chr.replace('X', '23')
 		d['chr']= pd.to_numeric(d.chr, errors= 'coerce')
+		d= d.loc[d.lof.isin(['stop_lost', 'stop_gained', 'start_lost', 'frameshift', 'splice_acceptor', 'splice_donor'])]
                 g= pd.read_csv(input[1], delim_whitespace= True, header= 0, names= ['chr', 'pos', 'rate', 'cM'])
                 g= g[['chr', 'cM', 'pos']]
                 x= pd.read_csv(input[2], sep= ' ', header= 0, names= ['pos', 'rate', 'cM'])
@@ -125,60 +131,44 @@ rule LOF_replace_bp_cm:
                 newdf= newdf[['chr', 'pos', 'cM', 'lof']]
                 newdf.to_csv(output[0], sep= '\t', header= True, index= False)
 
-rule filter_LOF_protein_coding_genes:
-	''
+rule GMM_ROH:
+	'Select larger ROHs.'
 	input:
-		'/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt',
-		'/mnt/work/pol/ROH/GNOMAD/LOF_genetic_distance.txt'
+		'/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{sample}.hom'
 	output:
-		temp('/mnt/work/pol/ROH/GNOMAD/LOF_coding.txt')
-	run:
-		d= pd.read_csv(input[0], header= 0, sep= '\t')
-		d= d.loc[(d.pos2 - d.pos1 > 0), :]
-		lof= pd.read_csv(input[1], header= 0, sep= '\t')
-		def merge_range(df_range, df_val):
-			a = df_val.cM.values
-			bh = df_range.pos2.values
-			bl = df_range.pos1.values
-			i, j = np.where((a[:, None] >= bl) & (a[:, None] <= bh))
-			stacked_df= pd.DataFrame(np.column_stack([df_val.values[i], df_range.values[j]]), columns= df_val.columns.append(df_range.columns))
-			stacked_df.drop_duplicates(subset= ['chr', 'cM'], keep= 'first')
-			stacked_df= stacked_df.loc[:, ['chr', 'cM', 'lof']]
-			return stacked_df
-		temp_list= list()
-		for CHR in set(d.chr):
-			temp_df= d.loc[d.chr== CHR, :]
-			lof_chr= lof.loc[lof.chr== CHR, :]
-			temp_list.append(merge_range(temp_df, lof_chr))
-		x= pd.concat(temp_list)
-		x= x.iloc[:, [0,2,3]]
-		x.to_csv(output[0], sep= '\t', header= True, index= False)
-		
+		'/mnt/work/pol/ROH/{cohort}/runs/classBC_{cohort}_{sample}.hom',
+		'/mnt/work/pol/ROH/{cohort}/runs/classBC_{sample}_sizes.txt'
+	script:
+		'GMM_ROH.R'
+
 
 rule map_ROH_genes:
 	'Map ROH segments to genes.'
 	input:
 		'/mnt/work/pol/ROH/annotation/UCSC_gene_genetic_distance.txt',
-		'/mnt/work/pol/ROH/GNOMAD/LOF_coding.txt',
-		expand('/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{{sample}}.hom', cohort= cohort_nms),
+		expand('/mnt/work/pol/ROH/{cohort}/runs/classBC_{cohort}_{{sample}}.hom', cohort= cohort_nms),
 		expand('/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{{sample}}.hom.indiv', cohort= cohort_nms)
 	output:
-		temp('/mnt/work/pol/ROH/genotypes/maps/gene/{sample}_genemap.txt')
+		temp('/mnt/work/pol/ROH/genotypes/maps/gene/{sample}_genemap_CHR{CHR}.txt')
 	script:
 		'gene_maps_ROH.py'
 
 rule top_segments:
 	''
 	input:
-		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt',
+		'/mnt/work/pol/ROH/results/surv_spont_{sample}',
+		'/mnt/work/pol/ROH/results/{sample}/eff_ROH.txt',
 		expand('/mnt/work/pol/ROH/genotypes/maps/{{sample}}/segments_maps_{{sample}}_chr{CHR}.txt.gz', CHR= CHR_nms)
 	output:
 		'/mnt/work/pol/ROH/genotypes/maps/{sample}/top_segments_{sample}.txt'
 	run:
-		if os.stat(input[0]).st_size == 0:
-			open(output[0], 'a').close()
+		d= pd.read_csv(input[0], sep= '\t', header= 0)
+		with open(input[1]) as f:
+                        eff= sum([int(line.strip()) for line in f])
+		d= d.loc[d.pvalue< 0.05/ eff, :]
+                if d.shape[0]== 0:
+                        open(output[0], 'a').close()
 		else:
-			d= pd.read_csv(input[0], sep= '\t', header= 0)
 			df_list= list()
 			flist= [infile for infile in input if infile.endswith('.gz')]
 			for infile in flist:

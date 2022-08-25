@@ -1,0 +1,60 @@
+---
+output:
+    pdf_document:
+        dev: cairo_pdf
+        latex_engine: xelatex
+        fig_caption: yes
+header-includes:
+- \usepackage{titling}
+- \setlength{\droptitle}{10em}
+- \renewcommand{\caption}{}
+- \usepackage[font=bf]{caption}
+- \pagenumbering{gobble}
+---
+
+```{r dependencies, include=FALSE}
+library("ggplot2")
+library(cowplot)
+library("dplyr")
+library("survival")
+library("knitr")
+library("gridExtra")
+library("tidyr")
+library("kableExtra")
+library("data.table")
+options(warn=-1)
+opts_chunk$set(dpi=300)
+```
+
+```{r echo= F}
+
+d= fread(snakemake@input[[1]], h=T)
+d= mutate(d, cohort= ifelse(cohort =='harvestm12', 'Cohort1', ifelse(cohort== 'harvestm24', 'Cohort2', ifelse(cohort== 'rotterdam1', 'Cohort3', ifelse(cohort== 'rotterdam2', 'Cohort4', ifelse(cohort== 'normentfeb', 'Cohort5', 'Cohort6'))))))
+d= filter(d, ROH_class== 3)
+d= d %>% select( cohort, min_distance) 
+d= d%>% mutate(min_distance= round(min_distance/ 1000, 1))
+
+
+d1= fread(snakemake@input[[2]], h=T)
+d1= mutate(d1, cohort= ifelse(cohort =='harvestm12', 'Cohort1', ifelse(cohort== 'harvestm24', 'Cohort2', ifelse(cohort== 'rotterdam1', 'Cohort3', ifelse(cohort== 'rotterdam2', 'Cohort4', ifelse(cohort== 'normentfeb', 'Cohort5', 'Cohort6'))))))
+d1= filter(d1, ROH_class== 3)
+d1=d1 %>% select(cohort, min_distance) 
+d1= d1 %>% mutate(min_distance= round(min_distance/ 1000, 1))
+
+
+d2= fread(snakemake@input[[3]], h=T)
+
+d2= mutate(d2, cohort=  ifelse(cohort =='harvestm12', 'Cohort1', ifelse(cohort== 'harvestm24', 'Cohort2', ifelse(cohort== 'rotterdam1', 'Cohort3', ifelse(cohort== 'rotterdam2', 'Cohort4', ifelse(cohort== 'normentfeb', 'Cohort5', 'Cohort6'))))))
+
+d2= filter(d2, ROH_class== 3) 
+d2= d2 %>% select(cohort, min_distance) 
+d2= d2 %>% mutate(min_distance= round(min_distance/ 1000, 1))
+
+kable(d, align= c('l', 'c'), row.names= F, col.names=c('Sub-cohort', 'Minimum length, cM'), caption = "S7A Table: Maternal long autozygous segment boundaries for each cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Boundaries were obtained using unsupervised three-component Gaussian fitting of autozygous segment length distribution.'), threeparttable= T)
+
+kable(d1, align= c('l', 'c'), row.names= F, col.names=c('Sub-cohort', 'Minimum length, cM'), caption = "S7B Table: Paternal long autozygous segment boundaries for each cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Boundaries were obtained using unsupervised three-component Gaussian fitting of autozygous segment length distribution.'), threeparttable= T)
+
+kable(d2, align= c('l', 'c'), row.names= F, col.names=c('Sub-cohort', 'Minimum length, cM'), caption = "S7C Table: Fetal long autozygous segment boundaries for each cohort.", booktabs = T) %>% kable_styling(latex_options= c('striped')) %>% column_spec(1, bold = T, color = "black", background = "white") %>% footnote(general_title= '', general= c('Boundaries were obtained using unsupervised three-component Gaussian fitting of autozygous segment length distribution.'), threeparttable= T)
+
+```
+

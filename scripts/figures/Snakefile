@@ -102,6 +102,35 @@ rule manhattan_fig:
         script:
                 'manhattan_plots.R'
 
+rule qq_fig_segments:
+        ''
+        input:
+                expand('/mnt/work/pol/ROH/results/surv_spont_{sample}', sample= smpl_nms)
+        output:
+                '/mnt/work/pol/ROH/figures/qqplot_segments.eps'
+        script:
+                'qq_plots.R'
+
+rule manhattan_fig_gene_burden:
+        ''
+        input:
+                '/mnt/work/pol/ROH/annotation/burden_gene_{sample}.txt',
+                '/mnt/work/pol/ROH/results/{sample}/gene_burden_eff_ROH.txt'
+        output:
+                '/mnt/work/pol/ROH/figures/gene_burden_mht_{sample}.eps'
+        script:
+                'manhattan_plots_gene.R'
+
+rule qq_fig_gene_burden:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/annotation/burden_gene_{sample}.txt', sample= smpl_nms)
+	output:
+		'/mnt/work/pol/ROH/figures/qqplot_gene_burden.eps'
+	script:
+		'qq_plots.R'
+
+
 rule hazard_curves_subcohorts_fig:
         ''
         input:
@@ -116,7 +145,7 @@ rule frequency_fig:
         input:
                 expand('/mnt/work/pol/ROH/results/surv_spont_{sample}', sample= smpl_nms)
         output:
-                '/mnt/work/pol/ROH/figures/ROH_frequency.eps',
+                '/mnt/work/pol/ROH/figures/ROH_frequency.eps'
         script:
                 'frequency_plots.R'
 
@@ -147,11 +176,36 @@ rule segments_pvalue:
 		'/mnt/work/pol/ROH/annotation/independent_OMIM_HC_{sample}.txt',
 		'/mnt/work/pol/ROH/annotation/cM_gene_transcription.txt',
 		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
-		'/mnt/work/pol/ROH/results/surv_spont_{sample}'
+		'/mnt/work/pol/ROH/results/surv_spont_{sample}',
+		'/mnt/work/pol/ROH/annotation/cM_gene_cds.txt'
 	output:
 		'/mnt/work/pol/ROH/figures/segments_pvalue_{sample}.eps'
 	script:
 		'segmental_plot.R'
+
+rule gene_burden_segments:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/cM_gene_transcription.txt',
+                '/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
+                '/mnt/work/pol/ROH/results/burden_survival_{sample}.txt',
+                '/mnt/work/pol/ROH/annotation/cM_gene_cds.txt'
+	output:
+		'/mnt/work/pol/ROH/figures/gene_burden_pvalue_{sample}.eps'
+	script:
+		'gene_burden.R'
+
+rule gene_burden_maternal_2:
+	''
+	input:
+		'/mnt/work/pol/ROH/annotation/cM_gene_transcription.txt',
+		'/mnt/work/pol/ROH/1KG/1000GP_Phase3/genetic_map_combined_b37.txt',
+		'/mnt/work/pol/ROH/results/burden_survival_maternal.txt',
+		'/mnt/work/pol/ROH/annotation/cM_gene_cds.txt'
+	output:
+		'/mnt/work/pol/ROH/figures/locus_2_gene_burden_pvalue_maternal.eps'
+	script:
+		'gene_burden_maternal2.R'
 
 rule survival_curves_top:
 	''
@@ -163,6 +217,71 @@ rule survival_curves_top:
 		'/mnt/work/pol/ROH/figures/survival_curves_{sample}.eps'
 	script:
 		'survival_curves_segments.R'
+
+rule maternal_fetal_effect_size:
+	''
+	input:
+		'/mnt/work/pol/ROH/results/burden_survival_maternal.txt',
+		'/mnt/work/pol/ROH/results/maternal/gene_burden_eff_ROH.txt',
+		'/mnt/work/pol/ROH/results/burden_survival_fetal.txt',
+		'/mnt/work/pol/ROH/results/fetal/gene_burden_eff_ROH.txt'
+	output:
+		'/mnt/work/pol/ROH/figures/maternal_fetal_gene_burden.eps'
+	script:
+		'effect_sizes.R'
+
+
+rule merge_hom:
+	''
+	input:
+		expand('/mnt/work/pol/ROH/{cohort}/runs/{cohort}_{{sample}}.hom', cohort= cohort_nms)
+	output:
+		'/mnt/work/pol/ROH/runs/runs_{sample}.hom'
+	run:
+		df_list= list()
+		for infile in input:
+			d= pd.read_csv(infile, sep= '\t', header=0)
+			d['cohort']= infile.split('/')[5]
+			df_list.append(d)
+		d= pd.concat(df_list)
+		d.to_csv(output[0], header= True, sep= '\t', index= False)
+
+rule merge_limits_ROH_size:
+        ''
+        input:
+                expand('/mnt/work/pol/ROH/{cohort}/runs/classBC_{{sample}}_sizes.txt', cohort= cohort_nms)
+        output:
+                '/mnt/work/pol/ROH/runs/ROH_size_{sample}.txt'
+        run:
+                df_list= list()
+                for infile in input:
+                        d= pd.read_csv(infile, sep= '\t', header=0)
+			d['cohort']= infile.split('/')[5]
+                        df_list.append(d)
+                d= pd.concat(df_list)
+                d.to_csv(output[0], header= True, sep= '\t', index= False)
+
+rule segment_size:
+	''
+	input:
+		'/mnt/work/pol/ROH/runs/runs_maternal.hom',
+		'/mnt/work/pol/ROH/runs/runs_paternal.hom',
+		'/mnt/work/pol/ROH/runs/runs_fetal.hom'
+	output:
+		'/mnt/work/pol/ROH/figures/ROH_size.eps'
+	script:
+		'ROH_size.R'
+
+rule segment_overlap_fig:
+	''
+	input:
+		'/mnt/work/pol/ROH/fixed_params/overlap_Joshi_params_maternal_ROH.txt',
+		'/mnt/work/pol/ROH/fixed_params/overlap_Joshi_params_paternal_ROH.txt',
+		'/mnt/work/pol/ROH/fixed_params/overlap_Joshi_params_fetal_ROH.txt'
+	output:
+		'/mnt/work/pol/ROH/figures/density_overlap.eps'
+	script:
+		'rel_overlap_segments.R'
 
 #### Tables:
 
@@ -292,6 +411,30 @@ rule parental_genetic_relatedness:
 
 ######## Supplementary Figures
 
+rule S_figures:
+	''
+	input:
+		'/mnt/work/pol/ROH/figures/SNP_R2_optim_allcoh_nohet.eps',
+                '/mnt/work/pol/ROH/figures/SNP_R2_optim_allcoh_1het.eps',
+		'/mnt/work/pol/ROH/figures/ROH_frequency.eps',
+		'/mnt/work/pol/ROH/figures/qqplot_segments.eps',
+		'/mnt/work/pol/ROH/figures/survival_curves_maternal.eps',
+		'/mnt/work/pol/ROH/figures/zscore_mht_paternal.eps',
+		'/mnt/work/pol/ROH/figures/zscore_mht_fetal.eps',
+		'/mnt/work/pol/ROH/figures/segments_pvalue_paternal.eps',
+		'/mnt/work/pol/ROH/figures/segments_pvalue_fetal.eps',
+		'/mnt/work/pol/ROH/figures/qqplot_gene_burden.eps',
+		'/mnt/work/pol/ROH/figures/gene_burden_mht_paternal.eps',
+		'/mnt/work/pol/ROH/figures/gene_burden_mht_fetal.eps',
+		'/mnt/work/pol/ROH/figures/gene_burden_pvalue_maternal.eps',
+		'/mnt/work/pol/ROH/figures/gene_burden_pvalue_fetal.eps',
+		'/mnt/work/pol/ROH/figures/locus_2_gene_burden_pvalue_maternal.eps',
+		'/mnt/work/pol/ROH/figures/fixed_params_Joshi.eps'
+	output:
+		'/mnt/work/pol/ROH/figures/S_Figures.pdf'
+	script:
+		'S_figures.Rmd'
+
 rule S1_figures:
 	''
 	input:
@@ -302,35 +445,96 @@ rule S1_figures:
 	script:
 		'S1_figures.Rmd'
 
-rule S2_figures:
+rule S2_figure:
 	''
 	input:
-		'/mnt/work/pol/ROH/figures/fixed_params_Joshi.eps'
+		'/mnt/work/pol/ROH/figures/ROH_frequency.eps'
 	output:
 		'/mnt/work/pol/ROH/figures/S2_Figure.pdf'
 	script:
 		'S2_figure.Rmd'
 
 rule S3_figure:
-	''
-	input:
-		'/mnt/work/pol/ROH/figures/ROH_frequency.eps'
-	output:
-		'/mnt/work/pol/ROH/figures/S3_Figure.pdf'
-	script:
-		'S3_figure.Rmd'
+        ''
+        input:
+                '/mnt/work/pol/ROH/figures/qqplot_segments.eps'
+        output:
+                '/mnt/work/pol/ROH/figures/S3_Figure.pdf'
+        script:
+                'S3_figure.Rmd'
 
 rule S4_figure:
         ''
         input:
-                '/mnt/work/pol/ROH/figures/segments_pvalue_maternal.eps'
+                '/mnt/work/pol/ROH/figures/survival_curves_maternal.eps'
         output:
                 '/mnt/work/pol/ROH/figures/S4_Figure.pdf'
         script:
                 'S4_figure.Rmd'
 
+rule S5_figure:
+        ''
+        input:
+                '/mnt/work/pol/ROH/figures/zscore_mht_paternal.eps',
+		'/mnt/work/pol/ROH/figures/zscore_mht_fetal.eps'
+        output:
+                '/mnt/work/pol/ROH/figures/S5_Figure.pdf'
+        script:
+                'S5_figure.Rmd'
+
+rule S6_figure:
+	''
+	input:
+		'/mnt/work/pol/ROH/figures/qqplot_gene_burden.eps'
+	output:
+		'/mnt/work/pol/ROH/figures/S6_Figure.pdf'
+	script:
+		'S6_figure.Rmd'
+
+rule S7_figure:
+	''
+	input:
+		'/mnt/work/pol/ROH/figures/gene_burden_mht_paternal.eps',
+		'/mnt/work/pol/ROH/figures/gene_burden_mht_fetal.eps'
+	output: 
+		'/mnt/work/pol/ROH/figures/S7_Figure.pdf'
+	script:
+                'S7_figure.Rmd'
+
+
+rule S8_figures:
+        ''
+        input:
+                '/mnt/work/pol/ROH/figures/fixed_params_Joshi.eps'
+        output:
+                '/mnt/work/pol/ROH/figures/S8_Figure.pdf'
+        script:
+                'S8_figure.Rmd'
+
 
 ####### Supplementary Tables:
+
+rule S_Tables:
+	''
+	input:
+		'/mnt/work/pol/ROH/tables/parental_relatedness.txt',
+		'/mnt/work/pol/ROH/tables/optim_param.txt',
+		'/mnt/work/pol/ROH/tables/autoz_all.txt',
+                '/mnt/work/pol/ROH/tables/autoz_maternal.txt',
+                '/mnt/work/pol/ROH/tables/autoz_paternal.txt',
+                '/mnt/work/pol/ROH/tables/autoz_fetal.txt',
+		'/mnt/work/pol/ROH/tables/AFT_FROH.txt',
+		'/mnt/work/pol/ROH/annotation/genes_imputed_maternal.txt',
+                '/mnt/work/pol/ROH/results/maternal/gene_burden_eff_ROH.txt',
+		'/mnt/work/pol/ROH/tables/descr_cohorts.txt',
+                '/mnt/work/pol/ROH/tables/pvalues_descr_cohorts.txt',
+		'/mnt/work/pol/ROH/runs/ROH_size_maternal.txt',
+                '/mnt/work/pol/ROH/runs/ROH_size_paternal.txt',
+                '/mnt/work/pol/ROH/runs/ROH_size_fetal.txt'
+	output:
+		'/mnt/work/pol/ROH/tables/S_Tables.pdf'
+	script:
+		'S_tables.Rmd'
 
 rule S1_table:
 	''
@@ -372,21 +576,45 @@ rule S4_table:
                 'S4_table.Rmd'
 
 rule S5_table:
+        ''
+        input:
+                '/mnt/work/pol/ROH/annotation/genes_imputed_maternal.txt',
+		'/mnt/work/pol/ROH/results/maternal/gene_burden_eff_ROH.txt'
+        output:
+                '/mnt/work/pol/ROH/tables/S5_Table.pdf'
+        script:
+                'S5_table.Rmd'
+
+
+rule S6_table:
 	''
 	input:
 		'/mnt/work/pol/ROH/tables/descr_cohorts.txt',
 		'/mnt/work/pol/ROH/tables/pvalues_descr_cohorts.txt'
 	output:
-		'/mnt/work/pol/ROH/tables/S5_Table.pdf'
-	script:
-		'S5_table.Rmd'
-
-rule S6_table:
-	''
-	output:
 		'/mnt/work/pol/ROH/tables/S6_Table.pdf'
 	script:
 		'S6_table.Rmd'
+
+
+rule S7_table:
+	''
+	input:
+		'/mnt/work/pol/ROH/runs/ROH_size_maternal.txt',
+		'/mnt/work/pol/ROH/runs/ROH_size_paternal.txt',
+		'/mnt/work/pol/ROH/runs/ROH_size_fetal.txt'
+	output:
+		'/mnt/work/pol/ROH/tables/S7_Table.pdf'
+	script:
+		'S7_table.Rmd'
+
+
+rule S8_table:
+	''
+	output:
+		'/mnt/work/pol/ROH/tables/S8_Table.pdf'
+	script:
+		'S8_table.Rmd'
 
 
 ### Non-used

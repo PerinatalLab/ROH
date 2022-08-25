@@ -1,0 +1,185 @@
+---
+title: "Supplementary Figures"
+subtitle: "\\vspace{2cm} Autozygosity mapping and time-to-spontaneous delivery in  \nNorwegian parent-offspring trios\\vspace{4cm}"
+author: "Sole-Navais P, Bacelis J, Helgeland O, Modzelewska D, Vaudel M, Flatley C, Andreassen O, Njølstad PR, Muglia LJ, Johansson S, Zhang G, Jacobsson B"
+output:
+    pdf_document:
+        dev: cairo_pdf
+        latex_engine: xelatex
+        fig_caption: yes
+header-includes:
+- \usepackage{titling}
+- \setlength{\droptitle}{10em}
+- \renewcommand{\caption}{}
+- \usepackage{float}
+- \floatplacement{figure}{H}
+---
+
+\newpage
+
+\tableofcontents
+	
+```{r dependencies, include=FALSE}
+library("ggplot2")
+library(cowplot)
+library("dplyr")
+library("survival")
+library("knitr")
+library("gridExtra")
+library("tidyr")
+library("kableExtra")
+library("data.table")
+options(warn=-1)
+opts_chunk$set(dpi=300)
+```
+
+\newpage
+
+
+# S1 Figure
+
+
+```{r fig.align="center", fig.cap=" S1A Figure: Spearman rank-order correlation coefficient between offspring ROH and total parental genetic relatedness according to the minimum number of genetic variants included in ROH (no heterozygous genotypes allowed). Results for all sub-cohorts are presented using only genetic distance (cM) for ROH calling. Genetic data was pruned before ROH calling using different values (no pruning, 0.9 and 0.5 ), presented with different line types and colours.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[1]])
+
+```
+
+\newpage
+
+# S2 Figure
+
+```{r fig.align="center", fig.cap=" S2 Figure: Frequency of autozygous segments in mothers, fathers and fetuses in all sub-cohorts. For each family member, segments were split into non-overlapping segments. Segments shared across sub-cohorts or unique to each sub-cohort are shown.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[2]])
+
+```
+
+\newpage
+
+# S3 Figure
+
+
+```{r fig.align="center", fig.cap=" S3 Figure: Quantile-quantile plot for the p-values obtained by autozygosity mapping in mothers (n segments= 60391), fathers (n segments= 58742) and fetuses (n segments= 44741).", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[3]])
+
+```
+
+\newpage
+
+
+# S4 Figure
+
+
+```{r fig.align="center", fig.cap=" S4 Figure: Association between the top maternal autozygous segment in the TBC1D1 gene region and spontaneous onset of delivery. AFT model was unadjusted, and deliveries before the vertical grey line are considered preterm.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[4]])
+
+```
+
+\newpage
+
+# S5 Figures
+
+
+```{r fig.align="center", fig.cap=" S5A Figure: Associations between paternal autozygous segments and time-to-spontaneous delivery. Z-scores of paternal autozygous segments obtained from accelerated failure time models on time-to-spontaneous onset of delivery. The Bonferroni threshold for significance using the effective number of segments (n= 22,901, n autozygous segments= 58,742, effective n of segments= 13,328) is indicated by the dotted line.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[6]])
+
+```
+
+\newpage
+
+```{r fig.align="center", fig.cap=" S5B Figure: Associations between autozygous segments at the paternal segment at 12q21 with time-to-spontaneous onset of delivery. P-values were obtained from accelerated failure time models on time-to-spontaneous onset of delivery (n= 22,901). Gene names for the ten longest genes in the region, recombination rate, transcript orientation (arrow) and coding region (purple) are also depicted.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[8]])
+
+```
+
+\newpage
+
+```{r fig.align="center", fig.cap=" S5C Figure: Associations between fetal autozygous segments and time-to-spontaneous delivery. Z-scores of fetal autozygous segments obtained from accelerated failure time models on time-to-spontaneous onset of delivery. The Bonferroni threshold for significance using the effective number of segments (n= 23,332, n autozygous segments= 44,741, effective n of segments= 11,982) is indicated by the dotted line.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[7]])
+
+```
+
+\newpage
+
+
+```{r fig.align="center", fig.cap=" S5D Figure: Associations between autozygous segments at the fetal segment at 3q22 with time-to-spontaneous onset of delivery. P-values were obtained from accelerated failure time models on time-to-spontaneous onset of delivery (n= 23,332). Gene names for the ten longest genes in the region, recombination rate, transcript orientation (arrow) and coding region (purple) are also depicted.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[9]])
+```
+
+
+\newpage
+
+# S6 Figure
+
+
+```{r fig.align="center", fig.cap=" S6 Figure: Quantile-quantile plot for the p-values obtained in the long segment gene burden analysis in mothers (n genes= 18675), fathers (n genes= 17931) and fetuses (n genes= 17621).", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[10]])
+
+```
+
+\newpage
+
+# S7 Figures
+
+
+```{r fig.align="center", fig.cap=" S7A Figure: Gene burden associations between autozygous segments at SIGLECs fetal gene region and time-to-spontaneous onset of delivery. P-values were obtained from accelerated failure time models on time-to-spontaneous onset of delivery (n= 23,332). Gene names for the ten longest genes in the region, recombination rate, transcript orientation (arrow) and coding region (purple) are also depicted.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[13]])
+```
+
+
+\newpage
+
+```{r fig.align="center", fig.cap=" S7B Figure: Gene burden associations between autozygous segments at SIGLECs fetal gene region and time-to-spontaneous onset of delivery. P-values were obtained from accelerated failure time models on time-to-spontaneous onset of delivery (n= 23,332). Gene names for the ten longest genes in the region, recombination rate, transcript orientation (arrow) and coding region (purple) are also depicted.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[15]])
+```
+
+
+\newpage
+
+
+```{r fig.align="center", fig.cap=" S7C Figure: Associations between paternal long segment gene burden test and time-to-spontaneous onset of delivery. Z-scores of paternal genes were obtained from accelerated failure time models on time-to-spontaneous onset of delivery. The Bonferroni threshold for significance using the effective number of segments (n= 22,901, n genes= 17,931, effective n of genes= 1,099) is indicated by the dotted line.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[11]])
+
+```
+
+
+\newpage
+
+
+```{r fig.align="center", fig.cap=" S7D Figure: Associations between fetal long segment gene burden test and time-to-spontaneous delivery. Z-scores of fetal genes were obtained from accelerated failure time models on time-to-spontaneous onset of delivery. The Bonferroni threshold for significance using the effective number of segments (n= 23,332, n genes= 17,621, effective n of genes= 565) is indicated by the dotted line.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[12]])
+
+```
+
+\newpage
+
+```{r fig.align="center", fig.cap=" S7E Figure: Gene burden associations between autozygous segments at DAOA fetal gene region and time-to-spontaneous onset of delivery. P-values were obtained from accelerated failure time models on time-to-spontaneous onset of delivery (n= 23,332). Gene names for the ten longest genes in the region, recombination rate, transcript orientation (arrow) and coding region (purple) are also depicted.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[14]])
+```
+
+
+\newpage
+
+
+# S8 Figure
+
+
+```{r fig.align="center", fig.cap=" S8 Figure: Associations between offspring ROHs called using Joshi parameters and total parental genetic relatedness (cM) in each sub-cohort. ROH calling parameters were fixed. Sample size: 5024, 3240, 4533, 2566, 1221, 3957, respectively for cohort1 to cohort6, in order.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[16]])
+
+```
+

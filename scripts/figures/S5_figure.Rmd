@@ -1,0 +1,43 @@
+---
+output:
+    pdf_document:
+        dev: cairo_pdf
+        latex_engine: xelatex
+        fig_caption: yes
+header-includes:
+- \usepackage{titling}
+- \setlength{\droptitle}{10em}
+- \renewcommand{\caption}{}
+- \pagenumbering{gobble}
+---
+
+```{r dependencies, include=FALSE}
+library("ggplot2")
+library(cowplot)
+library("dplyr")
+library("survival")
+library("knitr")
+library("gridExtra")
+library("tidyr")
+library("kableExtra")
+library("data.table")
+options(warn=-1)
+opts_chunk$set(dpi=300)
+```
+
+
+```{r fig.align="center", fig.cap=" S5A Figure: Associations between paternal autozygous segments and time-to-spontaneous delivery. Z-scores of paternal autozygous segments obtained from accelerated failure time models on time-to-spontaneous onset of delivery. The Bonferroni threshold for significance using the effective number of segments (n= 22901, n autozygous segments= 58742, effective n of segments= 13328) is indicated by the dotted line.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[1]])
+
+```
+
+
+---
+
+```{r fig.align="center", fig.cap=" S5B Figure: Associations between fetal autozygous segments and time-to-spontaneous delivery. Z-scores of fetal autozygous segments obtained from accelerated failure time models on time-to-spontaneous onset of delivery. The Bonferroni threshold for significance using the effective number of segments (n= 23332, n autozygous segments= 44741, effective n of segments= 11982) is indicated by the dotted line.", echo=FALSE}
+
+knitr::include_graphics(snakemake@input[[2]])
+
+```
+
